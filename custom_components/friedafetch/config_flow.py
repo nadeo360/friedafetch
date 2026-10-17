@@ -43,6 +43,10 @@ from .const import (
     CONF_APPROVAL_NOTIFY,
     CONF_APPROVAL_SEND,
     CONF_APPROVAL_TIMEOUT,
+    CONF_ATTACHMENTS_DIR,
+    CONF_DIGEST_AI_TASK,
+    CONF_DIGEST_NOTIFY,
+    CONF_DIGEST_TIME,
     CONF_ENABLE_CALENDAR,
     CONF_ENABLE_CONTACTS,
     CONF_ENABLE_MAIL,
@@ -59,6 +63,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_RULES_AUTO,
     CONF_RULES_INTERVAL,
+    CONF_RULES_PUSH,
     CONF_SEND_ALLOW_BCC,
     CONF_SEND_ALLOWLIST,
     CONF_SEND_MAX_RECIPIENTS,
@@ -81,6 +86,7 @@ from .const import (
     DEFAULT_READ_ONLY,
     DEFAULT_RULES_AUTO,
     DEFAULT_RULES_INTERVAL,
+    DEFAULT_RULES_PUSH,
     DEFAULT_SEND_ALLOW_BCC,
     DEFAULT_SEND_MAX_RECIPIENTS,
     DEFAULT_SEND_POLICY,
@@ -251,7 +257,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
     """Options in three groups: tools, security guard rails, rules."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["tools", "security", "approvals", "rules"])
+        return self.async_show_menu(step_id="init", menu_options=["tools", "security", "approvals", "rules", "extras"])
 
     def _save(self, changes: dict[str, Any]) -> ConfigFlowResult:
         return self.async_create_entry(title="", data={**self.config_entry.options, **changes})
@@ -431,6 +437,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required(CONF_RULES_AUTO, default=opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)): BooleanSelector(),
+                vol.Required(CONF_RULES_PUSH, default=opts.get(CONF_RULES_PUSH, DEFAULT_RULES_PUSH)): BooleanSelector(),
                 vol.Required(
                     CONF_RULES_INTERVAL, default=opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)
                 ): NumberSelector(
@@ -441,3 +448,50 @@ class ICloudMcpOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="rules", data_schema=schema)
+
+    async def async_step_extras(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            user_input[CONF_DIGEST_TIME] = str(user_input.get(CONF_DIGEST_TIME) or "").strip()
+            user_input[CONF_DIGEST_NOTIFY] = str(user_input.get(CONF_DIGEST_NOTIFY) or "").removeprefix("notify.")
+            user_input[CONF_DIGEST_AI_TASK] = str(user_input.get(CONF_DIGEST_AI_TASK) or "")
+            user_input[CONF_ATTACHMENTS_DIR] = str(user_input.get(CONF_ATTACHMENTS_DIR) or "").strip()
+            clock = user_input[CONF_DIGEST_TIME]
+            if clock and not _valid_clock(clock):
+                errors[CONF_DIGEST_TIME] = "invalid_time"
+            folder = user_input[CONF_ATTACHMENTS_DIR]
+            if folder and not await self.hass.async_add_executor_job(self.hass.config.is_allowed_path, folder):
+                errors[CONF_ATTACHMENTS_DIR] = "path_not_allowed"
+            if not errors:
+                return self._save(user_input)
+        opts = {**self.config_entry.options, **(user_input or {})}
+        notify_services = sorted(self.hass.services.async_services().get("notify", {}))
+        current_notify = opts.get(CONF_DIGEST_NOTIFY) or ""
+        notify_options = [{"value": "", "label": "–"}] + [{"value": n, "label": f"notify.{n}"} for n in notify_services]
+        if current_notify and current_notify not in notify_services:
+            notify_options.append({"value": current_notify, "label": f"notify.{current_notify}"})
+        ai_tasks = sorted(self.hass.states.async_entity_ids("ai_task"))
+        current_ai = opts.get(CONF_DIGEST_AI_TASK) or ""
+        ai_options = [{"value": "", "label": "–"}] + [{"value": e, "label": e} for e in ai_tasks]
+        if current_ai and current_ai not in ai_tasks:
+            ai_options.append({"value": current_ai, "label": current_ai})
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_DIGEST_TIME, default=opts.get(CONF_DIGEST_TIME) or ""): TextSelector(),
+                vol.Optional(CONF_DIGEST_NOTIFY, default=current_notify): SelectSelector(
+                    SelectSelectorConfig(options=notify_options, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Optional(CONF_DIGEST_AI_TASK, default=current_ai): SelectSelector(
+                    SelectSelectorConfig(options=ai_options, mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Optional(CONF_ATTACHMENTS_DIR, default=opts.get(CONF_ATTACHMENTS_DIR) or ""): TextSelector(),
+            }
+        )
+        return self.async_show_form(step_id="extras", data_schema=schema, errors=errors)
+
+
+def _valid_clock(value: str) -> bool:
+    parts = value.split(":")
+    if len(parts) != 2 or not all(p.isdigit() for p in parts):
+        return False
+    return 0 <= int(parts[0]) <= 23 and 0 <= int(parts[1]) <= 59

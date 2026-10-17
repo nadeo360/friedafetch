@@ -41,7 +41,8 @@
           "tools": "Tools und Konto",
           "security": "Sicherheit und Leitplanken",
           "rules": "Posteingangsregeln",
-          "approvals": "Freigaben"
+          "approvals": "Freigaben",
+          "extras": "Push, Tagesüberblick und Anhänge"
         }
       },
       "tools": {
@@ -89,7 +90,8 @@
         "title": "Posteingangsregeln",
         "data": {
           "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
-          "rules_interval": "Intervall für automatische Regeln (Minuten)"
+          "rules_interval": "Intervall für automatische Regeln (Minuten)",
+          "rules_push": "Push: Regeln direkt nach dem Eingang neuer Mails anwenden (IMAP IDLE)"
         }
       },
       "approvals": {
@@ -105,7 +107,21 @@
         "data_description": {
           "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App."
         }
+      },
+      "extras": {
+        "title": "Push, Tagesüberblick und Anhänge",
+        "description": "Tagesüberblick: morgens eine kurze Zusammenfassung mit ungelesenen Mails, Regelaktivität, heutigen Terminen und Geburtstagen. Anhänge: Ordner für Belege und Rechnungen, die das Tool oder Posteingangsregeln speichern (muss ein erlaubter Pfad sein, z. B. /media/frieda).",
+        "data": {
+          "digest_time": "Tagesüberblick um (HH:MM, leer = aus)",
+          "digest_notify": "Überblick senden mit (Notify-Dienst; leer = Benachrichtigung in Home Assistant)",
+          "digest_ai_task": "Überblick mit dieser KI-Aufgabe formulieren (optional)",
+          "attachments_dir": "Ordner für Anhänge (leer = <media>/frieda)"
+        }
       }
+    },
+    "error": {
+      "invalid_time": "Bitte eine Uhrzeit im Format HH:MM eingeben, z. B. 07:30.",
+      "path_not_allowed": "Home Assistant erlaubt kein Schreiben in diesen Ordner. Einen Medienordner verwenden oder ihn in allowlist_external_dirs eintragen."
     }
   },
   "selector": {
@@ -125,6 +141,25 @@
     "wrong_folder": {
       "title": "Frieda liegt im falschen Ordner",
       "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; HACS-Updates von Frieda landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über HACS neu installieren (Repository `{repository}`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_birthday": {
+        "name": "Nächster Geburtstag"
+      }
+    }
+  },
+  "services": {
+    "send_digest": {
+      "name": "Tagesüberblick senden",
+      "description": "Sendet den Tagesüberblick (ungelesene Mails, Regelaktivität, heutige Termine, Geburtstage) sofort.",
+      "fields": {
+        "account": {
+          "name": "Konto",
+          "description": "Bezeichnung oder Apple-ID des Kontos (Standard: alle Konten)."
+        }
+      }
     }
   }
 }

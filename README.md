@@ -34,7 +34,8 @@ The project is named after the maintainer's dog Frieda, who looks out of the clo
 | Contacts  | CardDAV             | search (name, mail, phone, company …) and read contacts     | create, update and delete contacts                               |
 | E-mail    | IMAP + SMTP         | mailboxes, search/filter, read mail (text, attachment list) | send/reply, mark read/flagged, move, trash – many uids at once   |
 | Notes     | IMAP folder `Notes` | list/search/read notes                                      | create, update and delete notes                                  |
-| Rules     | HA storage + IMAP   | list inbox rules                                            | create/update/delete rules, run them automatically or on demand  |
+| Rules     | HA storage + IMAP   | list inbox rules, run history                               | create/update/delete rules, run them on new mail (push or timer) |
+| Insights  | all of the above    | mailbox statistics, free time slots, birthdays, duplicate contacts, daily overview | unsubscribe from newsletters, store attachments (receipts) |
 
 ### Important note on Notes
 
@@ -93,7 +94,8 @@ Frieda detects this at startup and shows a repair issue – delete the folder na
 
 ### Options (Configure)
 
-The options dialog has four sections: **Tools and account**, **Security and guard rails**, **Approvals** and **Inbox rules**.
+The options dialog has five sections: **Tools and account**, **Security and guard rails**, **Approvals**, **Inbox rules**
+and **Push, overview and attachments**.
 
 | Option                                   | Effect                                                                   |
 |------------------------------------------|--------------------------------------------------------------------------|
@@ -105,6 +107,11 @@ The options dialog has four sections: **Tools and account**, **Security and guar
 | Sender address                           | `From:` for outgoing mail (default: Apple ID; must be an iCloud alias)   |
 | Apply inbox rules automatically          | run rules periodically on new mail (default: on)                         |
 | Interval for automatic rules             | minutes between automatic runs (default 5, 1–240)                        |
+| Push                                     | IMAP IDLE: apply the rules seconds after new mail arrives (default: on; the interval stays as a fallback) |
+| Daily overview at                        | `HH:MM` for a morning summary (empty = off)                               |
+| Send the overview with                   | a `notify` service, e.g. the companion app (empty = notification in Home Assistant) |
+| Phrase the overview with                 | optional `ai_task` entity that turns the facts into a short text          |
+| Attachment folder                        | where receipts are stored (default `<media>/frieda`; must be an allowed path) |
 | Account label                            | short name used as tool suffix when several accounts are configured      |
 | Security section                         | quotas, recipient policy, protected calendars/mailboxes, hidden mailboxes (see Security) |
 
@@ -177,6 +184,13 @@ the rules panel offers an account selector. Each account has its own rules and o
 | `icloud_delete_rule`     | delete a rule                                                               |
 | `icloud_run_rules`       | apply rules now (`scope` all/new, `dry_run` only reports)                   |
 | `icloud_approval_status` | outcome of an action that required human approval                           |
+| `icloud_mailbox_stats`   | top senders/domains, unread and newsletter share, rule coverage and rule suggestions |
+| `icloud_unsubscribe`     | unsubscribe from a newsletter (one-click https or unsubscribe e-mail)       |
+| `icloud_save_attachments`| store the attachments of a mail in `<folder>/<subfolder>/<YYYY-MM>/`        |
+| `icloud_find_free_time`  | free slots of a given length within working hours                           |
+| `icloud_upcoming_birthdays` | birthdays of the contacts in the coming days (with age, if known)        |
+| `icloud_find_duplicate_contacts` | probable duplicates (same e-mail, phone or name)                    |
+| `icloud_daily_overview`  | unread mail since yesterday, rule activity, today's events, birthdays       |
 | `icloud_list_notes`      | list/search notes                                                           |
 | `icloud_get_note`        | read a note                                                                 |
 | `icloud_create_note`     | create a note                                                               |
@@ -195,9 +209,12 @@ Assistant (`.storage/friedafetch.rules.<entry>`):
 
 - **Conditions** on `from`, `to`, `cc`, `subject` or `any` with `contains`, `equals`, `starts_with`, `ends_with`,
   `domain` (sender domain incl. subdomains) or `regex`; combined with `all` (default) or `any`.
-- **Actions:** `move_to` (folder), `mark_seen`, `flag`, `delete` (trash) and `stop` (default: skip further rules for
-  this message). Deleting through rules requires the "Allow deleting" option.
-- **Automation:** every 5 minutes by default, only for **new** mail since the last run. The very first run only sets
+- **Actions:** `move_to` (folder), `mark_seen`, `flag`, `delete` (trash), `save_attachments` (with an optional
+  `attachments_folder`, e.g. `Receipts`) and `stop` (default: skip further rules for this message). Deleting through
+  rules requires the "Allow deleting" option; attachments are stored before a message is moved or deleted.
+- **Automation:** with **push** (IMAP IDLE) the rules run a few seconds after new mail arrives in the inbox; the
+  timer (every 5 minutes by default) remains as a fallback and covers other mailboxes. Only **new** mail since the
+  last run is processed. The very first run only sets
   the baseline; existing mail is left alone. Use `icloud_run_rules` with `scope: "all"` (newest 2000 messages) and
   `dry_run: true` for a preview.
 - **Execution:** matches are grouped per action and executed with the batch commands in a few IMAP round trips.
@@ -224,6 +241,26 @@ without hits are merged), and the "Runs" and "Activity" tables can be filtered p
 numbers such as `>0`). Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel is optimised for phones (stacked cards instead of tables, large touch targets, approvals with one tap in
 the Home Assistant companion app), has no external dependencies and talks to the integration via WebSocket commands
 (`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`).
+
+## Push, daily overview and attachments
+
+- **Push:** a second IMAP connection waits with IDLE for new mail in the inbox and starts the rules (debounced, so a
+  burst of mails is one run). Lost connections are re-established with backoff; the panel shows the push state next
+  to the automation line, and runs are marked *push* in the history and the activity log.
+- **Daily overview:** at the configured time Frieda collects unread mail since yesterday (newsletters left out),
+  the rule activity of the last 24 hours, today's events and birthdays in the next 7 days, and sends them through
+  the chosen `notify` service. With an `ai_task` entity (e.g. Google Gemini or OpenAI) the overview is phrased as a
+  short text; the mail subjects are passed as data with the instruction not to follow anything inside them. The
+  action `friedafetch.send_digest` sends the overview on demand, e.g. from an automation, and returns the text.
+- **Birthday sensor:** `sensor.frieda_<account>_next_birthday` shows the date of the next birthday; the attributes
+  list the names, the age and everyone in the next 30 days.
+- **Attachments:** `icloud_save_attachments` and the rule action `save_attachments` store attachments below the
+  attachment folder, sorted by month and named `<date>_<sender>_<file>`. Identical files are not stored twice,
+  small images (logos, signatures) are skipped. Home Assistant must allow the folder (media folders are allowed by
+  default, others go into `allowlist_external_dirs`).
+- **Unsubscribe:** `icloud_unsubscribe` uses the `List-Unsubscribe` header: one-click https (RFC 8058) first, then an
+  unsubscribe e-mail (only when sending is allowed; it counts against the sending quota and needs approval if
+  sending does). Links that require a web page are returned for you to open.
 
 ## Security
 

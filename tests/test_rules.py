@@ -107,7 +107,15 @@ async def test_engine_crud_and_persistence(hass: HomeAssistant) -> None:
         )
     updated = await engine.async_update(created["id"], {"name": "News", "actions": {"flag": True}})
     assert updated["name"] == "News"
-    assert updated["actions"] == {"move_to": "Archive", "mark_seen": True, "flag": True, "delete": False, "stop": True}
+    assert updated["actions"] == {
+        "move_to": "Archive",
+        "mark_seen": True,
+        "flag": True,
+        "delete": False,
+        "stop": True,
+        "save_attachments": False,
+        "attachments_folder": None,
+    }
     with pytest.raises(RuleNotFound):
         await engine.async_update("nope", {"name": "x"})
     await hass.async_block_till_done()

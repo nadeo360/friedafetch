@@ -167,6 +167,16 @@ const I18N = {
     filterPh: "filtern …",
     numPh: "z. B. >0",
     whoRules: "Regeln",
+    triggerPush: "Push",
+    pushListening: "Push aktiv",
+    pushConnecting: "Push verbindet …",
+    pushError: "Push gestört: {0}",
+    pushUnsupported: "Push nicht verfügbar",
+    saveAttachments: "Anhänge speichern",
+    attachmentsFolder: "Unterordner für Anhänge",
+    attachmentsHint: "z. B. Belege – gespeichert unter <Anhang-Ordner>/<Unterordner>/<JJJJ-MM>/",
+    aSave: "📎 Anhänge",
+    attachments_unavailable: "Kein Anhang-Ordner eingerichtet (Optionen → Extras).",
   },
   en: {
     title: "Frieda",
@@ -329,8 +339,20 @@ const I18N = {
     filterPh: "filter …",
     numPh: "e.g. >0",
     whoRules: "Rules",
+    triggerPush: "push",
+    pushListening: "push active",
+    pushConnecting: "push connecting …",
+    pushError: "push disrupted: {0}",
+    pushUnsupported: "push unavailable",
+    saveAttachments: "Save attachments",
+    attachmentsFolder: "Subfolder for attachments",
+    attachmentsHint: "e.g. Receipts – stored as <attachment folder>/<subfolder>/<YYYY-MM>/",
+    aSave: "📎 attachments",
+    attachments_unavailable: "No attachment folder configured (options → Extras).",
   },
 };
+
+const trigLabel = (t, trig) => (trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : t.triggerManual);
 
 const fmt = (str, ...args) => String(str).replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
 
@@ -617,7 +639,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       match: "all",
       enabled: true,
       conditions: [{ field: "from", op: "contains", value: "" }],
-      actions: { move_to: null, mark_seen: null, flag: null, delete: false, stop: true },
+      actions: { move_to: null, mark_seen: null, flag: null, delete: false, stop: true, save_attachments: false, attachments_folder: null },
     };
   }
 
@@ -643,6 +665,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
       flag: tri(v("f-flag") ?? ""),
       delete: c("f-delete") ?? false,
       stop: c("f-stop") ?? true,
+      save_attachments: c("f-save") ?? false,
+      attachments_folder: (v("f-save-folder") || "").trim() || null,
     };
     return e;
   }
@@ -842,7 +866,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       return fmtDateTime(h.finished || h.started);
     };
     const rows = s.history.map((h) => {
-      const trig = h.trigger === "auto" ? t.triggerAuto : t.triggerManual;
+      const trig = trigLabel(t, h.trigger);
       const scope = h.scope === "all" ? t.scopeAll : t.scopeNew;
       const ruleText = Object.entries(h.rules || {})
         .map(([name, n]) => `${name} (${n})`)
@@ -902,9 +926,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
       return `<span class="badge ${warn ? "warn" : ""}">${esc(label)}: ${esc(lim)}</span>`;
     };
     const who = (e) => {
-      if (e.tool === "icloud_run_rules" || e.client === "rules" || e.client === "rules (auto)") {
-        const trig = e.details?.trigger || e.params?.trigger || (e.client === "rules (auto)" ? "auto" : null);
-        return [t.whoRules, trig ? (trig === "auto" ? t.triggerAuto : t.triggerManual) : null, e.user].filter(Boolean).join(" · ");
+      if (e.tool === "icloud_run_rules" || String(e.client || "").startsWith("rules")) {
+        const trig = e.details?.trigger || e.params?.trigger || (e.client === "rules (auto)" ? "auto" : e.client === "rules (push)" ? "push" : null);
+        return [t.whoRules, trig ? trigLabel(t, trig) : null, e.user].filter(Boolean).join(" · ");
       }
       return [e.client, e.user].filter(Boolean).join(" · ") || "–";
     };
@@ -986,6 +1010,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
     if (a.mark_seen === false) acts.push(t.aUnseen);
     if (a.flag === true) acts.push(t.aFlag);
     if (a.flag === false) acts.push(t.aUnflag);
+    if (a.save_attachments) acts.push(t.aSave + (a.attachments_folder ? ` → ${esc(a.attachments_folder)}` : ""));
     return { conds, acts: acts.map((x) => `<span class="chip">${x}</span>`).join(" ") };
   }
 
@@ -1106,6 +1131,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
       <div class="row"><label for="f-seen">${esc(t.markSeen)}</label><select id="f-seen">${opt("", t.unchanged, tri(a.mark_seen))}${opt("true", t.seen, tri(a.mark_seen))}${opt("false", t.unseen, tri(a.mark_seen))}</select></div>
       <div class="row"><label for="f-flag">${esc(t.flag)}</label><select id="f-flag">${opt("", t.unchanged, tri(a.flag))}${opt("true", t.flagSet, tri(a.flag))}${opt("false", t.flagClear, tri(a.flag))}</select></div>
       <div class="row"><label></label><label><input type="checkbox" id="f-delete" ${a.delete ? "checked" : ""}> ${esc(t.delete)}</label></div>
+      <div class="row"><label></label><label><input type="checkbox" id="f-save" ${a.save_attachments ? "checked" : ""}> ${esc(t.saveAttachments)}</label></div>
+      <div class="row"><label for="f-save-folder">${esc(t.attachmentsFolder)}</label><input type="text" id="f-save-folder" class="grow" value="${esc(a.attachments_folder || "")}" placeholder="${esc(t.attachmentsHint)}"></div>
       <div class="row"><label></label><label><input type="checkbox" id="f-stop" ${a.stop !== false ? "checked" : ""}> ${esc(t.stop)}</label></div>
       <div class="row"><label></label><label><input type="checkbox" id="f-enabled" ${e.enabled ? "checked" : ""}> ${esc(t.enabled)}</label></div>
       <div class="actionsbar"><button data-action="save" ${this._s.busy ? "disabled" : ""}>${esc(t.save)}</button><button class="secondary" data-action="cancel">${esc(t.cancel)}</button></div>
@@ -1124,6 +1151,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       if (a.mark_seen === false) parts.push(t.aUnseen);
       if (a.flag === true) parts.push(t.aFlag);
       if (a.flag === false) parts.push(t.aUnflag);
+      if (a.save_attachments) parts.push(t.aSave);
       return parts.join(", ");
     };
     const rows = (r.actions || [])
@@ -1148,7 +1176,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const t = this.t;
     const s = this._s;
     const accountSel = "";
-    const trig = s.lastRun ? (s.lastRun.trigger === "auto" ? t.triggerAuto : t.triggerManual) : "";
+    const trig = s.lastRun ? trigLabel(t, s.lastRun.trigger) : "";
     const last = s.lastRun
       ? `${esc(t.lastRun)}: ${esc(fmtDateTime(s.lastRun.finished || s.lastRun.started))} (${esc(trig)}) · ${s.lastRun.checked} ${esc(t.checked)} · ${s.lastRun.matched} ${esc(t.matched)}`
       : `${esc(t.lastRun)}: ${esc(t.never)}`;
@@ -1159,6 +1187,12 @@ class ICloudMcpRulesPanel extends HTMLElement {
       const parts = [fmt(t.autoEvery, au.interval)];
       if (au.next_run) parts.push(fmt(t.nextRun, fmtClock(au.next_run)));
       if (au.last_check) parts.push(`${fmt(t.lastCheck, fmtClock(au.last_check.time))}: ${t["check_" + au.last_check.result] || au.last_check.result}`);
+      if (au.push) {
+        const ps = au.push.state;
+        parts.push(
+          ps === "listening" ? t.pushListening : ps === "connecting" ? t.pushConnecting : ps === "unsupported" ? t.pushUnsupported : fmt(t.pushError, au.push.error || ps)
+        );
+      }
       autoHtml = `<p class="muted" style="margin:0 0 10px">${esc(parts.join(" · "))}</p>`;
       if (au.idle_reason === "no_enabled_rules") autoHtml += `<div class="info" style="margin-bottom:10px">${esc(t.autoIdle)}</div>`;
     } else if (au) {

@@ -117,7 +117,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert set(result["menu_options"]) == {"tools", "security", "approvals", "rules"}
+    assert set(result["menu_options"]) == {"tools", "security", "approvals", "rules", "extras"}
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "tools"})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "tools"

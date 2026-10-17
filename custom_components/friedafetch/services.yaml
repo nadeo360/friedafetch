@@ -1,0 +1,7 @@
+send_digest:
+  fields:
+    account:
+      required: false
+      example: "privat"
+      selector:
+        text:

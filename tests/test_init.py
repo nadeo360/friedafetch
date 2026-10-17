@@ -83,6 +83,11 @@ async def test_options_restrict_tools(hass: HomeAssistant, mock_discover: AsyncM
         "icloud_search_mail",
         "icloud_get_mail",
         "icloud_list_rules",
+        "icloud_mailbox_stats",
+        "icloud_find_free_time",
+        "icloud_upcoming_birthdays",
+        "icloud_find_duplicate_contacts",
+        "icloud_daily_overview",
     }
     assert all(t.annotations.read_only for t in api.tools)
     # the prompt explains why the write tools and the notes tools are missing

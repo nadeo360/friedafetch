@@ -35,7 +35,8 @@ Wolke schaut.
 | Kontakte  | CardDAV            | Kontakte suchen (Name, Mail, Telefon, Firma …), lesen | Kontakt anlegen, ändern, löschen                    |
 | E-Mail    | IMAP + SMTP        | Postfächer, Suche/Filter, Mail lesen (Text, Anhänge-Liste) | Senden/Antworten, gelesen/markiert, verschieben, Papierkorb |
 | Notizen   | IMAP-Ordner `Notes`| Notizen auflisten/suchen/lesen          | Notiz anlegen, ändern, löschen                                |
-| Regeln    | HA-Storage + IMAP  | Posteingangsregeln auflisten            | Regeln anlegen/ändern/löschen, automatisch oder auf Abruf ausführen |
+| Regeln    | HA-Storage + IMAP  | Posteingangsregeln und Ausführungen auflisten | Regeln anlegen/ändern/löschen, bei neuen Mails ausführen (Push oder Takt) |
+| Auswertungen | alle oben       | Postfach-Statistik, freie Zeitfenster, Geburtstage, doppelte Kontakte, Tagesüberblick | Newsletter abbestellen, Anhänge (Belege) ablegen |
 
 ### Wichtiger Hinweis zu Notizen
 
@@ -100,7 +101,8 @@ genannten Ordner löschen und Home Assistant neu starten.
 
 ### Optionen (Konfigurieren)
 
-Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken**, **Freigaben** und **Posteingangsregeln**.
+Der Optionsdialog hat fünf Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken**, **Freigaben**,
+**Posteingangsregeln** sowie **Push, Tagesüberblick und Anhänge**.
 
 | Option                       | Wirkung                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
@@ -110,6 +112,11 @@ Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitp
 | Löschen erlauben             | Versteckt alle `icloud_delete_*`-Tools, wenn deaktiviert                |
 | Standard-Maximalanzahl       | Standard-Limit für Listen (1–200)                                       |
 | Absenderadresse              | `From:` für ausgehende Mails (Standard: Apple-ID; muss ein iCloud-Alias sein) |
+| Push                         | IMAP IDLE: Regeln wenige Sekunden nach Eingang neuer Mails anwenden (Standard: an; der Takt bleibt als Rückfallebene) |
+| Tagesüberblick um            | `HH:MM` für eine morgendliche Zusammenfassung (leer = aus)              |
+| Überblick senden mit         | ein `notify`-Dienst, z. B. die Companion-App (leer = Benachrichtigung in Home Assistant) |
+| Überblick formulieren mit    | optionale `ai_task`-Entität, die aus den Fakten einen kurzen Text macht  |
+| Ordner für Anhänge           | Ablage für Belege (Standard `<media>/frieda`; muss ein erlaubter Pfad sein) |
 | Regeln automatisch anwenden  | Posteingangsregeln periodisch auf neue Mails anwenden (Standard: an)        |
 | Intervall für Regeln         | Minuten zwischen zwei automatischen Läufen (Standard 5, 1–240)              |
 | Kontobezeichnung             | Kurzname, der bei mehreren Konten als Tool-Suffix dient                      |
@@ -241,6 +248,13 @@ Optionen.
 | `icloud_create_note`     | Notiz anlegen                                                                |
 | `icloud_update_note`     | Notiz ersetzen (erhält eine neue UID)                                        |
 | `icloud_delete_note`     | Notiz löschen                                                                |
+| `icloud_mailbox_stats`   | häufigste Absender/Domains, Ungelesen- und Newsletter-Anteil, Abdeckung durch Regeln, Regelvorschläge |
+| `icloud_unsubscribe`     | Newsletter abbestellen (Ein-Klick per https oder Abmelde-Mail)              |
+| `icloud_save_attachments`| Anhänge einer Mail in `<Ordner>/<Unterordner>/<JJJJ-MM>/` ablegen           |
+| `icloud_find_free_time`  | freie Zeitfenster einer bestimmten Länge innerhalb der Arbeitszeit          |
+| `icloud_upcoming_birthdays` | Geburtstage der Kontakte in den nächsten Tagen (mit Alter, falls bekannt) |
+| `icloud_find_duplicate_contacts` | wahrscheinlich doppelte Kontakte (gleiche Mail, Nummer oder Name)   |
+| `icloud_daily_overview`  | ungelesene Mails seit gestern, Regelaktivität, heutige Termine, Geburtstage  |
 
 Die Mail-Tools `icloud_mark_mail`, `icloud_move_mail` und `icloud_delete_mail` akzeptieren neben `uid` auch eine Liste
 `uids` (bis zu 500) und verarbeiten sie mit einem einzigen IMAP-Befehl – beim Aufräumen von Spam also ein Aufruf statt
@@ -256,9 +270,13 @@ Regeln** aus, die in Home Assistant gespeichert werden (`.storage/friedafetch.ru
 
 - **Bedingungen** auf `from`, `to`, `cc`, `subject` oder `any` mit `contains`, `equals`, `starts_with`, `ends_with`,
   `domain` (Absender-Domain inkl. Subdomains) oder `regex`; Verknüpfung `all` (Standard) oder `any`.
-- **Aktionen:** `move_to` (Ordner), `mark_seen`, `flag`, `delete` (Papierkorb) und `stop` (Standard: weitere Regeln
-  für diese Mail überspringen). Löschen über Regeln ist nur erlaubt, wenn die Option „Löschen erlauben“ aktiv ist.
-- **Automatik:** Standardmäßig alle 5 Minuten, nur für **neue** Mails seit dem letzten Lauf. Beim allerersten Lauf wird
+- **Aktionen:** `move_to` (Ordner), `mark_seen`, `flag`, `delete` (Papierkorb), `save_attachments` (mit optionalem
+  `attachments_folder`, z. B. `Belege`) und `stop` (Standard: weitere Regeln für diese Mail überspringen). Löschen über
+  Regeln ist nur erlaubt, wenn die Option „Löschen erlauben“ aktiv ist; Anhänge werden gespeichert, bevor eine Mail
+  verschoben oder gelöscht wird.
+- **Automatik:** Mit **Push** (IMAP IDLE) laufen die Regeln wenige Sekunden nach Eingang einer Mail im Posteingang;
+  der Takt (standardmäßig alle 5 Minuten) bleibt als Rückfallebene und deckt andere Postfächer ab. Verarbeitet werden
+  nur **neue** Mails seit dem letzten Lauf. Beim allerersten Lauf wird
   nur die Ausgangsbasis gesetzt; Bestandsmails werden nicht angefasst. Dafür gibt es `icloud_run_rules` mit
   `scope: "all"` (prüft die neuesten bis zu 2000 Mails) und `dry_run: true` zum Vorschauen.
 - **Ausführung:** Treffer werden pro Aktion gesammelt und mit den Batch-Befehlen in wenigen IMAP-Kommandos erledigt.
@@ -289,6 +307,28 @@ Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regel
 kopieren. Das Panel ist für Smartphones optimiert (gestapelte Karten statt Tabellen, große Touch-Flächen, Freigaben mit einem
 Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
 (`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der Integration.
+
+## Push, Tagesüberblick und Anhänge
+
+- **Push:** Eine zweite IMAP-Verbindung wartet per IDLE auf neue Mails im Posteingang und startet die Regeln
+  (entprellt – mehrere Mails kurz hintereinander ergeben einen Lauf). Abgerissene Verbindungen werden mit wachsender
+  Wartezeit neu aufgebaut; das Panel zeigt den Push-Status in der Automatik-Zeile, und Läufe erscheinen in Verlauf und
+  Aktivität als *Push*.
+- **Tagesüberblick:** Zur eingestellten Uhrzeit sammelt Frieda ungelesene Mails seit gestern (ohne Newsletter), die
+  Regelaktivität der letzten 24 Stunden, die heutigen Termine und Geburtstage der nächsten 7 Tage und schickt sie über
+  den gewählten `notify`-Dienst. Mit einer `ai_task`-Entität (z. B. Google Gemini oder OpenAI) wird daraus ein kurzer
+  Text; Betreffzeilen gehen dabei als Daten mit der Anweisung hinein, darin enthaltenen Aufforderungen nicht zu folgen.
+  Die Aktion `friedafetch.send_digest` sendet den Überblick auf Abruf, z. B. aus einer Automation, und liefert den
+  Text zurück.
+- **Geburtstags-Sensor:** `sensor.frieda_<konto>_nachster_geburtstag` zeigt das Datum des nächsten Geburtstags; die
+  Attribute enthalten Namen, Alter und alle Geburtstage der nächsten 30 Tage.
+- **Anhänge:** `icloud_save_attachments` und die Regel-Aktion `save_attachments` legen Anhänge unterhalb des
+  Anhang-Ordners ab, nach Monat sortiert und als `<Datum>_<Absender>_<Datei>` benannt. Identische Dateien werden nicht
+  doppelt gespeichert, kleine Bilder (Logos, Signaturen) übersprungen. Home Assistant muss den Ordner erlauben
+  (Medienordner sind standardmäßig erlaubt, andere gehören in `allowlist_external_dirs`).
+- **Abmelden:** `icloud_unsubscribe` nutzt den Header `List-Unsubscribe`: zuerst Ein-Klick per https (RFC 8058), sonst
+  eine Abmelde-Mail (nur wenn Senden erlaubt ist; zählt zum Sende-Kontingent und braucht eine Freigabe, wenn Senden
+  eine braucht). Links, die eine Webseite erfordern, bekommst du zum selbst Öffnen zurück.
 
 ## Sicherheit
 

@@ -103,14 +103,20 @@ class Actions:
     flag: bool | None = None
     delete: bool = False
     stop: bool = True
+    save_attachments: bool = False
+    attachments_folder: str | None = None
 
     def validate(self) -> None:
         if self.move_to is not None and not str(self.move_to).strip():
             raise RuleError("move_to must be a mailbox name")
         if self.delete and self.move_to:
             raise RuleError("A rule cannot both move and delete a message")
-        if not any((self.move_to, self.mark_seen is not None, self.flag is not None, self.delete)):
-            raise RuleError("A rule needs at least one action (move_to, mark_seen, flag or delete)")
+        if self.attachments_folder is not None and len(str(self.attachments_folder)) > 120:
+            raise RuleError("attachments_folder is too long (max 120 characters)")
+        if not any(
+            (self.move_to, self.mark_seen is not None, self.flag is not None, self.delete, self.save_attachments)
+        ):
+            raise RuleError("A rule needs at least one action (move_to, mark_seen, flag, delete or save_attachments)")
 
 
 @dataclass
@@ -154,6 +160,10 @@ class Rule:
             flag=act.get("flag"),
             delete=bool(act.get("delete", False)),
             stop=bool(act.get("stop", True)),
+            save_attachments=bool(act.get("save_attachments", False)),
+            attachments_folder=(str(act["attachments_folder"]).strip() or None)
+            if act.get("attachments_folder")
+            else None,
         )
         return cls(
             id=str(data.get("id") or uuid.uuid4().hex[:8]),
@@ -180,11 +190,14 @@ class RuleEngine:
         allow_delete: bool = True,
         guard: Any | None = None,
         audit: Any | None = None,
+        attachment_saver: Any | None = None,
     ) -> None:
         self._hass = hass
         self._mail = mail
         self._guard = guard
         self._audit = audit
+        # async (mailbox, uid, folder) -> list of stored files; None = attachments cannot be stored
+        self.attachment_saver = attachment_saver
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.rules.{entry_id}")
         self._rules: list[Rule] = []
         self._last_uid: dict[str, int] = {}
@@ -197,6 +210,7 @@ class RuleEngine:
         self.auto_interval: int | None = None
         self.next_run: str | None = None
         self.last_check: dict[str, Any] | None = None
+        self.push: Any | None = None  # IMAP IDLE watcher, if push delivery is active
         # run history (newest last); consecutive empty automatic runs are merged into one entry
         self._history: list[dict[str, Any]] = []
         self._history_seq = 0
@@ -250,6 +264,7 @@ class RuleEngine:
             "last_check": self.last_check,
             "enabled_rules": enabled_rules,
             "idle_reason": None if not self.auto_enabled or enabled_rules else "no_enabled_rules",
+            "push": self.push.status() if self.push is not None else None,
         }
 
     # -------------------------------------------------------------- CRUD
@@ -320,6 +335,9 @@ class RuleEngine:
             raise RuleError(f"Target mailbox '{rule.actions.move_to}' does not exist (see icloud_list_mailboxes)")
 
     # ---------------------------------------------------------------- run
+    def enabled_rules(self, mailbox: str | None = None) -> list[Rule]:
+        return [r for r in self._rules if r.enabled and (mailbox is None or r.mailbox == mailbox)]
+
     @property
     def has_enabled_rules(self) -> bool:
         return any(r.enabled for r in self._rules)
@@ -379,7 +397,7 @@ class RuleEngine:
                         action="rules",
                         params={"scope": scope, "mailboxes": mailboxes, "trigger": trigger},
                         result="ok" if not report["errors"] else "error",
-                        client="rules (auto)" if trigger == "auto" else "rules",
+                        client=f"rules ({trigger})" if trigger in ("auto", "push") else "rules",
                         error="; ".join(e.get("error", "") for e in report["errors"]) or None,
                         details={
                             "checked": report["checked"],
@@ -398,9 +416,15 @@ class RuleEngine:
         for act in report["actions"]:
             uids_per_rule.setdefault(act["rule"], set()).add((act.get("mailbox"), act["uid"]))
         per_rule = {name: len(uids) for name, uids in uids_per_rule.items()}
-        idle = report["trigger"] == "auto" and not report["matched"] and not report["errors"]
+        idle = report["trigger"] in ("auto", "push") and not report["matched"] and not report["errors"]
         last = self._history[-1] if self._history else None
-        if idle and last is not None and last.get("idle") and last.get("scope") == report["scope"]:
+        if (
+            idle
+            and last is not None
+            and last.get("idle")
+            and last.get("scope") == report["scope"]
+            and last.get("trigger") == report["trigger"]
+        ):
             last["runs"] = int(last.get("runs") or 1) + 1
             last["finished"] = report["finished"]
             last["checked"] = int(last.get("checked") or 0) + report["checked"]
@@ -420,6 +444,7 @@ class RuleEngine:
                 "rules": per_rule,
                 "errors": [e.get("error", "") for e in report["errors"]][:5],
                 "skipped": len(report["skipped"]),
+                "saved_files": len(report.get("saved_files") or []),
                 "idle": idle,
                 "runs": 1,
             }
@@ -478,7 +503,14 @@ class RuleEngine:
         plan: dict[int, dict[str, Any]] = {}
         for summary in summaries:
             uid = summary["uid"]
-            decision: dict[str, Any] = {"rules": [], "seen": None, "flag": None, "move_to": None, "delete": False}
+            decision: dict[str, Any] = {
+                "rules": [],
+                "seen": None,
+                "flag": None,
+                "move_to": None,
+                "delete": False,
+                "save": None,  # attachments folder ("" = default folder) or None
+            }
             for rule in rules:
                 if not rule.matches(summary):
                     continue
@@ -502,6 +534,18 @@ class RuleEngine:
                         )
                 if act.move_to and not decision["move_to"] and not decision["delete"]:
                     decision["move_to"] = act.move_to
+                if act.save_attachments and decision["save"] is None:
+                    if self.attachment_saver is None:
+                        report["skipped"].append(
+                            {
+                                "uid": uid,
+                                "rule": rule.name,
+                                "code": "attachments_unavailable",
+                                "reason": "no attachment folder is configured",
+                            }
+                        )
+                    else:
+                        decision["save"] = act.attachments_folder or ""
                 if act.stop or act.move_to or act.delete:
                     break
             if decision["rules"]:
@@ -520,6 +564,7 @@ class RuleEngine:
                             "delete": decision["delete"],
                             "mark_seen": decision["seen"],
                             "flag": decision["flag"],
+                            "save_attachments": decision["save"] is not None,
                         }
                     )
                     if not dry_run:
@@ -536,6 +581,16 @@ class RuleEngine:
             group = [u for u, d in plan.items() if d["flag"] is flag]
             if group:
                 await self._safe(report, self._mail.async_set_flags(box, group, flagged=flag))
+        # attachments are stored before moves/deletes change the uids
+        for uid, d in plan.items():
+            if d["save"] is None:
+                continue
+            try:
+                stored = await self.attachment_saver(box, uid, d["save"] or None)
+            except Exception as err:  # noqa: BLE001 - one failing message must not stop the run
+                report["errors"].append({"uid": uid, "error": f"Saving attachments failed: {err}"})
+                continue
+            report.setdefault("saved_files", []).extend(f["path"] for f in stored if f.get("status") == "saved")
         deletes = [u for u, d in plan.items() if d["delete"]]
         if deletes:
             await self._safe(report, self._mail.async_delete(box, deletes))

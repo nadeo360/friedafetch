@@ -496,6 +496,7 @@ class ICloudCalDav:
             "rrule": ev["RRULE"].to_ical().decode() if ev.get("RRULE") else None,
             "recurrence_id": isoformat(ev.decoded("RECURRENCE-ID"), self._tz) if rec_id is not None else None,
             "status": str(ev["STATUS"]) if ev.get("STATUS") else None,
+            "transparent": str(ev.get("TRANSP", "")).upper() == "TRANSPARENT",
             "url": str(ev["URL"]) if ev.get("URL") else None,
         }
         sort_key = to_datetime(start, self._tz) if start is not None else datetime.max.replace(tzinfo=self._tz)

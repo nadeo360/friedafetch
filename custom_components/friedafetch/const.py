@@ -91,3 +91,13 @@ MOBILE_ACTION_EVENT = "mobile_app_notification_action"
 # MCP endpoint
 CONF_ENDPOINT_ADMIN_ONLY = "endpoint_admin_only"
 DEFAULT_ENDPOINT_ADMIN_ONLY = False
+
+# Push delivery, daily overview and attachments (options)
+CONF_RULES_PUSH = "rules_push"  # IMAP IDLE: run the rules right after new mail arrives
+CONF_DIGEST_TIME = "digest_time"  # "HH:MM", empty = off
+CONF_DIGEST_NOTIFY = "digest_notify"  # notify service without "notify."
+CONF_DIGEST_AI_TASK = "digest_ai_task"  # optional ai_task entity that phrases the overview
+CONF_ATTACHMENTS_DIR = "attachments_dir"  # folder for stored attachments (must be an allowed path)
+DEFAULT_RULES_PUSH = True
+DEFAULT_ATTACHMENTS_SUBDIR = "frieda"
+SERVICE_SEND_DIGEST = "send_digest"
