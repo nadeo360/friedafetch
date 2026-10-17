@@ -193,7 +193,7 @@ Rules only run while Home Assistant is running; nothing happens on the phone wit
 
 The integration adds **"iCloud Rules"** to the Home Assistant sidebar (admins only, German/English following the HA
 language). Rules can be created, edited, reordered, enabled/disabled and deleted; dry runs and real runs show a
-per-message report. With several accounts an account selector appears. The panel has no external dependencies and
+per-message report. Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel has no external dependencies and
 talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
 
 ## Security
@@ -235,6 +235,16 @@ the maintainer's requirements and decisions. Every change is covered by the auto
 checks described above, and all releases were reviewed and tested by the maintainer against a real iCloud account.
 Please report bugs and ideas via GitHub issues – they are read by a human.
 
+## Legal notices
+
+Apple, iCloud, iPhone, iPad, Mac and macOS are trademarks of Apple Inc.; Home Assistant is a trademark of the Open
+Home Foundation; "Model Context Protocol" and "Claude" are trademarks of Anthropic, PBC. **This is an independent
+community project and is not affiliated with, endorsed or supported by Apple, the Open Home Foundation, Nabu Casa,
+Anthropic or HACS.** Using iCloud through this integration is subject to Apple's iCloud terms; you are responsible
+for complying with them. The software comes without warranty, reads and changes personal data on your behalf and
+hands it to the AI clients you connect. Full notices, third-party licenses (including the GPL-3.0 licensed
+`aioimaplib`) and the liability disclaimer: [NOTICE.md](NOTICE.md).
+
 ## License
 
-MIT
+MIT – see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).

@@ -55,7 +55,11 @@ async def test_websocket_rule_lifecycle(
 
         await ws.send_json({"id": 1, "type": "icloud_mcp/accounts"})
         msg = await ws.receive_json()
-        assert msg["success"] and msg["result"]["accounts"][0]["entry_id"] == entry.entry_id
+        account = msg["result"]["accounts"][0]
+        assert msg["success"] and account["entry_id"] == entry.entry_id
+        assert account["label"] == "test"
+        assert account["rules_total"] == 0 and account["rules_enabled"] == 0
+        assert account["rules_auto"] is True and account["mail_enabled"] is True
 
         await ws.send_json({"id": 2, "type": "icloud_mcp/mailboxes"})
         msg = await ws.receive_json()

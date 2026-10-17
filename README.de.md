@@ -253,8 +253,9 @@ Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Ve
 Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„iCloud Regeln“** an (nur für Admins; Deutsch
 oder Englisch je nach HA-Sprache).
 Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
-Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Bei mehreren iCloud-Konten
-gibt es oben rechts eine Kontoauswahl. Das Panel kommt ohne externe Bibliotheken aus und spricht über
+Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Konten erscheinen als Karten mit Regelanzahl,
+Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regeln lassen sich in ein anderes Konto
+kopieren. Das Panel kommt ohne externe Bibliotheken aus und spricht über
 WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
 
 ## Sicherheit
@@ -299,6 +300,17 @@ auf Basis der Anforderungen und Entscheidungen des Maintainers. Jede Änderung i
 und die oben beschriebenen Sicherheitsprüfungen abgedeckt; alle Releases wurden vom Maintainer gegen ein echtes
 iCloud-Konto geprüft. Fehler und Ideen bitte als GitHub-Issue melden – sie werden von einem Menschen gelesen.
 
+## Rechtliche Hinweise
+
+Apple, iCloud, iPhone, iPad, Mac und macOS sind Marken von Apple Inc.; Home Assistant ist eine Marke der Open Home
+Foundation; „Model Context Protocol“ und „Claude“ sind Marken von Anthropic, PBC. **Dies ist ein unabhängiges
+Community-Projekt und steht in keiner Verbindung zu Apple, der Open Home Foundation, Nabu Casa, Anthropic oder HACS
+und wird von ihnen weder unterstützt noch empfohlen.** Die Nutzung von iCloud über diese Integration unterliegt den
+iCloud-Nutzungsbedingungen von Apple; für deren Einhaltung bist du verantwortlich. Die Software wird ohne Gewähr
+bereitgestellt, liest und verändert in deinem Auftrag persönliche Daten und gibt sie an die von dir verbundenen
+KI-Clients weiter. Vollständige Hinweise, Drittlizenzen (u. a. das unter GPL-3.0 stehende `aioimaplib`) und
+Haftungsausschluss: [NOTICE.md](NOTICE.md).
+
 ## Lizenz
 
-MIT
+MIT – siehe [LICENSE](LICENSE) und [NOTICE.md](NOTICE.md).

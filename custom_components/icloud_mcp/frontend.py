@@ -12,7 +12,21 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.util.hass_dict import HassKey
 
-from .const import CONF_APPLE_ID, DOMAIN
+from .accounts import account_label
+from .const import (
+    CONF_ALLOW_DELETE,
+    CONF_APPLE_ID,
+    CONF_ENABLE_MAIL,
+    CONF_READ_ONLY,
+    CONF_RULES_AUTO,
+    CONF_RULES_INTERVAL,
+    DEFAULT_ALLOW_DELETE,
+    DEFAULT_ENABLE_MAIL,
+    DEFAULT_READ_ONLY,
+    DEFAULT_RULES_AUTO,
+    DEFAULT_RULES_INTERVAL,
+    DOMAIN,
+)
 from .mail import MailError
 from .rules import RuleEngine, RuleError, RuleNotFound
 from .schema import vol
@@ -105,16 +119,31 @@ def _ws_errors(func):
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """List configured iCloud accounts."""
-    connection.send_result(
-        msg["id"],
-        {
-            "accounts": [
-                {"entry_id": e.entry_id, "title": e.title, "apple_id": e.data.get(CONF_APPLE_ID)}
-                for e in _loaded_entries(hass)
-            ]
-        },
-    )
+    """List configured iCloud accounts with their rule statistics."""
+    accounts: list[dict[str, Any]] = []
+    for entry in _loaded_entries(hass):
+        clients = entry.runtime_data
+        rules = clients.rules
+        rule_list = await rules.async_list() if rules else []
+        opts = entry.options
+        accounts.append(
+            {
+                "entry_id": entry.entry_id,
+                "title": entry.title,
+                "apple_id": entry.data.get(CONF_APPLE_ID),
+                "label": account_label(entry),
+                "mail_enabled": bool(opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL)),
+                "read_only": bool(opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY)),
+                "allow_delete": bool(opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)),
+                "rules_auto": bool(opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)),
+                "rules_interval": int(opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)),
+                "rules_total": len(rule_list),
+                "rules_enabled": sum(1 for r in rule_list if r.get("enabled")),
+                "hits": sum(int(r.get("hits") or 0) for r in rule_list),
+                "last_run": rules.last_run if rules else None,
+            }
+        )
+    connection.send_result(msg["id"], {"accounts": accounts})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/mailboxes", vol.Optional("entry_id"): str})
@@ -197,8 +226,10 @@ async def ws_rules_delete(hass: HomeAssistant, connection: websocket_api.ActiveC
 @websocket_api.async_response
 @_ws_errors
 async def ws_rules_run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Run rules now."""
-    _, rules = _engine(hass, msg.get("entry_id"))
+    """Run rules now (read-only accounts may only dry-run)."""
+    entry, rules = _engine(hass, msg.get("entry_id"))
+    if not msg.get("dry_run") and entry.options.get(CONF_READ_ONLY, DEFAULT_READ_ONLY):
+        raise RuleError("This account is in read-only mode; only dry runs are allowed")
     report = await rules.async_run(
         scope=msg.get("scope") or "all",
         dry_run=bool(msg.get("dry_run")),

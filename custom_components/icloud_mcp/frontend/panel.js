@@ -78,6 +78,17 @@ const I18N = {
     },
     baseline: "Ausgangsbasis gesetzt – beim nächsten Lauf werden neue Mails verarbeitet.",
     delete_disabled: "Löschen ist in den Optionen deaktiviert.",
+    accounts: "Konten",
+    accountRules: "{0} Regeln, {1} aktiv",
+    accountAuto: "Automatik alle {0} Min.",
+    accountManual: "Automatik aus",
+    accountReadOnly: "Nur-Lesen",
+    accountNoMail: "Mail-Tools deaktiviert",
+    accountHits: "{0} Treffer gesamt",
+    copyTo: "Kopieren nach …",
+    copied: "Regel nach „{0}“ kopiert.",
+    allAccounts: "Alle Konten",
+    switchHint: "Regeln, Läufe und Berichte gelten je Konto. Wähle oben das Konto.",
   },
   en: {
     title: "iCloud rules",
@@ -153,6 +164,17 @@ const I18N = {
     },
     baseline: "Baseline set – new mail will be processed on the next run.",
     delete_disabled: "Deleting is disabled in the options.",
+    accounts: "Accounts",
+    accountRules: "{0} rules, {1} enabled",
+    accountAuto: "automatic every {0} min",
+    accountManual: "automation off",
+    accountReadOnly: "read-only",
+    accountNoMail: "mail tools disabled",
+    accountHits: "{0} hits in total",
+    copyTo: "Copy to …",
+    copied: "Rule copied to “{0}”.",
+    allAccounts: "All accounts",
+    switchHint: "Rules, runs and reports are per account. Pick the account above.",
   },
 };
 
@@ -187,6 +209,19 @@ const STYLE = `
   .error { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); padding: 10px 12px; border-radius: 8px; }
   .ok { background: color-mix(in srgb, var(--success-color, #43a047) 12%, transparent); padding: 10px 12px; border-radius: 8px; }
   .actionsbar { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tab { flex: 1 1 240px; text-align: left; background: var(--card-background-color, #fff); color: var(--primary-text-color); border: 2px solid var(--divider-color, #e0e0e0); border-radius: var(--ha-card-border-radius, 12px); padding: 12px 14px; display: grid; gap: 4px; }
+  .tab.active { border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent); }
+  .tab .label { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .tab .label .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--success-color, #43a047); display: inline-block; }
+  .tab .label .dot.off { background: var(--secondary-text-color); }
+  .tab .meta { color: var(--secondary-text-color); font-size: 12.5px; }
+  .tab .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 8px; background: var(--secondary-background-color, #eee); color: var(--secondary-text-color); }
+  .badge.warn { background: color-mix(in srgb, var(--warning-color, #ffa600) 20%, transparent); color: var(--primary-text-color); }
+  select.copy { min-width: 0; max-width: 120px; padding: 3px 6px; font-size: 12px; }
+  .scroll { overflow-x: auto; }
+  .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   @media (max-width: 700px) { .cond { grid-template-columns: 1fr 1fr; } .row label { min-width: 100%; } }
 `;
 
@@ -203,6 +238,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       editing: null,
       report: null,
       error: null,
+      notice: null,
       busy: false,
       loaded: false,
     };
@@ -256,6 +292,11 @@ class ICloudMcpRulesPanel extends HTMLElement {
     this._s.rules = list.rules;
     this._s.lastRun = list.last_run;
     this._s.mailboxes = boxes.mailboxes;
+    try {
+      await this._loadAccounts();
+    } catch (err) {
+      /* account stats are optional */
+    }
   }
 
   async _call(fn) {
@@ -348,6 +389,32 @@ class ICloudMcpRulesPanel extends HTMLElement {
     });
   }
 
+  async _copy(id, targetEntryId) {
+    const rule = this._s.rules.find((r) => r.id === id);
+    const target = this._s.accounts.find((a) => a.entry_id === targetEntryId);
+    if (!rule || !target) return;
+    const { id: _id, hits, created, ...data } = rule;
+    await this._call(async () => {
+      await this._ws({ type: "icloud_mcp/rules/create", entry_id: targetEntryId, rule: data });
+      await this._loadAccounts();
+      this._s.notice = this.t.copied.replace("{0}", target.label);
+    });
+  }
+
+  async _loadAccounts() {
+    const { accounts } = await this._ws({ type: "icloud_mcp/accounts" });
+    this._s.accounts = accounts;
+    if (!accounts.some((a) => a.entry_id === this._s.entryId)) this._s.entryId = accounts[0]?.entry_id || null;
+  }
+
+  async _switchAccount(entryId) {
+    this._s.entryId = entryId;
+    this._s.editing = null;
+    this._s.report = null;
+    this._s.notice = null;
+    await this._call(() => this._reload());
+  }
+
   async _run(scope, dryRun) {
     if (!dryRun && scope === "all" && !confirm(this.t.confirmRun)) return;
     await this._call(async () => {
@@ -373,6 +440,38 @@ class ICloudMcpRulesPanel extends HTMLElement {
     return { conds, acts: acts.map((x) => `<span class="chip">${x}</span>`).join(" ") };
   }
 
+  _account() {
+    return this._s.accounts.find((a) => a.entry_id === this._s.entryId) || null;
+  }
+
+  _renderAccounts() {
+    const t = this.t;
+    const s = this._s;
+    if (!s.accounts.length) return "";
+    const fmt = (str, ...args) => str.replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
+    const tabs = s.accounts
+      .map((a) => {
+        const active = a.entry_id === s.entryId;
+        const last = a.last_run ? new Date(a.last_run.finished || a.last_run.started).toLocaleString() : t.never;
+        const badges = [
+          `<span class="badge">${esc(a.rules_auto && a.mail_enabled && !a.read_only ? fmt(t.accountAuto, a.rules_interval) : t.accountManual)}</span>`,
+          a.read_only ? `<span class="badge warn">${esc(t.accountReadOnly)}</span>` : "",
+          a.mail_enabled ? "" : `<span class="badge warn">${esc(t.accountNoMail)}</span>`,
+        ].join("");
+        return `<button class="tab ${active ? "active" : ""}" data-action="account" data-id="${esc(a.entry_id)}" aria-pressed="${active}">
+          <span class="label"><span class="dot ${a.rules_enabled ? "" : "off"}"></span>${esc(a.label)}</span>
+          <span class="meta">${esc(a.apple_id || a.title)}</span>
+          <span class="meta">${esc(fmt(t.accountRules, a.rules_total, a.rules_enabled))} · ${esc(fmt(t.accountHits, a.hits))}</span>
+          <span class="meta">${esc(t.lastRun)}: ${esc(last)}</span>
+          <span class="badges">${badges}</span>
+        </button>`;
+      })
+      .join("");
+    return `<div class="card"><h2><span class="grow">${esc(t.accounts)}</span><span class="muted">${s.accounts.length}</span></h2>
+      <div class="tabs">${tabs}</div>
+      ${s.accounts.length > 1 ? `<p class="muted" style="margin:10px 0 0">${esc(t.switchHint)}</p>` : ""}</div>`;
+  }
+
   _renderRules() {
     const t = this.t;
     if (!this._s.rules.length) return `<p class="muted">${esc(t.noRules)}</p>`;
@@ -390,10 +489,11 @@ class ICloudMcpRulesPanel extends HTMLElement {
             <button class="icon" data-action="down" data-id="${r.id}" ${i === this._s.rules.length - 1 ? "disabled" : ""} title="${esc(t.down)}">▼</button>
             <button class="icon" data-action="edit" data-id="${r.id}" title="${esc(t.edit)}">✎</button>
             <button class="icon" data-action="delete" data-id="${r.id}" title="${esc(t.remove)}">🗑</button>
+            ${this._s.accounts.length > 1 ? `<select class="copy" data-action="copy" data-id="${r.id}" title="${esc(t.copyTo)}"><option value="">${esc(t.copyTo)}</option>${this._s.accounts.filter((a) => a.entry_id !== this._s.entryId).map((a) => `<option value="${esc(a.entry_id)}">${esc(a.label)}</option>`).join("")}</select>` : ""}
           </td></tr>`;
       })
       .join("");
-    return `<table><thead><tr><th></th><th>${esc(t.name)}</th><th>${esc(t.conditions)}</th><th>${esc(t.actions)}</th><th>${esc(t.hits)}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<div class="scroll"><table><thead><tr><th></th><th>${esc(t.name)}</th><th>${esc(t.conditions)}</th><th>${esc(t.actions)}</th><th>${esc(t.hits)}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   _renderEditor() {
@@ -468,10 +568,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
   _render() {
     const t = this.t;
     const s = this._s;
-    const accountSel =
-      s.accounts.length > 1
-        ? `<select id="account">${s.accounts.map((a) => `<option value="${esc(a.entry_id)}" ${a.entry_id === s.entryId ? "selected" : ""}>${esc(a.title)}</option>`).join("")}</select>`
-        : "";
+    const accountSel = "";
     const last = s.lastRun
       ? `${esc(t.lastRun)}: ${esc(new Date(s.lastRun.finished || s.lastRun.started).toLocaleString())} · ${s.lastRun.checked} ${esc(t.checked)} · ${s.lastRun.matched} ${esc(t.matched)}`
       : `${esc(t.lastRun)}: ${esc(t.never)}`;
@@ -481,8 +578,10 @@ class ICloudMcpRulesPanel extends HTMLElement {
         ? `<div class="card"><p>${esc(t.noAccount)}</p></div>`
         : `
       ${s.error ? `<div class="error">${esc(s.error)}</div>` : ""}
+      ${s.notice ? `<div class="ok">${esc(s.notice)}</div>` : ""}
+      ${this._renderAccounts()}
       <div class="card">
-        <h2><span class="grow">${esc(t.rules)}</span><button data-action="new" ${s.editing ? "disabled" : ""}>+ ${esc(t.newRule)}</button></h2>
+        <h2><span class="grow">${esc(t.rules)}${this._account() ? ` <span class="chip">${esc(this._account().label)}</span>` : ""}</span><button data-action="new" ${s.editing ? "disabled" : ""}>+ ${esc(t.newRule)}</button></h2>
         ${this._renderRules()}
       </div>
       ${this._renderEditor()}
@@ -490,8 +589,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
         <h2><span class="grow">${esc(t.run)}</span><span class="muted">${last}</span></h2>
         <div class="actionsbar">
           <button class="secondary" data-action="run" data-scope="all" data-dry="1" ${s.busy ? "disabled" : ""}>${esc(t.dryRunAll)}</button>
-          <button data-action="run" data-scope="all" data-dry="0" ${s.busy ? "disabled" : ""}>${esc(t.runAll)}</button>
-          <button class="secondary" data-action="run" data-scope="new" data-dry="0" ${s.busy ? "disabled" : ""}>${esc(t.runNew)}</button>
+          <button data-action="run" data-scope="all" data-dry="0" ${s.busy || this._account()?.read_only ? "disabled" : ""} title="${this._account()?.read_only ? esc(t.accountReadOnly) : ""}">${esc(t.runAll)}</button>
+          <button class="secondary" data-action="run" data-scope="new" data-dry="0" ${s.busy || this._account()?.read_only ? "disabled" : ""}>${esc(t.runNew)}</button>
         </div>
       </div>
       ${this._renderReport()}`;
@@ -508,12 +607,6 @@ class ICloudMcpRulesPanel extends HTMLElement {
 
   _bind() {
     const root = this.shadowRoot;
-    root.querySelector("#account")?.addEventListener("change", (ev) => {
-      this._s.entryId = ev.target.value;
-      this._s.editing = null;
-      this._s.report = null;
-      this._call(() => this._reload());
-    });
     root.querySelectorAll("[data-action]").forEach((el) => {
       const action = el.dataset.action;
       const handler = {
@@ -548,6 +641,10 @@ class ICloudMcpRulesPanel extends HTMLElement {
       }[action];
       if (action === "toggle") {
         el.addEventListener("change", () => this._toggle(el.dataset.id, el.checked));
+      } else if (action === "copy") {
+        el.addEventListener("change", () => el.value && this._copy(el.dataset.id, el.value));
+      } else if (action === "account") {
+        el.addEventListener("click", () => this._switchAccount(el.dataset.id));
       } else if (handler) {
         el.addEventListener("click", handler);
       }
