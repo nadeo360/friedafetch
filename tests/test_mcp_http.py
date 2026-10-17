@@ -249,7 +249,7 @@ async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: Asyn
     data = await _rpc(client, "tools/list")
     tools = {tool["name"]: tool for tool in data["result"]["tools"]}
     assert len(tools) == 56
-    suffix = f"_{second.entry_id[:8]}"
+    suffix = "_other"  # derived from other@icloud.com
     assert "icloud_list_calendars" in tools
     assert f"icloud_list_calendars{suffix}" in tools
     assert "other@icloud.com" in tools[f"icloud_list_calendars{suffix}"]["description"]

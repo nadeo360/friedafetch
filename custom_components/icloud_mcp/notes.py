@@ -61,7 +61,7 @@ class ICloudNotes:
         return {
             "uid": item.uid,
             "note_id": note_uid,
-            "title": header_text(msg, "Subject") or "(ohne Titel)",
+            "title": header_text(msg, "Subject") or "(untitled)",
             "created": created,
             "modified": _parse_date(header_text(msg, "Date")) or created,
         }

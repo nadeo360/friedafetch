@@ -77,6 +77,7 @@ const I18N = {
       regex: "Regex",
     },
     baseline: "Ausgangsbasis gesetzt – beim nächsten Lauf werden neue Mails verarbeitet.",
+    delete_disabled: "Löschen ist in den Optionen deaktiviert.",
   },
   en: {
     title: "iCloud rules",
@@ -151,6 +152,7 @@ const I18N = {
       regex: "regex",
     },
     baseline: "Baseline set – new mail will be processed on the next run.",
+    delete_disabled: "Deleting is disabled in the options.",
   },
 };
 
@@ -452,7 +454,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       )
       .join("");
     const skipped = (r.skipped || [])
-      .map((s) => `<li>${esc(s.reason)}${s.uid ? ` (UID ${s.uid})` : ""}${s.mailbox ? ` – ${esc(s.mailbox)}` : ""}</li>`)
+      .map((s) => `<li>${esc(t[s.code] || s.reason)}${s.uid ? ` (UID ${s.uid})` : ""}${s.rule ? ` – ${esc(s.rule)}` : ""}${s.mailbox ? ` – ${esc(s.mailbox)}` : ""}</li>`)
       .join("");
     const errors = (r.errors || []).map((e) => `<li>${esc(e.error)}</li>`).join("");
     return `<div class="card">

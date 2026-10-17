@@ -46,7 +46,7 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         hass,
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name=WEBCOMPONENT,
-        sidebar_title="iCloud Regeln",
+        sidebar_title="iCloud Regeln" if (hass.config.language or "en").lower().startswith("de") else "iCloud Rules",
         sidebar_icon="mdi:email-fast-outline",
         module_url=f"{STATIC_URL}/panel.js?v={version}",
         embed_iframe=False,

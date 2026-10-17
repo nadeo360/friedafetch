@@ -47,6 +47,7 @@ from mcp import JSONRPCRequest, types
 from mcp.server import InitializationOptions, Server
 from mcp.shared.message import SessionMessage
 
+from .accounts import account_label
 from .const import CONF_APPLE_ID, DOMAIN
 from .llm_api import API_PROMPT, ICloudClients, build_tools
 from .schema import vol
@@ -101,7 +102,7 @@ def _loaded_entries(hass: HomeAssistant) -> list[ConfigEntry]:
 
 
 def _tool_suffix(entry: ConfigEntry) -> str:
-    return f"_{entry.entry_id[:8]}"
+    return f"_{account_label(entry)}"
 
 
 @callback
@@ -110,7 +111,7 @@ def async_served_tools(hass: HomeAssistant) -> list[ServedTool]:
 
     With one account the tools keep their plain names. With several accounts
     the oldest entry keeps the plain names and every further entry gets a
-    suffix derived from its entry id so that names stay unique.
+    suffix derived from its account label (options) or Apple ID so that names stay unique.
     """
     served: list[ServedTool] = []
     for index, entry in enumerate(_loaded_entries(hass)):
@@ -184,14 +185,17 @@ async def async_call_served_tool(
 # --------------------------------------------------------------------------- server
 
 
-def _instructions() -> str:
+def _instructions(hass: HomeAssistant) -> str:
     now = dt_util.now()
-    return API_PROMPT.format(tz=now.tzname() or str(now.tzinfo), now=now.isoformat(timespec="minutes"))
+    accounts = ", ".join(e.data.get(CONF_APPLE_ID, "") for e in _loaded_entries(hass)) or "(default)"
+    return API_PROMPT.format(
+        tz=now.tzname() or str(now.tzinfo), now=now.isoformat(timespec="minutes"), account=accounts
+    )
 
 
 def create_server(hass: HomeAssistant, context: Context, version: str) -> tuple[Server, InitializationOptions]:
     """Create an MCP server that serves the tools of all loaded iCloud entries."""
-    server = Server[Any](SERVER_NAME, version=version, instructions=_instructions())
+    server = Server[Any](SERVER_NAME, version=version, instructions=_instructions(hass))
 
     @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
     async def handle_list_tools() -> list[types.Tool]:

@@ -24,11 +24,13 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 from homeassistant.util import dt as dt_util
+from homeassistant.util import slugify
 from homeassistant.util.ssl import client_context
 
 from .caldav_client import ICloudCalDav
 from .const import (
     CALDAV_URL,
+    CONF_ACCOUNT_LABEL,
     CONF_ALLOW_DELETE,
     CONF_ALLOW_SEND_MAIL,
     CONF_APP_PASSWORD,
@@ -221,6 +223,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
         if user_input is not None:
             user_input[CONF_MAX_RESULTS] = int(user_input.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS))
             user_input[CONF_RULES_INTERVAL] = int(user_input.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL))
+            user_input[CONF_ACCOUNT_LABEL] = slugify(str(user_input.get(CONF_ACCOUNT_LABEL) or ""), separator="_")
             if not user_input.get(CONF_FROM_ADDRESS):
                 user_input[CONF_FROM_ADDRESS] = self.config_entry.data[CONF_APPLE_ID]
             return self.async_create_entry(title="", data=user_input)
@@ -258,6 +261,9 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                     NumberSelectorConfig(
                         min=MIN_RULES_INTERVAL, max=MAX_RULES_INTERVAL, step=1, mode=NumberSelectorMode.BOX
                     )
+                ),
+                vol.Optional(CONF_ACCOUNT_LABEL, default=opts.get(CONF_ACCOUNT_LABEL, "")): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),
                 vol.Optional(
                     CONF_FROM_ADDRESS,

@@ -20,6 +20,7 @@ from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import client_context
 
+from .accounts import account_label
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
 from .const import (
@@ -134,13 +135,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         entry.async_on_unload(async_track_time_interval(hass, _apply_rules, timedelta(minutes=minutes)))
 
     apple_id = entry.data[CONF_APPLE_ID]
+    label = account_label(entry)
     try:
-        api = ICloudLLMAPI(hass, clients, api_id=LLM_API_ID, name=LLM_API_NAME)
+        api = ICloudLLMAPI(hass, clients, api_id=LLM_API_ID, name=LLM_API_NAME, account=apple_id)
         unregister = llm.async_register_api(hass, api)
     except HomeAssistantError:
-        # a second iCloud account: register under a distinct id
-        api_id = f"{LLM_API_ID}_{entry.entry_id[:8]}"
-        api = ICloudLLMAPI(hass, clients, api_id=api_id, name=f"{LLM_API_NAME} ({apple_id})")
+        # a further iCloud account: register under a distinct, readable id
+        api_id = f"{LLM_API_ID}_{label}"
+        api = ICloudLLMAPI(hass, clients, api_id=api_id, name=f"{LLM_API_NAME} – {label}", account=apple_id)
         try:
             unregister = llm.async_register_api(hass, api)
         except HomeAssistantError as err:

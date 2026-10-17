@@ -48,7 +48,11 @@
           "max_results": "Standard-Maximalanzahl an Ergebnissen",
           "from_address": "Absenderadresse für ausgehende E-Mails",
           "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
-          "rules_interval": "Intervall für automatische Regeln (Minuten)"
+          "rules_interval": "Intervall für automatische Regeln (Minuten)",
+          "account_label": "Kontobezeichnung (für Tool-Namen bei mehreren Konten)"
+        },
+        "data_description": {
+          "account_label": "Kurzname wie privat oder arbeit. Bei mehr als einem iCloud-Konto erhalten die Tools weiterer Konten dieses Suffix, z. B. icloud_list_events_arbeit. Standard: lokaler Teil der Apple-ID."
         }
       }
     }

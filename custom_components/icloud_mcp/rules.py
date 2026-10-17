@@ -315,7 +315,9 @@ class RuleEngine:
                 # first run: establish a baseline instead of processing the backlog
                 if not dry_run:
                     self._last_uid[box] = max_uid
-                report["skipped"].append({"mailbox": box, "reason": "baseline set, run again or use scope 'all'"})
+                report["skipped"].append(
+                    {"mailbox": box, "code": "baseline", "reason": "baseline set, run again or use scope 'all'"}
+                )
                 return
             candidates = [u for u in uids if u > last]
         else:
@@ -351,7 +353,12 @@ class RuleEngine:
                         decision["delete"] = True
                     else:
                         report["skipped"].append(
-                            {"uid": uid, "rule": rule.name, "reason": "deleting is disabled in the options"}
+                            {
+                                "uid": uid,
+                                "rule": rule.name,
+                                "code": "delete_disabled",
+                                "reason": "deleting is disabled in the options",
+                            }
                         )
                 if act.move_to and not decision["move_to"] and not decision["delete"]:
                     decision["move_to"] = act.move_to

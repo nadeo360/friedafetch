@@ -6,11 +6,12 @@ DOMAIN = "icloud_mcp"
 
 # LLM API id under which the tools are exposed (selectable in the MCP Server integration)
 LLM_API_ID = "icloud_mcp"
-LLM_API_NAME = "iCloud (Kalender, Kontakte, Mail, Notizen)"
+LLM_API_NAME = "iCloud (Calendar, Contacts, Mail, Notes)"
 
 CONF_APPLE_ID = "apple_id"
 CONF_APP_PASSWORD = "app_password"  # noqa: S105 - option key, not a secret  # nosec B105
 CONF_FROM_ADDRESS = "from_address"
+CONF_ACCOUNT_LABEL = "account_label"
 
 # Options
 CONF_ENABLE_CALENDAR = "enable_calendar"

@@ -11,271 +11,213 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
-# iCloud MCP für Home Assistant
+<p align="center"><b>English</b> · <a href="README.de.md">Deutsch</a></p>
 
-Eine Home-Assistant-Integration (HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
-**Kalender, Kontakte, E-Mails und Notizen** als Werkzeuge (Tools) für LLMs bereitstellt. Die Tools werden als
-Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/icloud_mcp`, Streamable HTTP)
-sowie optional über die **MCP-Server-Integration** von Home Assistant (Model Context Protocol) an MCP-Clients wie
-Claude, ChatGPT-Connectors oder lokale Agenten ausgeliefert. Sie stehen außerdem jedem Home-Assistant-Sprachassistenten
-(Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat.
+# iCloud MCP for Home Assistant
 
-## Funktionsumfang
+A Home Assistant integration (HACS) that connects **Apple iCloud** with an app-specific password and exposes
+**calendars, contacts, e-mail and notes** as tools for LLMs. The tools are registered as a Home Assistant
+**LLM API**, so they are available to every conversation agent that enables the API (Assist, Google Generative AI,
+OpenAI, Ollama …) and to any **MCP client** (Claude, ChatGPT connectors, local agents) through Home Assistant's
+MCP Server integration or the integration's own MCP endpoint. Inbox rules can be managed in a sidebar panel.
 
-| Bereich   | Protokoll          | Lesen                                   | Schreiben                                                     |
-|-----------|--------------------|-----------------------------------------|---------------------------------------------------------------|
-| Kalender  | CalDAV             | Kalender auflisten, Termine (inkl. Serien) suchen/lesen | Termin anlegen, ändern (inkl. RRULE), löschen       |
-| Kontakte  | CardDAV            | Kontakte suchen (Name, Mail, Telefon, Firma …), lesen | Kontakt anlegen, ändern, löschen                    |
-| E-Mail    | IMAP + SMTP        | Postfächer, Suche/Filter, Mail lesen (Text, Anhänge-Liste) | Senden/Antworten, gelesen/markiert, verschieben, Papierkorb |
-| Notizen   | IMAP-Ordner `Notes`| Notizen auflisten/suchen/lesen          | Notiz anlegen, ändern, löschen                                |
-| Regeln    | HA-Storage + IMAP  | Posteingangsregeln auflisten            | Regeln anlegen/ändern/löschen, automatisch oder auf Abruf ausführen |
+## Features
 
-### Wichtiger Hinweis zu Notizen
+| Area      | Protocol            | Read                                                        | Write                                                            |
+|-----------|---------------------|-------------------------------------------------------------|------------------------------------------------------------------|
+| Calendar  | CalDAV              | list calendars, search/read events (recurrences expanded)   | create, update (incl. RRULE) and delete events                   |
+| Contacts  | CardDAV             | search (name, mail, phone, company …) and read contacts     | create, update and delete contacts                               |
+| E-mail    | IMAP + SMTP         | mailboxes, search/filter, read mail (text, attachment list) | send/reply, mark read/flagged, move, trash – many uids at once   |
+| Notes     | IMAP folder `Notes` | list/search/read notes                                      | create, update and delete notes                                  |
+| Rules     | HA storage + IMAP   | list inbox rules                                            | create/update/delete rules, run them automatically or on demand  |
 
-Apple bietet für **moderne iCloud-Notizen** (CloudKit, Standard seit iOS 9 / „aktualisierte Notizen“) **keine**
-Schnittstelle an, die mit einem anwendungsspezifischen Passwort erreichbar wäre. Die Integration kann daher nur
-Notizen lesen und schreiben, die im **IMAP-Ordner „Notes“** des iCloud-Mail-Kontos liegen (klassische IMAP-Notizen).
-Existiert dieser Ordner nicht, melden die Notiz-Tools das klar zurück. Die übrigen drei Bereiche nutzen offizielle,
-stabile Protokolle (CalDAV, CardDAV, IMAP, SMTP) und sind vollständig nutzbar.
+### Important note on Notes
 
-## Voraussetzungen
+Apple offers **no interface** for modern iCloud Notes (CloudKit, the default since iOS 9 / "upgraded notes") that
+works with an app-specific password. The integration can therefore only read and write notes stored in the
+**IMAP folder `Notes`** of the iCloud mail account (classic IMAP notes). If that folder does not exist, the note tools
+say so. The other areas use official, stable protocols (CalDAV, CardDAV, IMAP, SMTP) and are fully usable.
 
-- Home Assistant **2026.10** oder neuer (die Integration nutzt die aktuelle `llm.Tool`-API mit `probatio`-Schemas;
-  ältere Versionen ab 2025 funktionieren über den eingebauten `voluptuous`-Fallback, sind aber ungetestet).
-- Apple-ID mit aktivierter **Zwei-Faktor-Authentifizierung** und ein **anwendungsspezifisches Passwort**
-  (appleid.apple.com → Anmeldung und Sicherheit → App-spezifische Passwörter).
-- Für E-Mail/Notizen muss **iCloud Mail** für die Apple-ID aktiviert sein.
-- Für MCP-Clients ist **keine** weitere Integration nötig: die Integration bringt einen eigenen Endpunkt mit (siehe
-  [Eigener MCP-Endpunkt](#eigener-mcp-endpunkt)). Alternativ liefert auch die Core-Integration
-  **„Model Context Protocol Server“** (`mcp_server`) die Tools aus.
+## Requirements
+
+- Home Assistant **2026.10** or newer (the integration uses the current `llm.Tool` API with `probatio` schemas; older
+  2025 releases work through the built-in `voluptuous` fallback but are untested).
+- An Apple ID with **two-factor authentication** and an **app-specific password**
+  (appleid.apple.com → Sign-In and Security → App-Specific Passwords).
+- **iCloud Mail** must be enabled for the Apple ID if you want e-mail and notes.
+- Optional: Home Assistant's **Model Context Protocol Server** integration (`mcp_server`) if you prefer it over the
+  built-in endpoint.
 
 ## Installation
 
-### HACS (empfohlen)
+### HACS (recommended)
 
-1. HACS → Integrationen → ⋮ → **Benutzerdefinierte Repositories** → URL dieses Repositories, Kategorie *Integration*.
-2. „iCloud MCP“ installieren und Home Assistant neu starten.
+1. HACS → Integrations → ⋮ → **Custom repositories** → URL of this repository, category *Integration*.
+2. Install "iCloud MCP" and restart Home Assistant.
 
-### Manuell
+### Manual
 
-Ordner `custom_components/icloud_mcp` in das `custom_components`-Verzeichnis der Home-Assistant-Konfiguration kopieren
-und Home Assistant neu starten.
+Copy `custom_components/icloud_mcp` into the `custom_components` directory of your Home Assistant configuration and
+restart Home Assistant.
 
-## Einrichtung
+## Setup
 
-1. **Einstellungen → Geräte & Dienste → Integration hinzufügen → „iCloud MCP“**.
-2. Apple-ID und anwendungsspezifisches Passwort eingeben. Die Zugangsdaten werden gegen CalDAV geprüft (Pflicht) und
-   gegen IMAP (optional – schlägt IMAP fehl, werden Mail- und Notiz-Tools zunächst deaktiviert).
-3. **MCP-Client verbinden:** Entweder den [eigenen MCP-Endpunkt](#eigener-mcp-endpunkt) `/api/icloud_mcp` verwenden
-   (empfohlen, keine weitere Integration nötig) – oder die Core-Integration **„Model Context Protocol Server“**
-   (`mcp_server`) hinzufügen und dort unter **Konfigurieren** entweder „alle LLM-APIs“ aktivieren oder in der Liste
-   **„iCloud (Kalender, Kontakte, Mail, Notizen)“** zusätzlich zu *Assist* auswählen. Danach sieht jeder verbundene
-   MCP-Client die `icloud_*`-Tools.
+1. **Settings → Devices & services → Add integration → "iCloud MCP"**.
+2. Enter the Apple ID and the app-specific password. Credentials are validated against CalDAV (mandatory) and IMAP
+   (optional – if IMAP fails, the mail and note tools start disabled).
+3. Connect an MCP client, either via the **built-in endpoint** (see below) or via the core
+   **Model Context Protocol Server** integration: there, under *Configure*, enable "all LLM APIs" or select
+   **"iCloud (Calendar, Contacts, Mail, Notes)"** in addition to *Assist*.
+4. Optional for voice assistants: enable the iCloud LLM API in the conversation integration (e.g. Google Generative
+   AI) under "Control Home Assistant".
 
-   > **Hinweis zu `mcp_server_http_transport` (hass-mcp-server):** Diese HACS-Integration bringt einen eigenen,
-   > fest verdrahteten Tool-Satz mit und reicht Home-Assistant-LLM-APIs **nicht** durch. Die iCloud-Tools erscheinen
-   > dort also nicht. Beide Server können parallel laufen; laut README von hass-mcp-server verwendet dieser dann den
-   > Pfad `/api/mcp_http`, während die Core-Integration `/api/mcp` belegt.
-4. Optional für Sprachassistenten: In der jeweiligen Conversation-Integration (z. B. Google Generative AI) unter
-   „Steuerung von Home Assistant“ die iCloud-LLM-API aktivieren.
+> **Note on `mcp_server_http_transport` (hass-mcp-server):** that HACS integration ships its own fixed tool set and
+> does **not** forward Home Assistant LLM APIs, so the iCloud tools do not appear there. Use the built-in endpoint
+> or the core MCP Server integration instead; both can run side by side.
 
-### Optionen (Konfigurieren)
+### Options (Configure)
 
-| Option                       | Wirkung                                                                 |
-|------------------------------|-------------------------------------------------------------------------|
-| Kalender-/Kontakt-/E-Mail-/Notiz-Tools | Tool-Gruppen einzeln ein- oder ausblenden                      |
-| Nur-Lesen-Modus              | Blendet sämtliche Erstellen/Ändern/Löschen/Senden-Tools aus             |
-| Senden von E-Mails erlauben  | Versteckt `icloud_send_mail`, wenn deaktiviert                          |
-| Löschen erlauben             | Versteckt alle `icloud_delete_*`-Tools, wenn deaktiviert                |
-| Standard-Maximalanzahl       | Standard-Limit für Listen (1–200)                                       |
-| Absenderadresse              | `From:` für ausgehende Mails (Standard: Apple-ID; muss ein iCloud-Alias sein) |
-| Regeln automatisch anwenden  | Posteingangsregeln periodisch auf neue Mails anwenden (Standard: an)        |
-| Intervall für Regeln         | Minuten zwischen zwei automatischen Läufen (Standard 5, 1–240)              |
+| Option                                   | Effect                                                                   |
+|------------------------------------------|--------------------------------------------------------------------------|
+| Calendar / Contact / E-mail / Note tools | show or hide tool groups                                                 |
+| Read-only mode                           | hides every create/update/delete/send tool                               |
+| Allow sending e-mails                    | hides `icloud_send_mail` when disabled                                   |
+| Allow deleting                           | hides all `icloud_delete_*` tools (except rule deletion) when disabled   |
+| Default maximum number of results        | default list limit (1–200)                                               |
+| Sender address                           | `From:` for outgoing mail (default: Apple ID; must be an iCloud alias)   |
+| Apply inbox rules automatically          | run rules periodically on new mail (default: on)                         |
+| Interval for automatic rules             | minutes between automatic runs (default 5, 1–240)                        |
+| Account label                            | short name used as tool suffix when several accounts are configured      |
 
-Alle Tools tragen MCP-Annotations (`readOnlyHint`, `destructiveHint`), sodass Clients im „nur lesen“-Modus die
-schreibenden Tools automatisch weglassen.
+All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so that clients in read-only mode can drop the
+writing tools automatically.
 
-## Eigener MCP-Endpunkt
+## Built-in MCP endpoint
 
-Die Integration registriert einen eigenen **MCP-Endpunkt (Streamable HTTP)**, der die `icloud_*`-Tools direkt
-ausliefert – unabhängig von der Core-Integration `mcp_server` und ohne Umweg über eine LLM-API-Auswahl. Der Endpunkt
-ist zustandslos (jede Anfrage enthält genau eine JSON-RPC-Nachricht) und ist aktiv, sobald mindestens ein
-iCloud-Config-Entry geladen ist; ohne geladenen Entry antwortet er mit `404`.
+The integration serves its tools directly at **`POST /api/icloud_mcp`** (MCP Streamable HTTP, stateless) and
+authenticates with Home Assistant access tokens – no additional integration required.
 
-| | |
-|---|---|
-| **URL** | `https://<home-assistant>/api/icloud_mcp` (bzw. `http://homeassistant.local:8123/api/icloud_mcp`) |
-| **Transport** | MCP Streamable HTTP, nur `POST` (kein SSE-Stream, `GET`/`DELETE` liefern `405`) |
-| **Auth** | Home-Assistant-Token als `Authorization: Bearer <token>` |
-| **Methoden** | `initialize`, `tools/list`, `tools/call` (Prompts/Ressourcen gibt es hier nicht) |
+1. In Home Assistant open your profile → **Security → Long-lived access tokens → Create token**.
+2. Configure the client with the URL `https://<your-home-assistant>/api/icloud_mcp` and the header
+   `Authorization: Bearer <token>`.
 
-### Token einrichten
-
-1. In Home Assistant unten links auf das **Profil** klicken → Reiter **Sicherheit**.
-2. Unter **Langlebige Zugangstoken** auf **Token erstellen**, einen Namen (z. B. `Claude iCloud MCP`) vergeben.
-3. Den angezeigten Token **sofort kopieren** – er wird nur einmal angezeigt. Der Token gilt für den Benutzer, der
-   ihn erstellt hat; es ist kein Admin-Konto nötig.
-
-### Claude als Connector
-
-**Claude.ai / Claude Desktop (Custom Connector):** Einstellungen → Connectors → **Custom Connector hinzufügen**,
-als URL `https://<home-assistant>/api/icloud_mcp` eintragen. Claude.ai-Custom-Connectors verlangen nach aktuellem Stand
-OAuth oder einen Endpunkt ohne Authentifizierung; einen festen Bearer-Header kann man dort nicht hinterlegen. Dafür
-gibt es zwei Wege:
-
-- **Claude Code / Claude Desktop (lokale MCP-Konfiguration):** HTTP-Server mit Header eintragen, z. B. in Claude
-  Code:
-
-  ```bash
-  claude mcp add --transport http icloud https://<home-assistant>/api/icloud_mcp --header "Authorization: Bearer <token>"
-  ```
-
-  oder in `claude_desktop_config.json` bzw. `.mcp.json`:
-
-  ```json
-  {
-    "mcpServers": {
-      "icloud": {
-        "type": "http",
-        "url": "https://<home-assistant>/api/icloud_mcp",
-        "headers": { "Authorization": "Bearer <token>" }
-      }
-    }
-  }
-  ```
-
-- **Claude.ai Custom Connector mit OAuth:** Home Assistant von außen über HTTPS erreichbar machen (Nabu Casa oder
-  eigener Reverse-Proxy) und einen OAuth-fähigen Proxy davor schalten, der den Bearer-Token ergänzt – oder stattdessen
-  die Core-Integration `mcp_server` mit `/api/mcp` nutzen, die Claude.ai per OAuth direkt anbindet.
-
-Home Assistant muss für Claude.ai aus dem Internet erreichbar sein (HTTPS); für Claude Code/Desktop auf demselben
-Netz reicht die lokale Adresse.
-
-### Andere MCP-Clients
-
-Jeder Client, der Streamable HTTP mit eigenem `Authorization`-Header beherrscht, kann den Endpunkt nutzen. Ein
-schneller Test mit `curl`:
-
-```bash
-curl -s -X POST https://<home-assistant>/api/icloud_mcp \
-  -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -H "Accept: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-### Mehrere iCloud-Konten
-
-Sind mehrere iCloud-Konten eingerichtet, werden die Tools aller Konten auf demselben Endpunkt zusammengeführt. Das
-zuerst angelegte Konto behält die normalen Tool-Namen (`icloud_list_events`), jedes weitere Konto bekommt ein Suffix
-aus seiner Entry-ID (`icloud_list_events_1a2b3c4d`); die Tool-Beschreibung nennt die zugehörige Apple-ID.
-
-### Hinweise
-
-- Tool-Fehler (nicht gefunden, Authentifizierung, Konflikt …) werden als MCP-Ergebnis mit `isError: true` und einem
-  JSON-Objekt `{"error": …, "code": …}` zurückgegeben, nicht als JSON-RPC-Fehler.
-- Tool-Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) werden mitgeliefert.
-- Die Optionen der Integration (Nur-Lesen, Senden/Löschen erlauben, Tool-Gruppen) gelten auch für diesen Endpunkt.
-- Die Routen können in Home Assistant nicht wieder entfernt werden; nach dem Entfernen des letzten Config-Entries
-  antwortet der Endpunkt daher mit `404`, bis wieder ein Konto eingerichtet ist.
-
-## Tools
-
-| Tool                     | Beschreibung                                                                 |
-|--------------------------|------------------------------------------------------------------------------|
-| `icloud_list_calendars`  | Kalender mit IDs                                                             |
-| `icloud_list_events`     | Termine in einem Zeitraum (Serien werden aufgelöst), optional Textfilter    |
-| `icloud_get_event`       | Ein Termin inkl. Details                                                     |
-| `icloud_create_event`    | Termin anlegen (ganztägig oder mit Uhrzeit, optional RRULE)                  |
-| `icloud_update_event`    | Felder eines Termins ändern (Dauer bleibt erhalten, wenn nur `start` wechselt) |
-| `icloud_delete_event`    | Termin löschen                                                               |
-| `icloud_search_contacts` | Kontakte suchen (leere Suche = alphabetische Liste)                          |
-| `icloud_get_contact`     | Kontakt per UID                                                              |
-| `icloud_create_contact`  | Kontakt anlegen                                                              |
-| `icloud_update_contact`  | Kontakt ändern (Listenfelder ersetzen die bestehende Liste)                  |
-| `icloud_delete_contact`  | Kontakt löschen                                                              |
-| `icloud_list_mailboxes`  | Postfächer/Ordner                                                            |
-| `icloud_search_mail`     | Mails filtern (Absender, Betreff, Volltext, Zeitraum, ungelesen, markiert)   |
-| `icloud_get_mail`        | Mail lesen (Text, optional HTML, Anhangsliste)                               |
-| `icloud_send_mail`       | Mail senden oder beantworten (Zitat, In-Reply-To, Kopie in „Sent Messages“)  |
-| `icloud_mark_mail`       | gelesen/ungelesen, markiert/unmarkiert – eine oder viele UIDs (`uids`) auf einmal |
-| `icloud_move_mail`       | In anderen Ordner verschieben – eine oder viele UIDs mit einem IMAP-Befehl   |
-| `icloud_delete_mail`     | In den Papierkorb (bzw. endgültig, wenn schon im Papierkorb) – eine oder viele UIDs |
-| `icloud_list_rules`      | Posteingangsregeln inkl. Trefferzähler und letztem Lauf                      |
-| `icloud_create_rule`     | Regel anlegen (Bedingungen + Aktionen)                                        |
-| `icloud_update_rule`     | Regel ändern, aktivieren/deaktivieren, umsortieren                            |
-| `icloud_delete_rule`     | Regel löschen                                                                |
-| `icloud_run_rules`       | Regeln jetzt anwenden (`scope` all/new, `dry_run` zeigt nur an)              |
-| `icloud_list_notes`      | Notizen auflisten/suchen                                                     |
-| `icloud_get_note`        | Notiz lesen                                                                  |
-| `icloud_create_note`     | Notiz anlegen                                                                |
-| `icloud_update_note`     | Notiz ersetzen (erhält eine neue UID)                                        |
-| `icloud_delete_note`     | Notiz löschen                                                                |
-
-Die Mail-Tools `icloud_mark_mail`, `icloud_move_mail` und `icloud_delete_mail` akzeptieren neben `uid` auch eine Liste
-`uids` (bis zu 500) und verarbeiten sie mit einem einzigen IMAP-Befehl – beim Aufräumen von Spam also ein Aufruf statt
-einer pro Mail.
-
-Zeitangaben sind ISO 8601; Zeiten ohne Zeitzone werden in der Home-Assistant-Zeitzone interpretiert. Ganztägige
-Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusiv**.
-
-## Posteingangsregeln
-
-iCloud bietet keine Schnittstelle für seine serverseitigen Mail-Regeln. Die Integration führt deshalb **eigene
-Regeln** aus, die in Home Assistant gespeichert werden (`.storage/icloud_mcp.rules.<entry>`):
-
-- **Bedingungen** auf `from`, `to`, `cc`, `subject` oder `any` mit `contains`, `equals`, `starts_with`, `ends_with`,
-  `domain` (Absender-Domain inkl. Subdomains) oder `regex`; Verknüpfung `all` (Standard) oder `any`.
-- **Aktionen:** `move_to` (Ordner), `mark_seen`, `flag`, `delete` (Papierkorb) und `stop` (Standard: weitere Regeln
-  für diese Mail überspringen). Löschen über Regeln ist nur erlaubt, wenn die Option „Löschen erlauben“ aktiv ist.
-- **Automatik:** Standardmäßig alle 5 Minuten, nur für **neue** Mails seit dem letzten Lauf. Beim allerersten Lauf wird
-  nur die Ausgangsbasis gesetzt; Bestandsmails werden nicht angefasst. Dafür gibt es `icloud_run_rules` mit
-  `scope: "all"` (prüft die neuesten bis zu 2000 Mails) und `dry_run: true` zum Vorschauen.
-- **Ausführung:** Treffer werden pro Aktion gesammelt und mit den Batch-Befehlen in wenigen IMAP-Kommandos erledigt.
-
-Beispiel-Regel (als Tool-Aufruf):
+For Claude Code (`~/.claude.json`) or Claude Desktop (`claude_desktop_config.json`) this looks like:
 
 ```json
 {
-  "name": "Newsletter archivieren",
+  "mcpServers": {
+    "icloud": {
+      "type": "http",
+      "url": "https://<your-home-assistant>/api/icloud_mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+`GET /api/icloud_mcp` answers with a short status (name, version, tool count). Server-initiated streams and
+sessions are not needed; every POST is handled on its own.
+
+### Several iCloud accounts
+
+Add the integration once per Apple ID. The first account keeps the plain tool names (`icloud_list_events`); every
+further account gets a suffix derived from its **account label** (option) or the local part of its Apple ID, for
+example `icloud_list_events_work`. The LLM APIs are registered the same way (`icloud_mcp`, `icloud_mcp_work`), and
+the rules panel offers an account selector. Each account has its own rules and options.
+
+## Tools
+
+| Tool                     | Description                                                                 |
+|--------------------------|-----------------------------------------------------------------------------|
+| `icloud_list_calendars`  | calendars with ids                                                          |
+| `icloud_list_events`     | events in a time range (recurrences expanded), optional text filter        |
+| `icloud_get_event`       | one event with details                                                      |
+| `icloud_create_event`    | create an event (all-day or timed, optional RRULE)                          |
+| `icloud_update_event`    | change fields of an event (duration kept when only `start` changes)        |
+| `icloud_delete_event`    | delete an event                                                             |
+| `icloud_search_contacts` | search contacts (empty query = alphabetical list)                           |
+| `icloud_get_contact`     | contact by uid                                                              |
+| `icloud_create_contact`  | create a contact                                                            |
+| `icloud_update_contact`  | change a contact (list fields replace the existing list)                    |
+| `icloud_delete_contact`  | delete a contact                                                            |
+| `icloud_list_mailboxes`  | mailboxes/folders                                                           |
+| `icloud_search_mail`     | filter mail (sender, subject, full text, date range, unseen, flagged)       |
+| `icloud_get_mail`        | read a mail (text, optional HTML, attachment list, optional raw headers)    |
+| `icloud_send_mail`       | send or reply (quote, In-Reply-To, copy in the sent folder)                 |
+| `icloud_mark_mail`       | read/unread, flagged/unflagged – one or many uids (`uids`) at once          |
+| `icloud_move_mail`       | move to another folder – one or many uids with a single IMAP command        |
+| `icloud_delete_mail`     | move to trash (or delete permanently when already in trash) – one or many uids |
+| `icloud_list_rules`      | inbox rules with hit counters and the last run                              |
+| `icloud_create_rule`     | create a rule (conditions + actions)                                        |
+| `icloud_update_rule`     | change, enable/disable or reorder a rule                                    |
+| `icloud_delete_rule`     | delete a rule                                                               |
+| `icloud_run_rules`       | apply rules now (`scope` all/new, `dry_run` only reports)                   |
+| `icloud_list_notes`      | list/search notes                                                           |
+| `icloud_get_note`        | read a note                                                                 |
+| `icloud_create_note`     | create a note                                                               |
+| `icloud_update_note`     | replace a note (it gets a new uid)                                          |
+| `icloud_delete_note`     | delete a note                                                               |
+
+Times are ISO 8601; naive times are interpreted in the Home Assistant time zone. All-day events use dates
+(`YYYY-MM-DD`) with an **inclusive** end date. The mail tools `icloud_mark_mail`, `icloud_move_mail` and
+`icloud_delete_mail` accept a `uids` list (up to 500) and process it with a single IMAP command, so cleaning up spam
+is one call instead of one per message.
+
+## Inbox rules
+
+iCloud offers no API for its server-side mail rules, so the integration runs **its own rules**, stored in Home
+Assistant (`.storage/icloud_mcp.rules.<entry>`):
+
+- **Conditions** on `from`, `to`, `cc`, `subject` or `any` with `contains`, `equals`, `starts_with`, `ends_with`,
+  `domain` (sender domain incl. subdomains) or `regex`; combined with `all` (default) or `any`.
+- **Actions:** `move_to` (folder), `mark_seen`, `flag`, `delete` (trash) and `stop` (default: skip further rules for
+  this message). Deleting through rules requires the "Allow deleting" option.
+- **Automation:** every 5 minutes by default, only for **new** mail since the last run. The very first run only sets
+  the baseline; existing mail is left alone. Use `icloud_run_rules` with `scope: "all"` (newest 2000 messages) and
+  `dry_run: true` for a preview.
+- **Execution:** matches are grouped per action and executed with the batch commands in a few IMAP round trips.
+
+Example rule (as a tool call):
+
+```json
+{
+  "name": "Archive newsletters",
   "conditions": [{"field": "from", "op": "domain", "value": "newsletter.example.com"}],
   "actions": {"move_to": "Archive", "mark_seen": true}
 }
 ```
 
-Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Verbindung passiert nichts.
+Rules only run while Home Assistant is running; nothing happens on the phone without a connection to HA.
 
-### Verwaltungsoberfläche
+### Management panel
 
-Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„iCloud Regeln“** an (nur für Admins).
-Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
-Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Bei mehreren iCloud-Konten
-gibt es oben rechts eine Kontoauswahl. Das Panel kommt ohne externe Bibliotheken aus und spricht über
-WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
+The integration adds **"iCloud Rules"** to the Home Assistant sidebar (admins only, German/English following the HA
+language). Rules can be created, edited, reordered, enabled/disabled and deleted; dry runs and real runs show a
+per-message report. With several accounts an account selector appears. The panel has no external dependencies and
+talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
 
-## Sicherheit
+## Security
 
-- Nur ein **anwendungsspezifisches Passwort** wird verwendet; es ist jederzeit bei Apple widerrufbar und wird in
-  Diagnosedaten geschwärzt. Verbindungen gehen ausschließlich per TLS an Apple-Endpunkte, es gibt keine Telemetrie.
-- MCP-Endpunkt und Panel sind durch Home-Assistant-Tokens bzw. Admin-Rechte geschützt; Tool-Gruppen, Nur-Lesen,
-  Senden und Löschen sind einzeln abschaltbar.
-- Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und HACS-Validierung;
-  Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
+- Only an **app-specific password** is used; it can be revoked at Apple any time and is redacted in diagnostics.
+  Connections go exclusively over TLS to Apple endpoints; there is no telemetry.
+- The MCP endpoint and the panel are protected by Home Assistant tokens and admin rights; tool groups, read-only
+  mode, sending and deleting can be switched off individually.
+- Every commit runs tests, Ruff with the Bandit rule set, Bandit, CodeQL, pip-audit, hassfest and HACS validation;
+  Dependabot and GitHub security alerts are enabled. Details and the disclosure process: [SECURITY.md](SECURITY.md).
 
-## Technik
+## Technical notes
 
-- **Kein Caching von Zugangsdaten außerhalb des Config-Entries**; das Passwort wird in Diagnosen geschwärzt.
-- CalDAV/CardDAV sind direkt mit `aiohttp` umgesetzt (Principal-Discovery, `calendar-query`, `addressbook-multiget`,
-  ETag-gesicherte Updates). Kontakte werden lokal gecacht und per CTag/ETag inkrementell synchronisiert.
-- Serientermine werden mit `python-dateutil` aufgelöst (RRULE, EXDATE, RDATE, verschobene Einzeltermine).
-- vCards werden mit einem eigenen, verlustfreien Parser bearbeitet: unbekannte Felder (Foto, Apple-Erweiterungen)
-  bleiben beim Ändern erhalten.
-- IMAP über `aioimaplib` (eine serialisierte Verbindung mit automatischem Reconnect), SMTP über `aiosmtplib`
-  (STARTTLS, Port 587).
-- Der eigene MCP-Endpunkt (`mcp_http.py`) nutzt das `mcp`-SDK in der Version, die auch die Core-Integration
-  `mcp_server` verwendet, und baut die Tool-Schemas mit `probatio.to_openapi` aus den `llm.Tool`-Parametern.
-- Abhängigkeiten sind auf die Versionen gepinnt, die Home Assistant 2026.10 selbst verwendet (`icalendar`, `aioimaplib`,
-  `mcp`, `anyio`).
+- Credentials live only in the config entry; the password is redacted in diagnostics.
+- CalDAV/CardDAV are implemented directly on `aiohttp` (principal discovery, `calendar-query`,
+  `addressbook-multiget`, ETag-protected updates). Contacts are cached locally and synchronised incrementally via
+  CTag/ETag.
+- Recurring events are expanded with `python-dateutil` (RRULE, EXDATE, RDATE, moved occurrences).
+- vCards are handled by a small lossless parser: unknown fields (photo, Apple extensions) survive updates.
+- IMAP via `aioimaplib` (one serialised connection with automatic reconnect), SMTP via `aiosmtplib` (STARTTLS, 587).
+- Packages that Home Assistant ships itself (`icalendar`, `aioimaplib`, `aiosmtplib`, `mcp`, `anyio`) are declared
+  as minimum versions and follow the HA release, as hassfest requires.
 
-## Entwicklung
+## Development
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -284,8 +226,15 @@ pytest
 ruff check . && ruff format .
 ```
 
-Home Assistant 2026.10 benötigt Python ≥ 3.14.2.
+Home Assistant 2026.10 requires Python ≥ 3.14.2.
 
-## Lizenz
+## About the use of AI
+
+This integration was developed with substantial help from an AI coding assistant (Anthropic's Claude), working from
+the maintainer's requirements and decisions. Every change is covered by the automated test suite and the security
+checks described above, and all releases were reviewed and tested by the maintainer against a real iCloud account.
+Please report bugs and ideas via GitHub issues – they are read by a human.
+
+## License
 
 MIT

@@ -48,7 +48,11 @@
           "max_results": "Default maximum number of results",
           "from_address": "Sender address for outgoing e-mails",
           "rules_auto": "Apply inbox rules automatically to new e-mails",
-          "rules_interval": "Interval for automatic rules (minutes)"
+          "rules_interval": "Interval for automatic rules (minutes)",
+          "account_label": "Account label (for tool names with several accounts)"
+        },
+        "data_description": {
+          "account_label": "Short name such as private or work. With more than one iCloud account the tools of further accounts get this as suffix, e.g. icloud_list_events_work. Default: local part of the Apple ID."
         }
       }
     }

@@ -844,7 +844,8 @@ def build_tools(clients: ICloudClients) -> list[llm.Tool]:
 API_PROMPT = (
     "You have access to the user's Apple iCloud account: calendars (CalDAV), contacts (CardDAV), "
     "e-mail (IMAP/SMTP) and IMAP notes. Times are in the user's time zone ({tz}); the current local time is {now}. "
-    "Use icloud_list_calendars first to learn calendar ids. Ask for confirmation before sending e-mails or deleting anything."
+    "Use icloud_list_calendars first to learn calendar ids. Ask for confirmation before sending e-mails or deleting anything. "
+    "These tools act on the iCloud account {account}."
 )
 
 
@@ -852,14 +853,24 @@ class ICloudLLMAPI(llm.API):
     """The iCloud LLM API registered with Home Assistant."""
 
     def __init__(
-        self, hass: HomeAssistant, clients: ICloudClients, api_id: str = LLM_API_ID, name: str = LLM_API_NAME
+        self,
+        hass: HomeAssistant,
+        clients: ICloudClients,
+        api_id: str = LLM_API_ID,
+        name: str = LLM_API_NAME,
+        account: str = "",
     ) -> None:
         super().__init__(hass=hass, id=api_id, name=name)
         self.clients = clients
+        self.account = account
 
     async def async_get_api_instance(self, llm_context: llm.LLMContext) -> llm.APIInstance:
         now = dt_util.now()
-        prompt = API_PROMPT.format(tz=now.tzname() or str(now.tzinfo), now=now.isoformat(timespec="minutes"))
+        prompt = API_PROMPT.format(
+            tz=now.tzname() or str(now.tzinfo),
+            now=now.isoformat(timespec="minutes"),
+            account=self.account or "(default)",
+        )
         return llm.APIInstance(
             api=self,
             api_prompt=prompt,
