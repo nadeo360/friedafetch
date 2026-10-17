@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo.svg" alt="Frieda" width="720">
-  </picture>
+  <img src="https://raw.githubusercontent.com/nadeo360/friedafetch/main/assets/logo@2x.png" alt="Frieda" width="720">
 </p>
 
 <p align="center">
@@ -12,10 +9,10 @@
   <a href="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml/badge.svg"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/friedafetch"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/friedafetch/badge"></a>
   <a href="https://github.com/nadeo360/friedafetch/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/friedafetch?display_name=tag"></a>
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://github.com/nadeo360/friedafetch/blob/main/LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
-<p align="center"><b>English</b> · <a href="README.de.md">Deutsch</a></p>
+<p align="center"><b>English</b> · <a href="https://github.com/nadeo360/friedafetch/blob/main/README.de.md">Deutsch</a></p>
 
 # Frieda – MCP connector for iCloud
 
@@ -263,7 +260,7 @@ a Frieda account, reuse its connection and guard rails, and add their tools to i
   HACS validation; GitHub Actions are pinned to commit SHAs, the `main` branch is protected, OpenSSF Scorecard rates
   the repository continuously, Dependabot and GitHub security alerts are enabled. Releases are built by GitHub
   Actions and published with signed build provenance (Sigstore) and a CycloneDX SBOM; HACS installs exactly this
-  signed package (`gh attestation verify friedafetch.zip --repo nadeo360/friedafetch`). Details and the disclosure process: [SECURITY.md](SECURITY.md).
+  signed package (`gh attestation verify friedafetch.zip --repo nadeo360/friedafetch`). Details and the disclosure process: [SECURITY.md](https://github.com/nadeo360/friedafetch/blob/main/SECURITY.md).
 
 Example automation on the audit event:
 
@@ -325,8 +322,8 @@ community project and is not affiliated with, endorsed or supported by Apple, th
 Anthropic or HACS.** Using iCloud through this integration is subject to Apple's iCloud terms; you are responsible
 for complying with them. The software comes without warranty, reads and changes personal data on your behalf and
 hands it to the AI clients you connect. Full notices, third-party licenses (including the GPL-3.0 licensed
-`aioimaplib`) and the liability disclaimer: [NOTICE.md](NOTICE.md).
+`aioimaplib`) and the liability disclaimer: [NOTICE.md](https://github.com/nadeo360/friedafetch/blob/main/NOTICE.md).
 
 ## License
 
-MIT – see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
+MIT – see [LICENSE](https://github.com/nadeo360/friedafetch/blob/main/LICENSE) and [NOTICE.md](https://github.com/nadeo360/friedafetch/blob/main/NOTICE.md).
