@@ -187,7 +187,8 @@ class ICloudMcpConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
-        assert self._reauth_entry is not None
+        if self._reauth_entry is None:
+            return self.async_abort(reason="reauth_failed")
         apple_id = self._reauth_entry.data[CONF_APPLE_ID]
         if user_input is not None:
             password = user_input[CONF_APP_PASSWORD].strip()

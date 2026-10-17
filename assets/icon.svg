@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="iCloud MCP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#5E5CE6"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E6FE8"/>
+      <stop offset="1" stop-color="#5856D6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#001a4d" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/>
+  <!-- cloud -->
+  <path filter="url(#shadow)" fill="#FFFFFF"
+        d="M84 186h96a34 34 0 0 0 5-67.6A50 50 0 0 0 90 104.5 38 38 0 0 0 84 186z"/>
+  <!-- envelope -->
+  <rect x="96" y="124" width="64" height="44" rx="8" fill="url(#ink)"/>
+  <path d="M100 130l28 20 28-20" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- small nodes hinting at calendar / contacts / notes -->
+  <circle cx="178" cy="156" r="6" fill="#FFD60A"/>
+  <circle cx="178" cy="156" r="10" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+</svg>

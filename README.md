@@ -1,3 +1,16 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+</p>
+
+<p align="center">
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/codeql.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/ha-icloud-mcp?display_name=tag"></a>
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
+
 # iCloud MCP für Home Assistant
 
 Eine Home-Assistant-Integration (HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
@@ -237,6 +250,15 @@ Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und
 Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Bei mehreren iCloud-Konten
 gibt es oben rechts eine Kontoauswahl. Das Panel kommt ohne externe Bibliotheken aus und spricht über
 WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
+
+## Sicherheit
+
+- Nur ein **anwendungsspezifisches Passwort** wird verwendet; es ist jederzeit bei Apple widerrufbar und wird in
+  Diagnosedaten geschwärzt. Verbindungen gehen ausschließlich per TLS an Apple-Endpunkte, es gibt keine Telemetrie.
+- MCP-Endpunkt und Panel sind durch Home-Assistant-Tokens bzw. Admin-Rechte geschützt; Tool-Gruppen, Nur-Lesen,
+  Senden und Löschen sind einzeln abschaltbar.
+- Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und HACS-Validierung;
+  Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
 
 ## Technik
 

@@ -369,7 +369,7 @@ class ICloudMail:
         try:
             await asyncio.wait_for(client.logout(), 5)
         except Exception:  # noqa: BLE001
-            pass
+            _LOGGER.debug("IMAP logout failed (ignored)")
 
     async def async_close(self) -> None:
         async with self._lock:

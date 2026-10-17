@@ -28,7 +28,8 @@
     },
     "abort": {
       "already_configured": "This Apple ID is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "reauth_failed": "Re-authentication could not be started."
     }
   },
   "options": {

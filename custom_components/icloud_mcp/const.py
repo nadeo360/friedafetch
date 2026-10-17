@@ -9,7 +9,7 @@ LLM_API_ID = "icloud_mcp"
 LLM_API_NAME = "iCloud (Kalender, Kontakte, Mail, Notizen)"
 
 CONF_APPLE_ID = "apple_id"
-CONF_APP_PASSWORD = "app_password"
+CONF_APP_PASSWORD = "app_password"  # noqa: S105 - option key, not a secret
 CONF_FROM_ADDRESS = "from_address"
 
 # Options

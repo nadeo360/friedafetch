@@ -17,5 +17,12 @@ line-length = 120
 extend-exclude = [".venv", ".venv314"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "W"]
+select = ["E", "F", "I", "UP", "B", "W", "S"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", ".venv314"]
+skips = ["B101"]

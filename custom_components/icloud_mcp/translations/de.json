@@ -28,7 +28,8 @@
     },
     "abort": {
       "already_configured": "Diese Apple-ID ist bereits eingerichtet.",
-      "reauth_successful": "Die erneute Authentifizierung war erfolgreich."
+      "reauth_successful": "Die erneute Authentifizierung war erfolgreich.",
+      "reauth_failed": "Die erneute Authentifizierung konnte nicht gestartet werden."
     }
   },
   "options": {

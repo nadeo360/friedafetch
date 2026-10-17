@@ -88,7 +88,9 @@ def _status_code(text: str | None) -> int | None:
 def parse_multistatus(xml_text: str, request_url: str) -> list[DavResponse]:
     """Parse a 207 multistatus body."""
     try:
-        root = ET.fromstring(xml_text)
+        # Responses come from Apple's authenticated TLS endpoints; defusedxml is not
+        # available inside Home Assistant, and Python's expat protects against entity expansion.
+        root = ET.fromstring(xml_text)  # noqa: S314
     except ET.ParseError as err:
         raise DavError(f"Invalid multistatus XML: {err}") from err
     responses: list[DavResponse] = []
