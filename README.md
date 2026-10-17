@@ -282,6 +282,13 @@ ruff check . && ruff format .
 
 Home Assistant 2026.10 requires Python ≥ 3.14.2.
 
+### Artwork
+
+`assets/*.svg` are the sources; `scripts/build_icons.py` renders every PNG variant (icon, @2x, light/dark logo and the
+set for the Home Assistant brands repository) and `--check` verifies they are current. `scripts/brands_pr.sh` forks
+`home-assistant/brands`, copies the images and opens the pull request that makes the icon appear in HACS and the
+integrations list.
+
 ## About the use of AI
 
 This integration was developed with substantial help from an AI coding assistant (Anthropic's Claude), working from

@@ -50,3 +50,14 @@ jobs:
           python -c "import json; print('\n'.join(json.load(open('custom_components/icloud_mcp/manifest.json'))['requirements']))" > requirements_manifest.txt
           pip install -r requirements_manifest.txt
           pip check
+
+  icons:
+    name: Icon assets match the SVG sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - run: pip install "resvg-py==0.5.0" "pillow>=11"
+      - run: python scripts/build_icons.py --check --only icons
