@@ -105,7 +105,8 @@ def clamp(value: int | None, default: int, maximum: int) -> int:
 
 
 # --------------------------------------------------------------------------- untrusted content
-_INVISIBLE_RE = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿­]")
+# zero-width, bidi-control, word-joiner and soft-hyphen code points (escapes on purpose: no raw bidi characters in source)
+_INVISIBLE_RE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u00ad]")
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (name, re.compile(pattern, re.IGNORECASE | re.DOTALL))
