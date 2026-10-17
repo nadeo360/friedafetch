@@ -1,0 +1,53 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect iCloud",
+        "description": "Sign in with your Apple ID and an app-specific password (create one at appleid.apple.com → Sign-In and Security → App-Specific Passwords). Two-factor authentication must be enabled on the Apple ID.",
+        "data": {
+          "apple_id": "Apple ID (e-mail address)",
+          "app_password": "App-specific password"
+        },
+        "data_description": {
+          "apple_id": "Your iCloud login, e.g. name@icloud.com, name@me.com or name@mac.com.",
+          "app_password": "Format xxxx-xxxx-xxxx-xxxx. Never use your regular Apple ID password here."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate iCloud",
+        "description": "iCloud rejected the stored app-specific password for {apple_id}. Enter a new one.",
+        "data": {
+          "app_password": "App-specific password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach iCloud. Check the internet connection and try again.",
+      "invalid_auth": "Apple rejected the credentials. Check the Apple ID and the app-specific password.",
+      "unknown": "Unexpected error, see the Home Assistant log."
+    },
+    "abort": {
+      "already_configured": "This Apple ID is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "iCloud MCP options",
+        "description": "Choose which tool groups the MCP server exposes and which write actions are allowed.",
+        "data": {
+          "enable_calendar": "Calendar tools",
+          "enable_contacts": "Contact tools",
+          "enable_mail": "E-mail tools",
+          "enable_notes": "Notes tools (IMAP notes folder)",
+          "read_only": "Read-only mode (hide all create/update/delete/send tools)",
+          "allow_send_mail": "Allow sending e-mails",
+          "allow_delete": "Allow deleting events, contacts, e-mails and notes",
+          "max_results": "Default maximum number of results",
+          "from_address": "Sender address for outgoing e-mails"
+        }
+      }
+    }
+  }
+}
