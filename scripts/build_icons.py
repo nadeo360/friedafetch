@@ -9,8 +9,9 @@ Sources (edit these, then run the script):
 Outputs:
     assets/icon.png (256), assets/icon@2x.png (512)
     assets/logo.png (1040 wide), assets/logo@2x.png (2080), assets/logo-dark.png
-    brands/custom_integrations/icloud_mcp/{icon,icon@2x,logo,logo@2x,dark_logo,dark_logo@2x}.png
-        (format of https://github.com/home-assistant/brands: icon 256/512 px, logo 128/256 px high)
+    custom_components/icloud_mcp/brand/{icon,icon@2x,logo,logo@2x,dark_logo,dark_logo@2x}.png
+        (Home Assistant >= 2026.3 serves these itself via /api/brands/integration/icloud_mcp/...;
+         icon 256/512 px, logo 128/256 px high, same conventions as the former brands repository)
     custom_components/icloud_mcp/frontend/icon.svg   copy of the icon served next to the panel
 
 Usage:
@@ -38,16 +39,15 @@ except ImportError as err:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
-BRANDS = ROOT / "brands" / "custom_integrations" / "icloud_mcp"
+BRAND = ROOT / "custom_components" / "icloud_mcp" / "brand"
 FRONTEND_ICON = ROOT / "custom_components" / "icloud_mcp" / "frontend" / "icon.svg"
 
 ICON_SVG = ASSETS / "icon.svg"
 LOGO_SVG = ASSETS / "logo.svg"
 LOGO_DARK_SVG = ASSETS / "logo-dark.svg"
 
-# brands repository constraints
-BRANDS_ICON_SIZES = (256, 512)
-BRANDS_LOGO_HEIGHTS = (128, 256)
+# sizes as in the brands conventions
+BRAND_LOGO_HEIGHTS = (128, 256)
 
 
 def render(svg: Path, width: int) -> Image.Image:
@@ -83,12 +83,12 @@ def build() -> dict[Path, bytes]:
     out[ASSETS / "logo@2x.png"] = to_png_bytes(logo2x)
     out[ASSETS / "logo-dark.png"] = to_png_bytes(logo_dark)
 
-    out[BRANDS / "icon.png"] = to_png_bytes(icon256)
-    out[BRANDS / "icon@2x.png"] = to_png_bytes(icon512)
-    out[BRANDS / "logo.png"] = to_png_bytes(resize_height(logo2x, BRANDS_LOGO_HEIGHTS[0]))
-    out[BRANDS / "logo@2x.png"] = to_png_bytes(resize_height(logo2x, BRANDS_LOGO_HEIGHTS[1]))
-    out[BRANDS / "dark_logo.png"] = to_png_bytes(resize_height(logo_dark2x, BRANDS_LOGO_HEIGHTS[0]))
-    out[BRANDS / "dark_logo@2x.png"] = to_png_bytes(resize_height(logo_dark2x, BRANDS_LOGO_HEIGHTS[1]))
+    out[BRAND / "icon.png"] = to_png_bytes(icon256)
+    out[BRAND / "icon@2x.png"] = to_png_bytes(icon512)
+    out[BRAND / "logo.png"] = to_png_bytes(resize_height(logo2x, BRAND_LOGO_HEIGHTS[0]))
+    out[BRAND / "logo@2x.png"] = to_png_bytes(resize_height(logo2x, BRAND_LOGO_HEIGHTS[1]))
+    out[BRAND / "dark_logo.png"] = to_png_bytes(resize_height(logo_dark2x, BRAND_LOGO_HEIGHTS[0]))
+    out[BRAND / "dark_logo@2x.png"] = to_png_bytes(resize_height(logo_dark2x, BRAND_LOGO_HEIGHTS[1]))
 
     out[FRONTEND_ICON] = ICON_SVG.read_bytes()
     return out

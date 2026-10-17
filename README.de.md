@@ -64,9 +64,6 @@ stabile Protokolle (CalDAV, CardDAV, IMAP, SMTP) und sind vollständig nutzbar.
 
 ### Manuell
 
-Integrations-Icons in Home Assistant und HACS stammen aus dem zentralen Brands-Repository; das fertige Bildpaket liegt in
-[`brands/`](brands/README.md).
-
 Ordner `custom_components/icloud_mcp` in das `custom_components`-Verzeichnis der Home-Assistant-Konfiguration kopieren
 und Home Assistant neu starten.
 
@@ -352,10 +349,9 @@ Home Assistant 2026.10 benötigt Python ≥ 3.14.2.
 
 ### Grafiken
 
-`assets/*.svg` sind die Quellen; `scripts/build_icons.py` rendert alle PNG-Varianten (Icon, @2x, helles/dunkles Logo
-und das Paket für das Brands-Repository von Home Assistant), `--check` prüft, ob sie aktuell sind.
-`scripts/brands_pr.sh` forkt `home-assistant/brands`, kopiert die Bilder und öffnet den Pull Request, mit dem das Icon
-in HACS und der Integrationsliste erscheint.
+`assets/*.svg` sind die Quellen; `scripts/build_icons.py` rendert alle PNG-Varianten (Icon, @2x, helles/dunkles Logo)
+nach `assets/` und in den Ordner `custom_components/icloud_mcp/brand/`, aus dem Home Assistant (ab 2026.3) und HACS
+das Icon der Integration direkt laden. `--check` prüft in der CI, ob die Dateien aktuell sind.
 
 ## Hinweis zum Einsatz von KI
 

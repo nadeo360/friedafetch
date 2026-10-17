@@ -61,9 +61,6 @@ say so. The other areas use official, stable protocols (CalDAV, CardDAV, IMAP, S
 
 ### Manual
 
-Integration icons in Home Assistant and HACS come from the central brands repository; the ready-made image set is in
-[`brands/`](brands/README.md).
-
 Copy `custom_components/icloud_mcp` into the `custom_components` directory of your Home Assistant configuration and
 restart Home Assistant.
 
@@ -284,10 +281,9 @@ Home Assistant 2026.10 requires Python ≥ 3.14.2.
 
 ### Artwork
 
-`assets/*.svg` are the sources; `scripts/build_icons.py` renders every PNG variant (icon, @2x, light/dark logo and the
-set for the Home Assistant brands repository) and `--check` verifies they are current. `scripts/brands_pr.sh` forks
-`home-assistant/brands`, copies the images and opens the pull request that makes the icon appear in HACS and the
-integrations list.
+`assets/*.svg` are the sources; `scripts/build_icons.py` renders every PNG variant (icon, @2x, light/dark logo) into
+`assets/` and into `custom_components/icloud_mcp/brand/`, from where Home Assistant (2026.3+) and HACS load the
+integration's icon directly. `--check` verifies in CI that the files are current.
 
 ## About the use of AI
 
