@@ -230,6 +230,14 @@ Beispiel-Regel (als Tool-Aufruf):
 
 Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Verbindung passiert nichts.
 
+### Verwaltungsoberfläche
+
+Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„iCloud Regeln“** an (nur für Admins).
+Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
+Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Bei mehreren iCloud-Konten
+gibt es oben rechts eine Kontoauswahl. Das Panel kommt ohne externe Bibliotheken aus und spricht über
+WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
+
 ## Technik
 
 - **Kein Caching von Zugangsdaten außerhalb des Config-Entries**; das Passwort wird in Diagnosen geschwärzt.
