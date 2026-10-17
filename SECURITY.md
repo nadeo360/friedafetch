@@ -35,6 +35,8 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited and
   compiled before saving. Server responses (XML, vCard, e-mail) are parsed with the Python standard library; mail
   content is passed to the AI as text only.
+- **Usage counters:** the panel's usage card stores only counts (per day, tool and source) and the name and version an
+  MCP client announces in its handshake (`.storage/friedafetch.usage`); no arguments, results or mail content.
 
 ## Checks in the repository
 
@@ -102,7 +104,7 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
 - **Begrenzung des Schadenspotenzials:** Über die Optionen lassen sich Tool-Gruppen abschalten, ein
   Nur-Lesen-Modus aktivieren sowie das Senden von E-Mails und das Löschen getrennt verbieten. Stundenkontingente,
   eine Empfänger-Richtlinie (Kontakte/Allowlist), geschützte Kalender und Postfächer sowie verborgene Postfächer
-  begrenzen zusätzlich, was ein verbundener Client tun kann; jeder schreibende Aufruf landet im Aktivitätsprotokoll
+  begrenzen zusätzlich, was ein verbundener Client tun kann; jeder schreibende Aufruf landet im Änderungsprotokoll
   des Kontos und wird als Ereignis `friedafetch_action` gefeuert. Optionale Freigaben parken Senden, Löschen und
   Massenaktionen, bis ein Admin sie freigibt (Benachrichtigung, Push mit Buttons oder Panel); das Nur-Lese-Profil
   `/api/friedafetch/readonly` und der Admin-only-Schalter begrenzen, was ein Token erreicht. Alle Tools tragen
@@ -111,6 +113,8 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
 - **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt
   und werden vor dem Speichern kompiliert. Serverantworten (XML, vCard, E-Mail) werden mit der Python-Standardbibliothek
   geparst, Mail-Inhalte werden nur als Text an die KI weitergegeben.
+- **Nutzungszähler:** Die Karte „Nutzung“ speichert nur Zahlen (pro Tag, Tool und Herkunft) sowie Name und Version,
+  die ein MCP-Client im Handshake meldet (`.storage/friedafetch.usage`); keine Argumente, Ergebnisse oder Mail-Inhalte.
 
 ## Prüfungen im Repository
 
@@ -131,7 +135,7 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
 |-----------|---------------|
 | Gestohlener oder geleakter Home-Assistant-Token gegen den MCP-Endpunkt | Tokens sind in HA widerrufbar; optionale Admin-only-Beschränkung; Nur-Lese-Profil für weniger vertrauenswürdige Clients; Kontingente begrenzen den Schaden pro Stunde; jeder schreibende Aufruf wird protokolliert. |
 | Prompt-Injection über Mail-, Notiz- oder Kalenderinhalte, die die KI gegen den Nutzer handeln lässt | Inhalte werden bereinigt, als Fremddaten gekennzeichnet und auf Injektionsmuster geprüft (`suspicious`); der Prompt verbietet das Befolgen eingebetteter Anweisungen; Freigaben und Kontingente begrenzen die Folgen. |
-| Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Papierkorb statt endgültigem Löschen, Aktivitätsprotokoll und Ereignisse `friedafetch_action` zur Alarmierung. |
+| Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Papierkorb statt endgültigem Löschen, Änderungsprotokoll und Ereignisse `friedafetch_action` zur Alarmierung. |
 | Kompromittierte Abhängigkeit oder Build | Gepinnte Abhängigkeiten mit pip-audit, Bandit/Ruff/CodeQL, GitHub Actions auf Commit-SHAs gepinnt, OpenSSF Scorecard, SBOM und signierte Build-Provenance für Release-Artefakte, Dependabot, geschützter `main`-Branch. |
 | Präparierte Abmelde-Links in Mails, die ins lokale Netz zielen (SSRF) | Nur https auf Port 443, keine Zugangsdaten und keine lokalen Hostnamen; die Verbindung nutzt einen Resolver, der private, Loopback- und Link-Local-Adressen verwirft (auch gegen DNS-Rebinding); keine Weiterleitungen, keine Cookies, fester Request-Inhalt; Links ohne Ein-Klick-Unterstützung werden nie aufgerufen. |
 | Anhänge, die außerhalb des vorgesehenen Ordners landen | Ordner muss von Home Assistant erlaubt sein; Unterordner und Dateinamen werden auf sichere Bestandteile reduziert; das aufgelöste Ziel muss unterhalb des Anhang-Ordners liegen (auch bei Symlinks); Größenlimit 25 MB pro Datei. |

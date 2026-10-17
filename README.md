@@ -201,10 +201,21 @@ is one call instead of one per message.
 ## Panel
 
 The integration adds **"Frieda"** to the Home Assistant sidebar (admins only, German/English following the HA
-language): accounts with their security state, pending and decided **approvals** (approve or deny with one tap, also
-from the companion app) and the **activity** log with quotas and filters per column. The panel has no external
-dependencies and talks to the integration via WebSocket commands (`friedafetch/accounts`, `friedafetch/approvals/*`,
-`friedafetch/audit/*`).
+language):
+
+- **Overview:** whether the MCP endpoint is active (both URLs to copy, number of reading and writing tools, token
+  rule), the MCP clients that connected recently (name and version from the MCP handshake), whether the LLM API is
+  exposed by Home Assistant's own MCP server, and the state of **Frieda Postfach** (running, installed but not linked,
+  not installed).
+- **Usage:** tool calls today, in 7 and 30 days and in total, split into reading and writing, a 14-day chart, the most
+  used tools, where the calls came from (Frieda endpoint, HA MCP server, Assist agents) and the hourly quotas. Only
+  counters are stored, never arguments or results.
+- **Approvals:** pending and decided requests (approve or deny with one tap, also from the companion app).
+- **Change log:** everything Frieda changed in iCloud, as readable entries grouped by day (e.g. "Mail moved · 3
+  messages · → Archive"), with search and filters for area, trigger and result; the raw parameters are one click away.
+
+The panel has no external dependencies and talks to the integration via WebSocket commands (`friedafetch/accounts`,
+`friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`).
 
 ## Attachments and unsubscribing
 
@@ -234,8 +245,8 @@ a Frieda account, reuse its connection and guard rails, and add their tools to i
   and deleted events/contacts/notes; a recipient policy for sending (any address, known contacts, or an allowlist of
   addresses/domains) with a recipient cap and optional BCC ban; protected calendars and mailboxes that AI clients may
   only read, and hidden mailboxes that are not exposed at all. Blocked calls return `code: "blocked"`.
-- **Activity log:** every writing tool call and every rule run with hits or errors (marked manual or automatic) is recorded (time, client, Home Assistant user, tool,
-  shortened parameters without message bodies, result) in the "Activity" card of the panel and fired as the event
+- **Change log:** every writing tool call and every rule run with hits or errors (marked manual or automatic) is recorded (time, client, Home Assistant user, tool,
+  shortened parameters without message bodies, result) in the "Change log" card of the panel and fired as the event
   `friedafetch_action`, so an automation can notify you, e.g. when more than ten mails are deleted at once.
 - **Approvals (human in the loop, options → Approvals):** sending, deleting and mass mail actions above a threshold
   can be parked instead of executed. Home Assistant shows a notification (optionally an actionable push on your phone

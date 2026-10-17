@@ -1,4 +1,4 @@
-"""Sidebar panel and WebSocket API: accounts, activity log and approvals."""
+"""Sidebar panel and WebSocket API: overview, accounts, usage, activity log and approvals."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from typing import Any
 from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import llm
+from homeassistant.loader import IntegrationNotFound, async_get_integration
 from homeassistant.util.hass_dict import HassKey
 
 from .accounts import account_label
@@ -19,21 +22,27 @@ from .const import (
     CONF_ALLOW_SEND_MAIL,
     CONF_APPLE_ID,
     CONF_ENABLE_MAIL,
+    CONF_ENDPOINT_ADMIN_ONLY,
     CONF_READ_ONLY,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
     DEFAULT_ENABLE_MAIL,
+    DEFAULT_ENDPOINT_ADMIN_ONLY,
     DEFAULT_READ_ONLY,
     DOMAIN,
 )
 from .mail import MailError
+from .mcp_http import DATA_MCP_HTTP, READONLY_API, STREAMABLE_API, async_served_tools
 from .schema import vol
+from .usage import async_get_usage
 
 _LOGGER = logging.getLogger(__name__)
 
 PANEL_URL_PATH = "friedafetch"
 STATIC_URL = f"/{DOMAIN}_static"
 WEBCOMPONENT = "friedafetch-panel"
+POSTFACH_DOMAIN = "friedafetch_mail"
+HA_MCP_SERVER_DOMAIN = "mcp_server"
 DATA_FRONTEND: HassKey[bool] = HassKey(f"{DOMAIN}_frontend")
 
 
@@ -46,6 +55,8 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
     await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(static_dir), cache_headers=False)])
     for command in (
         ws_accounts,
+        ws_overview,
+        ws_usage_reset,
         ws_mailboxes,
         ws_audit_list,
         ws_audit_clear,
@@ -137,6 +148,99 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
             }
         )
     connection.send_result(msg["id"], {"accounts": accounts})
+
+
+def _llm_api_ids(hass: HomeAssistant, clients: Any) -> list[str]:
+    """Ids under which this account's tools are registered as LLM API (Assist, HA MCP server)."""
+    return [api.id for api in llm.async_get_apis(hass) if getattr(api, "clients", None) is clients]
+
+
+def _ha_mcp_server(hass: HomeAssistant, api_ids: list[str]) -> dict[str, Any]:
+    """Whether Home Assistant's own MCP server integration is set up and serves Frieda."""
+    entries = hass.config_entries.async_entries(HA_MCP_SERVER_DOMAIN)
+    selected = False
+    for entry in entries:
+        apis = entry.options.get(CONF_LLM_HASS_API, entry.data.get(CONF_LLM_HASS_API))
+        apis = [apis] if isinstance(apis, str) else list(apis or [])
+        selected = selected or any(a in apis for a in api_ids)
+    return {"installed": bool(entries), "selected": selected}
+
+
+async def _postfach(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    """State of the Frieda Postfach extension for one account."""
+    extension = entry.runtime_data.extensions.get("mail")
+    try:
+        integration = await async_get_integration(hass, POSTFACH_DOMAIN)
+    except IntegrationNotFound:
+        integration = None
+    linked = [e for e in hass.config_entries.async_entries(POSTFACH_DOMAIN) if e.data.get("account") == entry.entry_id]
+    status: dict[str, Any] = {}
+    if extension is not None and callable(getattr(extension, "status", None)):
+        try:
+            status = dict(extension.status())
+        except Exception as err:  # noqa: BLE001 - the overview must not fail because of an extension
+            _LOGGER.debug("Frieda Postfach status failed: %s", err)
+    if extension is not None:
+        state = "running"
+    elif linked:
+        state = "not_loaded"
+    elif integration is not None:
+        state = "not_linked"
+    else:
+        state = "not_installed"
+    return {
+        "state": state,
+        "version": str(integration.version) if integration and integration.version else None,
+        "status": status,
+    }
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/overview", vol.Optional("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_overview(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Status of the MCP endpoint, the LLM API, Frieda Postfach and the usage counters of an account."""
+    entry = _account(hass, msg.get("entry_id"))
+    clients = entry.runtime_data
+    usage = await async_get_usage(hass)
+    mcp = hass.data.get(DATA_MCP_HTTP)
+    api_ids = _llm_api_ids(hass, clients)
+    full = [t for t in async_served_tools(hass) if t.entry.entry_id == entry.entry_id]
+    readonly = [t for t in async_served_tools(hass, "readonly") if t.entry.entry_id == entry.entry_id]
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry.entry_id,
+            "endpoint": {
+                "active": bool(mcp and mcp.registered),
+                "path": STREAMABLE_API,
+                "readonly_path": READONLY_API,
+                "admin_only": any(
+                    e.options.get(CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY) for e in _loaded_entries(hass)
+                ),
+                "tools": len(full),
+                "tools_readonly": len(readonly),
+                "tools_write": len(full) - len(readonly),
+            },
+            "llm_api": api_ids,
+            "ha_mcp_server": _ha_mcp_server(hass, api_ids),
+            "postfach": await _postfach(hass, entry),
+            "usage": usage.summary(entry.entry_id),
+            "clients": usage.clients(),
+        },
+    )
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/usage/reset", vol.Optional("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_usage_reset(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Reset the usage counters of an account."""
+    entry = _account(hass, msg.get("entry_id"))
+    await (await async_get_usage(hass)).async_reset(entry.entry_id)
+    connection.send_result(msg["id"], {"reset": True})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/mailboxes", vol.Optional("entry_id"): str})

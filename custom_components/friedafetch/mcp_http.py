@@ -51,6 +51,7 @@ from .accounts import account_label
 from .const import CONF_APPLE_ID, CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY, DOMAIN
 from .llm_api import API_PROMPT, ICloudClients, build_tools, capability_hints
 from .schema import vol
+from .usage import async_get_usage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -277,6 +278,20 @@ async def create_streams() -> AsyncGenerator[Streams]:
         await streams.aclose()
 
 
+async def _note_client(hass: HomeAssistant, params: dict[str, Any], profile: str) -> None:
+    """Remember which MCP client connected (name and version from ``initialize``)."""
+    info = params.get("clientInfo") if isinstance(params, dict) else None
+    if not isinstance(info, dict):
+        return
+    try:
+        stats = await async_get_usage(hass)
+        await stats.async_note_client(
+            str(info.get("name") or ""), info.get("version") and str(info["version"]), profile
+        )
+    except Exception as err:  # noqa: BLE001 - bookkeeping must never break the endpoint
+        _LOGGER.debug("Could not record MCP client: %s", err)
+
+
 def _jsonrpc_error(request_id: Any, code: int, message: str, data: Any = None) -> web.Response:
     error = types.JSONRPCError(
         jsonrpc="2.0", id=request_id, error=types.ErrorData(code=code, message=message, data=data)
@@ -318,6 +333,9 @@ async def async_handle_streamable_message(
 
     if message.root.method not in KNOWN_MCP_METHODS:
         return _jsonrpc_error(message.root.id, types.METHOD_NOT_FOUND, "Method not found", message.root.method)
+
+    if message.root.method == "initialize":
+        await _note_client(hass, message.root.params or {}, profile)
 
     server, options = create_server(hass, context, data.version, profile)
 

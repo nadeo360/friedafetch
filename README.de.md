@@ -262,10 +262,23 @@ Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusi
 ## Panel
 
 Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„Frieda“** an (nur für Admins; Deutsch
-oder Englisch je nach HA-Sprache): Konten mit ihrem Sicherheitsstatus, offene und entschiedene **Freigaben**
-(freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App) und das **Aktivitätsprotokoll** mit Kontingenten
-und Filtern pro Spalte. Das Panel kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
-(`friedafetch/accounts`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der Integration.
+oder Englisch je nach HA-Sprache):
+
+- **Überblick:** ob der MCP-Endpunkt aktiv ist (beide URLs zum Kopieren, Zahl der lesenden und schreibenden Tools,
+  Token-Regel), welche MCP-Clients sich zuletzt verbunden haben (Name und Version aus dem MCP-Handshake), ob der
+  MCP-Server von Home Assistant die LLM-API freigibt, und der Zustand von **Frieda Postfach** (läuft, installiert aber
+  nicht verbunden, nicht installiert).
+- **Nutzung:** Tool-Aufrufe heute, in 7 und 30 Tagen und insgesamt, getrennt nach lesend und schreibend, ein
+  14-Tage-Diagramm, die häufigsten Tools, die Herkunft der Aufrufe (Frieda-Endpunkt, HA-MCP-Server, Assist-Agenten)
+  und die Kontingente der letzten Stunde. Gespeichert werden nur Zähler, nie Argumente oder Ergebnisse.
+- **Freigaben:** offene und entschiedene Anfragen (freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App).
+- **Änderungsprotokoll:** alles, was Frieda in iCloud verändert hat, als lesbare Einträge nach Tagen gruppiert (z. B.
+  „Mails verschoben · 3 Mails · → Archiv“), mit Suche und Filtern nach Bereich, Auslöser und Ergebnis; die
+  Rohparameter sind einen Klick entfernt.
+
+Das Panel kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle (`friedafetch/accounts`,
+`friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der
+Integration.
 
 ## Anhänge und Abmelden
 
@@ -296,9 +309,9 @@ die sich an ein Frieda-Konto hängen, dessen Verbindung und Leitplanken nutzen u
   bekannte Kontakte oder eine Allowlist aus Adressen/Domains) mit Empfänger-Obergrenze und optionalem BCC-Verbot;
   geschützte Kalender und Postfächer, die KI-Clients nur lesen dürfen, sowie verborgene Postfächer, die gar nicht
   angeboten werden. Blockierte Aufrufe liefern `code: "blocked"`.
-- **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf mit Treffern oder Fehlern (markiert als
+- **Änderungsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf mit Treffern oder Fehlern (markiert als
   manuell oder automatisch) wird mit Zeit, Client, HA-Benutzer, Tool,
-  gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Aktivität“ des Panels protokolliert und als
+  gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Änderungsprotokoll“ des Panels protokolliert und als
   Ereignis `friedafetch_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
 - **Freigaben (Human-in-the-Loop, Optionen → Freigaben):** Senden, Löschen und Mail-Massenaktionen oberhalb einer
   Schwelle können geparkt statt ausgeführt werden. Home Assistant zeigt eine Benachrichtigung (optional ein Push mit

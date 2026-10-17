@@ -69,6 +69,7 @@ from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
 from .mcp_http import async_register as async_register_mcp_http
 from .notes import ICloudNotes
+from .usage import async_get_usage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,6 +171,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         entry.async_on_unload(hass.bus.async_listen(MOBILE_ACTION_EVENT, approvals.handle_mobile_action))
         entry.async_on_unload(approvals.shutdown)
     clients.entry_id = entry.entry_id
+    clients.usage = await async_get_usage(hass)
 
     # attachments (tool icloud_save_attachments; extensions may use the store too)
     if opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL):

@@ -99,6 +99,7 @@ class ICloudClients:
         # and ``rule_matcher(mailbox)``); they are rebuilt on every reload of the account.
         self.extensions: dict[str, Any] = {}
         self.entry_id: str | None = None
+        self.usage: Any | None = None  # usage.UsageStats, set up by the integration
 
     @property
     def max_results(self) -> int:
@@ -137,6 +138,30 @@ class ICloudTool(llm.Tool):
         return dt_util.get_default_time_zone()
 
     async def async_call(
+        self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext
+    ) -> llm.ToolResult | JsonObjectType:
+        result = await self._async_call(hass, tool_input, llm_context)
+        await self._count(result, llm_context)
+        return result
+
+    async def _count(self, result: Any, llm_context: llm.LLMContext) -> None:
+        """Count the call for the usage overview (reading or writing, success or error)."""
+        usage = self.clients.usage
+        if usage is None or not self.clients.entry_id:
+            return
+        failed = bool(getattr(result, "error", False)) or (isinstance(result, dict) and "error" in result)
+        try:
+            await usage.async_record(
+                self.clients.entry_id,
+                self.name,
+                write=self.writes,
+                ok=not failed,
+                source=getattr(llm_context, "platform", None),
+            )
+        except Exception as err:  # noqa: BLE001 - counting must never break the tool
+            _LOGGER.debug("Usage counting failed: %s", err)
+
+    async def _async_call(
         self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext
     ) -> llm.ToolResult | JsonObjectType:
         args = dict(tool_input.tool_args or {})
