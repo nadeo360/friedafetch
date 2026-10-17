@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+  </picture>
 </p>
 
 <p align="center">
@@ -57,6 +60,9 @@ say so. The other areas use official, stable protocols (CalDAV, CardDAV, IMAP, S
 2. Install "iCloud MCP" and restart Home Assistant.
 
 ### Manual
+
+Integration icons in Home Assistant and HACS come from the central brands repository; the ready-made image set is in
+[`brands/`](brands/README.md).
 
 Copy `custom_components/icloud_mcp` into the `custom_components` directory of your Home Assistant configuration and
 restart Home Assistant.
@@ -203,8 +209,9 @@ Rules only run while Home Assistant is running; nothing happens on the phone wit
 
 The integration adds **"iCloud Rules"** to the Home Assistant sidebar (admins only, German/English following the HA
 language). Rules can be created, edited, reordered, enabled/disabled and deleted; dry runs and real runs show a
-per-message report. Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel has no external dependencies and
-talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
+per-message report. Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel is optimised for phones (stacked cards instead of tables, large touch targets, approvals with one tap in
+the Home Assistant companion app), has no external dependencies and talks to the integration via WebSocket commands
+(`icloud_mcp/rules/*`, `icloud_mcp/approvals/*`, `icloud_mcp/audit/*`).
 
 ## Security
 

@@ -1,5 +1,7 @@
 /* iCloud MCP – Posteingangsregeln: Verwaltungspanel (ohne Build-Schritt, ohne Abhängigkeiten). */
 
+const ICON_URL = new URL("icon.svg", import.meta.url).href;
+
 const FIELDS = ["from", "to", "cc", "subject", "any"];
 const OPS = ["contains", "equals", "starts_with", "ends_with", "domain", "regex"];
 
@@ -253,6 +255,18 @@ const I18N = {
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+
+// Adds data-label attributes to the cells of each row so the CSS can stack tables on phones.
+const withLabels = (rowsHtml, labels) =>
+  rowsHtml
+    .split("<tr")
+    .map((chunk, idx) => {
+      if (idx === 0) return chunk;
+      let i = 0;
+      return chunk.replace(/<td(?![^>]*data-label)/g, () => `<td data-label="${esc(labels[i++] ?? "")}"`);
+    })
+    .join("<tr");
+
 const STYLE = `
   :host { display: block; height: 100%; color: var(--primary-text-color); background: var(--primary-background-color); }
   .toolbar { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; background: var(--app-header-background-color, var(--primary-color)); color: var(--app-header-text-color, #fff); font-size: 20px; }
@@ -295,7 +309,35 @@ const STYLE = `
   .scroll { overflow-x: auto; }
   code { font-size: 12px; background: var(--secondary-background-color, #f0f0f0); padding: 1px 5px; border-radius: 4px; }
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
-  @media (max-width: 700px) { .cond { grid-template-columns: 1fr 1fr; } .row label { min-width: 100%; } }
+  .toolbar img { width: 28px; height: 28px; border-radius: 7px; }
+  table.stack { width: 100%; }
+  @media (max-width: 760px) {
+    .toolbar { height: 52px; padding: 0 10px; font-size: 18px; }
+    .content { padding: 10px; gap: 10px; }
+    .card { padding: 12px; }
+    .card h2 { font-size: 17px; }
+    .card h2 button { flex: 1 1 auto; }
+    table.stack thead { display: none; }
+    table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; box-sizing: border-box; }
+    table.stack tr { border: 1px solid var(--divider-color, #e0e0e0); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; background: var(--card-background-color, #fff); }
+    table.stack td { border: none; padding: 4px 0; white-space: normal !important; }
+    table.stack td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 2px; }
+    table.stack td[data-label=""]::before, table.stack td:not([data-label])::before { display: none; }
+    table.stack td.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 8px; }
+    .scroll { overflow: visible; }
+    .actionsbar { flex-direction: column; }
+    .actionsbar button { width: 100%; }
+    .tabs .tab { flex-basis: 100%; }
+    .cond { grid-template-columns: 1fr; gap: 6px; padding: 8px; border: 1px solid var(--divider-color, #e0e0e0); border-radius: 10px; }
+    .cond button.icon { justify-self: end; }
+    button { min-height: 44px; }
+    button.icon { min-width: 44px; min-height: 44px; font-size: 18px; }
+    input[type=text], select, select.copy { width: 100%; max-width: none; min-width: 0; box-sizing: border-box; min-height: 44px; font-size: 16px; }
+    .row { gap: 4px; }
+    .row label { min-width: 100%; }
+    .row label:has(input[type=checkbox]) { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+    input[type=checkbox] { width: 22px; height: 22px; }
+  }
 `;
 
 class ICloudMcpRulesPanel extends HTMLElement {
@@ -514,9 +556,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
         <td><code>${esc(r.tool)}</code><div class="muted">${reason(r.reason)}</div></td>
         <td>${esc(r.summary)}${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
         <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(t.validUntil)} ${esc(new Date(r.expires).toLocaleTimeString())}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by)}</div>` : ""}</td>
-        <td style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.deny)}</button>` : ""}</td>
+        <td class="actions" style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.deny)}</button>` : ""}</td>
       </tr>`;
-    const table = (rows) => `<div class="scroll"><table><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const table = (rows) => `<div class="scroll"><table class="stack"><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th><th></th></tr></thead><tbody>${withLabels(rows, [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult, ""])}</tbody></table></div>`;
     return `<div class="card">
       <h2><span class="grow">${esc(t.approvals)}${pending.length ? ` <span class="badge warn">${pending.length}</span>` : ""}</span></h2>
       <p class="muted" style="margin:0 0 10px">${esc(a.enabled ? t.approvalsHint : t.approvalsOff)}</p>
@@ -580,7 +622,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       <p class="muted" style="margin:0 0 10px">${esc(t.activityHint)}</p>
       <div class="badges" style="margin-bottom:10px"><span class="muted" style="margin-right:6px">${esc(t.quota)}:</span>
         ${quotaRow("mail_modify", t.quotaMailModify)} ${quotaRow("mail_send", t.quotaMailSend)} ${quotaRow("item_delete", t.quotaItemDelete)}</div>
-      ${rows ? `<div class="scroll"><table><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted">${esc(t.noActivity)}</p>`}
+      ${rows ? `<div class="scroll"><table class="stack"><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th></tr></thead><tbody>${withLabels(rows, [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult])}</tbody></table></div>` : `<p class="muted">${esc(t.noActivity)}</p>`}
     </div>`;
   }
 
@@ -662,7 +704,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
           <td>${conds}</td>
           <td>${acts}${r.actions.stop === false ? `<div class="muted">↓</div>` : ""}</td>
           <td>${r.hits ?? 0}</td>
-          <td style="white-space:nowrap">
+          <td class="actions" style="white-space:nowrap">
             <button class="icon" data-action="up" data-id="${r.id}" ${i === 0 ? "disabled" : ""} title="${esc(t.up)}">▲</button>
             <button class="icon" data-action="down" data-id="${r.id}" ${i === this._s.rules.length - 1 ? "disabled" : ""} title="${esc(t.down)}">▼</button>
             <button class="icon" data-action="edit" data-id="${r.id}" title="${esc(t.edit)}">✎</button>
@@ -671,7 +713,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
           </td></tr>`;
       })
       .join("");
-    return `<div class="scroll"><table><thead><tr><th></th><th>${esc(t.name)}</th><th>${esc(t.conditions)}</th><th>${esc(t.actions)}</th><th>${esc(t.hits)}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const labelled = withLabels(rows, [t.enabled, t.name, t.conditions, t.actions, t.hits, ""]);
+    return `<div class="scroll"><table class="stack"><thead><tr><th></th><th>${esc(t.name)}</th><th>${esc(t.conditions)}</th><th>${esc(t.actions)}</th><th>${esc(t.hits)}</th><th></th></tr></thead><tbody>${labelled}</tbody></table></div>`;
   }
 
   _renderEditor() {
@@ -739,7 +782,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       <h2><span class="grow">${esc(t.report)}${r.dry_run ? ` <span class="chip">${esc(t.dryRun)}</span>` : ""}</span><span class="muted">${r.checked} ${esc(t.checked)} · ${r.matched} ${esc(t.matched)}</span></h2>
       ${errors ? `<div class="error"><strong>${esc(t.errors)}</strong><ul>${errors}</ul></div>` : ""}
       ${skipped ? `<div class="muted"><strong>${esc(t.skipped)}</strong><ul>${skipped}</ul></div>` : ""}
-      ${rows ? `<table><thead><tr><th>${esc(t.uid)}</th><th>${esc(t.subject)}</th><th>${esc(t.from)}</th><th>${esc(t.rule)}</th><th>${esc(t.action)}</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
+      ${rows ? `<div class="scroll"><table class="stack"><thead><tr><th>${esc(t.uid)}</th><th>${esc(t.subject)}</th><th>${esc(t.from)}</th><th>${esc(t.rule)}</th><th>${esc(t.action)}</th></tr></thead><tbody>${withLabels(rows, [t.uid, t.subject, t.from, t.rule, t.action])}</tbody></table></div>` : ""}
     </div>`;
   }
 
@@ -775,7 +818,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       ${this._renderApprovals()}
       ${this._renderActivity()}`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-      <div class="toolbar"><ha-menu-button></ha-menu-button><span>${esc(t.title)}</span><span class="grow"></span>${accountSel}</div>
+      <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${accountSel}</div>
       <div class="content">${body}</div>`;
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {

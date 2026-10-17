@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+  </picture>
 </p>
 
 <p align="center">
@@ -60,6 +63,9 @@ stabile Protokolle (CalDAV, CardDAV, IMAP, SMTP) und sind vollständig nutzbar.
 2. „iCloud MCP“ installieren und Home Assistant neu starten.
 
 ### Manuell
+
+Integrations-Icons in Home Assistant und HACS stammen aus dem zentralen Brands-Repository; das fertige Bildpaket liegt in
+[`brands/`](brands/README.md).
 
 Ordner `custom_components/icloud_mcp` in das `custom_components`-Verzeichnis der Home-Assistant-Konfiguration kopieren
 und Home Assistant neu starten.
@@ -266,8 +272,9 @@ oder Englisch je nach HA-Sprache).
 Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
 Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Konten erscheinen als Karten mit Regelanzahl,
 Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regeln lassen sich in ein anderes Konto
-kopieren. Das Panel kommt ohne externe Bibliotheken aus und spricht über
-WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
+kopieren. Das Panel ist für Smartphones optimiert (gestapelte Karten statt Tabellen, große Touch-Flächen, Freigaben mit einem
+Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
+(`icloud_mcp/rules/*`, `icloud_mcp/approvals/*`, `icloud_mcp/audit/*`) mit der Integration.
 
 ## Sicherheit
 
