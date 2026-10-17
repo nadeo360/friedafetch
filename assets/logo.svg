@@ -56,15 +56,6 @@
   <path fill="#FFD60A" opacity="0.9" d="M190 28c.9 5.7 3.6 8.4 9.3 9.3-5.7.9-8.4 3.6-9.3 9.3-.9-5.7-3.6-8.4-9.3-9.3 5.7-.9 8.4-3.6 9.3-9.3z"/>
 
   </g>
-
-  <!-- cloud (iCloud) she is looking out of -->
-  <path filter="url(#shadow)" fill="url(#cloud)" transform="translate(6 22) scale(0.96)" d="M48 232h156a34 34 0 0 0 6-67.6A50 50 0 0 0 110 150.5 38 38 0 0 0 48 232z"/>
-
-  <!-- AI spark she is watching -->
-  <path fill="#FFD60A" d="M224 30c1.6 10.4 6.6 15.4 17 17-10.4 1.6-15.4 6.6-17 17-1.6-10.4-6.6-15.4-17-17 10.4-1.6 15.4-6.6 17-17z"/>
-  <path fill="#FFD60A" opacity="0.9" d="M196 18c.9 5.7 3.6 8.4 9.3 9.3-5.7.9-8.4 3.6-9.3 9.3-.9-5.7-3.6-8.4-9.3-9.3 5.7-.9 8.4-3.6 9.3-9.3z"/>
-
-  </g>
   <text x="250" y="112" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="url(#text)" letter-spacing="-1.5">Frieda</text>
   <text x="252" y="160" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#6E6E73">MCP connector for iCloud · Home Assistant</text>
 </svg>
