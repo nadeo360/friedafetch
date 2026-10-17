@@ -7,7 +7,6 @@ exposed by Apple through any app-password accessible protocol.
 
 from __future__ import annotations
 
-import email
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -23,10 +22,11 @@ from .mail import (
     ICloudMail,
     MailboxNotFound,
     MessageNotFound,
-    _decode_header_value,
     _parse_date,
     extract_body,
+    header_text,
     parse_fetch,
+    parse_message,
 )
 from .util import text_to_html
 
@@ -56,14 +56,14 @@ class ICloudNotes:
             )
 
     def _summary(self, item: Any, msg: Any) -> dict[str, Any]:
-        note_uid = (msg.get("X-Universally-Unique-Identifier") or "").strip() or None
-        created = _parse_date(msg.get("X-Mail-Created-Date"))
+        note_uid = header_text(msg, "X-Universally-Unique-Identifier")
+        created = _parse_date(header_text(msg, "X-Mail-Created-Date"))
         return {
             "uid": item.uid,
             "note_id": note_uid,
-            "title": _decode_header_value(msg.get("Subject")) or "(ohne Titel)",
+            "title": header_text(msg, "Subject") or "(ohne Titel)",
             "created": created,
-            "modified": _parse_date(msg.get("Date")) or created,
+            "modified": _parse_date(header_text(msg, "Date")) or created,
         }
 
     async def async_list(self, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
@@ -89,7 +89,7 @@ class ICloudNotes:
             for item in parse_fetch(response.lines):
                 if item.uid is None:
                     continue
-                msg = email.message_from_bytes(item.literal(), policy=policy.compat32)
+                msg = parse_message(item.literal())
                 notes.append(self._summary(item, msg))
             return notes
 

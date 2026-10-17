@@ -115,14 +115,47 @@ def _decode_header_value(value: str | None) -> str | None:
         return value.strip()
 
 
+def parse_message(data: bytes) -> Message:
+    """Parse raw RFC 822 bytes with the modern (RFC 5322) header policy."""
+    return email.message_from_bytes(data, policy=policy.default)
+
+
+def header_text(msg: Message, name: str) -> str | None:
+    """Return a decoded, unfolded header value regardless of the policy in use."""
+    try:
+        value = msg[name]
+    except Exception:  # noqa: BLE001 - defective header
+        value = None
+    if value is None:
+        raw = msg.get_all(name)
+        return _decode_header_value(str(raw[0])) if raw else None
+    text = str(value)
+    if "=?" in text:
+        text = _decode_header_value(text) or text
+    return " ".join(text.split()) or None
+
+
 def _addresses(msg: Message, header: str) -> list[dict[str, str]]:
-    raw = msg.get_all(header, [])
     out: list[dict[str, str]] = []
-    for name, addr in getaddresses([str(v) for v in raw]):
-        if not addr and not name:
-            continue
-        out.append({"name": _decode_header_value(name) or "", "email": addr})
-    return out
+    try:
+        values = msg.get_all(header, [])
+        for value in values:
+            addresses = getattr(value, "addresses", None)
+            if addresses is None:
+                raise AttributeError
+            for addr in addresses:
+                if not addr.addr_spec and not addr.display_name:
+                    continue
+                out.append({"name": addr.display_name or "", "email": addr.addr_spec})
+        return out
+    except Exception:  # noqa: BLE001 - fall back to the legacy parser
+        out = []
+        raw = msg.get_all(header, [])
+        for name, addr in getaddresses([str(v) for v in raw]):
+            if not addr and not name:
+                continue
+            out.append({"name": _decode_header_value(name) or "", "email": addr})
+        return out
 
 
 def _parse_date(value: str | None) -> str | None:
@@ -214,18 +247,24 @@ def _message_summary(item: FetchItem, msg: Message, mailbox: str) -> dict[str, A
     return {
         "uid": item.uid,
         "mailbox": mailbox,
-        "subject": _decode_header_value(msg.get("Subject")) or "",
+        "subject": header_text(msg, "Subject") or "",
         "from": _addresses(msg, "From"),
         "to": _addresses(msg, "To"),
         "cc": _addresses(msg, "Cc"),
-        "date": _parse_date(msg.get("Date")),
+        "date": _parse_date(header_text(msg, "Date")),
         "seen": "\\Seen" in flags,
         "flagged": "\\Flagged" in flags,
         "answered": "\\Answered" in flags,
         "size": item.size,
-        "message_id": (msg.get("Message-ID") or "").strip() or None,
-        "in_reply_to": (msg.get("In-Reply-To") or "").strip() or None,
+        "message_id": header_text(msg, "Message-ID"),
+        "in_reply_to": header_text(msg, "In-Reply-To"),
     }
+
+
+def raw_headers(data: bytes, limit: int = 4000) -> str:
+    """Return the raw header block of a message (for diagnostics)."""
+    head = data.split(b"\r\n\r\n", 1)[0] if b"\r\n\r\n" in data else data.split(b"\n\n", 1)[0]
+    return head.decode("utf-8", errors="replace")[:limit]
 
 
 def extract_body(msg: Message, prefer_html: bool = False) -> tuple[str, str, list[dict[str, Any]]]:
@@ -542,7 +581,7 @@ class ICloudMail:
         for item in parse_fetch(response.lines):
             if item.uid is None:
                 continue
-            msg = email.message_from_bytes(item.literal(), policy=policy.compat32)
+            msg = parse_message(item.literal())
             summaries.append(_message_summary(item, msg, mailbox))
         order = {uid: i for i, uid in enumerate(uids)}
         summaries.sort(key=lambda s: order.get(s["uid"], 1_000_000))
@@ -564,12 +603,18 @@ class ICloudMail:
             if not items or not items[0].literal():
                 raise MessageNotFound(f"Message {uid} not found in '{mailbox}'")
             item = items[0]
-            return item, email.message_from_bytes(item.literal(), policy=policy.compat32)
+            return item, parse_message(item.literal())
 
         return await self._run(op)
 
     async def async_get_message(
-        self, mailbox: str, uid: int, *, prefer_html: bool = False, max_chars: int = 20000
+        self,
+        mailbox: str,
+        uid: int,
+        *,
+        prefer_html: bool = False,
+        max_chars: int = 20000,
+        include_headers: bool = False,
     ) -> dict[str, Any]:
         item, msg = await self.async_fetch_raw(mailbox, uid)
         result = _message_summary(item, msg, mailbox)
@@ -581,9 +626,11 @@ class ICloudMail:
                 "body_content_type": ctype,
                 "body_truncated": truncated,
                 "attachments": attachments,
-                "references": (msg.get("References") or "").strip() or None,
+                "references": header_text(msg, "References"),
             }
         )
+        if include_headers:
+            result["raw_headers"] = raw_headers(item.literal())
         return result
 
     async def async_set_flags(
@@ -675,13 +722,13 @@ class ICloudMail:
         quoted: str | None = None
         if reply_to_uid is not None:
             _, original = await self.async_fetch_raw(reply_to_mailbox or "INBOX", reply_to_uid)
-            orig_id = (original.get("Message-ID") or "").strip()
+            orig_id = header_text(original, "Message-ID") or ""
             if orig_id:
                 msg["In-Reply-To"] = orig_id
-                refs = (original.get("References") or "").strip()
+                refs = header_text(original, "References") or ""
                 msg["References"] = f"{refs} {orig_id}".strip()
             if not subject:
-                orig_subject = _decode_header_value(original.get("Subject")) or ""
+                orig_subject = header_text(original, "Subject") or ""
                 del msg["Subject"]
                 msg["Subject"] = orig_subject if orig_subject.lower().startswith("re:") else f"Re: {orig_subject}"
             orig_text, _, _ = extract_body(original)

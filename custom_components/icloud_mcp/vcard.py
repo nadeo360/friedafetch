@@ -362,16 +362,21 @@ class VCard:
         org = self.get("ORG")
         org_comps = org.components if org else []
         bday = self.get("BDAY")
+        full_name = (
+            (self.full_name or "").strip()
+            or " ".join(part for part in (comps[3], comps[1], comps[2], comps[0], comps[4]) if part)
+            or (org_comps[0] if org_comps and org_comps[0] else None)
+        )
         result: dict[str, Any] = {
             "uid": self.uid,
-            "full_name": self.full_name,
+            "full_name": full_name,
             "family_name": comps[0] or None,
             "given_name": comps[1] or None,
             "additional_names": comps[2] or None,
             "prefix": comps[3] or None,
             "suffix": comps[4] or None,
             "nickname": (self.get("NICKNAME").text if self.get("NICKNAME") else None),
-            "organization": org_comps[0] if org_comps else None,
+            "organization": (org_comps[0] or None) if org_comps else None,
             "department": org_comps[1] if len(org_comps) > 1 and org_comps[1] else None,
             "title": self.get("TITLE").text if self.get("TITLE") else None,
             "emails": [

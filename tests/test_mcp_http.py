@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -76,7 +77,8 @@ async def test_initialize(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
     )
     result = data["result"]
     assert result["serverInfo"]["name"] == "icloud-mcp"
-    assert result["serverInfo"]["version"] == "0.1.0"
+    manifest = json.loads((Path(__file__).parents[1] / "custom_components/icloud_mcp/manifest.json").read_text())
+    assert result["serverInfo"]["version"] == manifest["version"]
     assert "tools" in result["capabilities"]
     assert "iCloud" in result["instructions"]
     assert result["protocolVersion"]
