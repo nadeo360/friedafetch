@@ -8,6 +8,9 @@
 #
 # Requires: gh (logged in), git. Run scripts/build_icons.py first if the SVGs changed.
 set -euo pipefail
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
+command -v gh >/dev/null || { echo "GitHub CLI 'gh' not found. Install it (brew install gh) and run 'gh auth login'." >&2; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "gh is not logged in. Run 'gh auth login' first." >&2; exit 1; }
 
 DOMAIN="icloud_mcp"
 UPSTREAM="home-assistant/brands"
