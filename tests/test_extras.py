@@ -1,18 +1,15 @@
-"""Package C wired into Home Assistant: tools, rule action, daily overview, sensor, options."""
+"""Insight, unsubscribe and attachment tools wired into Home Assistant."""
 
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import llm
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.friedafetch.const import CONF_APP_PASSWORD, CONF_APPLE_ID, DOMAIN, LLM_API_ID
-from custom_components.friedafetch.digest import async_send_digest, render_text
 from custom_components.friedafetch.mail import parse_message
-from custom_components.friedafetch.rules import RuleEngine
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -47,49 +44,6 @@ async def _api(hass: HomeAssistant, entry: MockConfigEntry) -> llm.APIInstance:
 
 async def _call(api: llm.APIInstance, name: str, **args):
     return await api.async_call_tool(llm.ToolInput(tool_name=name, tool_args=args))
-
-
-# ------------------------------------------------------------------ rules
-async def test_rule_saves_attachments_before_deleting(hass: HomeAssistant) -> None:
-    mail = MagicMock()
-    mail.async_mailboxes = AsyncMock(return_value=[{"name": "INBOX", "special_use": None}])
-    mail.async_search_uids = AsyncMock(return_value=[5])
-    mail.async_summaries = AsyncMock(
-        return_value=[{"uid": 5, "subject": "Ihre Rechnung", "from": [{"name": "", "email": "bill@shop.example"}]}]
-    )
-    order: list[str] = []
-    mail.async_delete = AsyncMock(side_effect=lambda *a, **k: order.append("delete"))
-    saver = AsyncMock(
-        side_effect=lambda *a: order.append("save") or [{"status": "saved", "path": "Belege/2026-10/x.pdf"}]
-    )
-    engine = RuleEngine(hass, "entry-att", mail, attachment_saver=saver)
-    await engine.async_create(
-        {
-            "name": "Belege",
-            "conditions": [{"field": "subject", "op": "contains", "value": "rechnung"}],
-            "actions": {"delete": True, "save_attachments": True, "attachments_folder": "Belege"},
-        }
-    )
-    report = await engine.async_run(scope="all")
-    saver.assert_awaited_once_with("INBOX", 5, "Belege")
-    assert order == ["save", "delete"]
-    assert report["saved_files"] == ["Belege/2026-10/x.pdf"] and report["actions"][0]["save_attachments"]
-    assert engine.history()[0]["saved_files"] == 1
-
-    # without an attachment folder the action is reported as skipped, the rest still runs
-    engine.attachment_saver = None
-    report = await engine.async_run(scope="all")
-    assert any(s["code"] == "attachments_unavailable" for s in report["skipped"])
-
-    # save_attachments alone is a valid action
-    rule = await engine.async_create(
-        {
-            "name": "Nur Anhänge",
-            "conditions": [{"field": "from", "op": "contains", "value": "x"}],
-            "actions": {"save_attachments": True},
-        }
-    )
-    assert rule["actions"]["save_attachments"] is True
 
 
 # ------------------------------------------------------------------ tools
@@ -196,112 +150,78 @@ async def test_save_attachments_tool(hass: HomeAssistant, mock_discover: AsyncMo
     assert stored.read_bytes().startswith(b"%PDF") and "2026-10" in str(stored) and "shop" in stored.name
 
 
-# --------------------------------------------------------------- overview
-def test_render_text() -> None:
-    title, text = render_text(
-        {
-            "unread": [
-                {"from": "Chef", "subject": "Budget", "newsletter": False},
-                {"from": "Shop", "subject": "Deal", "newsletter": True},
-            ],
-            "rules": {"Werbung": 4, "Belege": 1},
-            "events": [{"summary": "Zahnarzt", "start": "2026-10-17T09:30:00+02:00", "all_day": False}],
-            "birthdays": [{"name": "Anna", "in_days": 0}],
-        },
-        "de",
-    )
-    assert title == "Frieda – Tagesüberblick"
-    assert "2 ungelesene Mails" in text and "Chef: Budget" in text and "Shop: Deal" not in text
-    assert "Regeln: 5 Mails verarbeitet" in text and "09:30 Zahnarzt" in text and "Anna (heute)" in text
-
-
-async def test_send_digest_paths(hass: HomeAssistant) -> None:
-    hass.config.language = "de"
-    clients = MagicMock()
-    clients.options = {"enable_calendar": False, "enable_contacts": False, "enable_mail": False}
-    notifications = async_mock_service(hass, "persistent_notification", "create")
-    result = await async_send_digest(hass, clients)
-    assert result["sent_to"] == "persistent_notification" and len(notifications) == 1
-
-    phone = async_mock_service(hass, "notify", "mobile_app_iphone")
-    async_mock_service(
-        hass, "ai_task", "generate_data", response={"data": "Guten Morgen! Alles ruhig."}, supports_response=True
-    )
-    clients.options |= {"digest_notify": "notify.mobile_app_iphone", "digest_ai_task": "ai_task.google"}
-    result = await async_send_digest(hass, clients, account="privat")
-    assert result["ai"] is True and result["sent_to"] == "notify.mobile_app_iphone"
-    assert phone[0].data == {"title": "Frieda – Tagesüberblick (privat)", "message": "Guten Morgen! Alles ruhig."}
-
-
-async def test_send_digest_service(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
-    await _api(hass, _entry())
-    with patch(
-        "custom_components.friedafetch.async_send_digest",
-        AsyncMock(return_value={"sent_to": "persistent_notification", "message": "x"}),
-    ) as send:
-        response = await hass.services.async_call(DOMAIN, "send_digest", {}, blocking=True, return_response=True)
-    send.assert_awaited_once()
-    assert response["results"][0]["sent_to"] == "persistent_notification"
-    with pytest.raises(Exception, match="No loaded Frieda account"):
-        await hass.services.async_call(DOMAIN, "send_digest", {"account": "nope"}, blocking=True, return_response=True)
-
-
-# ------------------------------------------------------------ sensor, push
-async def test_birthday_sensor(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
-    from homeassistant.util import dt as dt_util
-
-    today = dt_util.now().date()
-    contacts = [{"uid": "1", "full_name": "Anna", "birthday": f"1990-{today:%m-%d}"}]
-    entry = _entry()
-    entry.add_to_hass(hass)
-    with patch(
-        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_search", AsyncMock(return_value=contacts)
-    ):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-    states = [s for s in hass.states.async_all("sensor") if s.entity_id.startswith("sensor.frieda")]
-    assert len(states) == 1
-    assert states[0].state == today.isoformat()
-    assert states[0].attributes["names"] == ["Anna"] and states[0].attributes["in_days"] == 0
-
-
-async def test_push_watcher_is_set_up(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
-    entry = _entry()
-    await _api(hass, entry)
-    clients = entry.runtime_data
-    assert clients.watcher is not None and clients.rules.push is clients.watcher
-    assert clients.rules.automation_status()["push"]["mailbox"] == "INBOX"
-
-    entry2 = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="b@icloud.com",
-        data={CONF_APPLE_ID: "b@icloud.com", CONF_APP_PASSWORD: "x"},
-        options={"rules_push": False},
-    )
-    entry2.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry2.entry_id)
-    await hass.async_block_till_done()
-    assert entry2.runtime_data.watcher is None
-
-
-async def test_extras_options(hass: HomeAssistant, mock_discover: AsyncMock, tmp_path: Path) -> None:
+async def test_attachment_folder_option(hass: HomeAssistant, mock_discover: AsyncMock, tmp_path: Path) -> None:
     entry = _entry()
     await _api(hass, entry)
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "extras"})
-    assert result["type"] is FlowResultType.FORM and result["step_id"] == "extras"
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"digest_time": "7:5x", "attachments_dir": "/etc/nope"}
-    )
-    assert result["errors"] == {"digest_time": "invalid_time", "attachments_dir": "path_not_allowed"}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "tools"})
+    form = {
+        "enable_calendar": True,
+        "enable_contacts": True,
+        "enable_mail": True,
+        "enable_notes": True,
+        "read_only": False,
+        "allow_send_mail": True,
+        "allow_delete": True,
+        "max_results": 50,
+        "attachments_dir": "/etc/nope",
+    }
+    result = await hass.config_entries.options.async_configure(result["flow_id"], form)
+    assert result["errors"] == {"attachments_dir": "path_not_allowed"}
     hass.config.allowlist_external_dirs.add(str(tmp_path))
-    with patch("custom_components.friedafetch.carddav_client.ICloudCardDav.async_search", AsyncMock(return_value=[])):
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            {"digest_time": "07:30", "digest_notify": "notify.mobile_app_x", "attachments_dir": str(tmp_path)},
-        )
-        await hass.async_block_till_done()
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], form | {"attachments_dir": str(tmp_path)}
+    )
+    await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options["digest_time"] == "07:30" and entry.options["digest_notify"] == "mobile_app_x"
     assert entry.runtime_data.attachments is not None
-    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_extension_tools_and_rule_matcher(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
+    """Extensions contribute tools (gated by the core options) and rule coverage for the statistics."""
+    from custom_components.friedafetch.llm_api import ICloudTool
+    from custom_components.friedafetch.schema import vol
+
+    class Hello(ICloudTool):
+        name = "icloud_hello"
+        feature = "mail"
+        description = "test"
+        parameters = vol.Schema({})
+
+        async def run(self, hass, args):
+            return {"ok": True}
+
+    class Writer(Hello):
+        name = "icloud_hello_write"
+        writes = True
+
+    entry = _entry(read_only=True)
+    await _api(hass, entry)
+    ext = MagicMock(tool_classes=[Hello, Writer], rule_matcher=lambda box: lambda s: "Abo")
+    entry.runtime_data.extensions["mail"] = ext
+    ctx = llm.LLMContext(platform="test", context=Context(), language="de", assistant=None, device_id=None)
+    api = await llm.async_get_api(hass, LLM_API_ID, ctx)
+    names = {t.name for t in api.tools}
+    assert "icloud_hello" in names and "icloud_hello_write" not in names  # read-only hides writing extension tools
+    summaries = [{"uid": 1, "seen": True, "newsletter": True, "from": [{"name": "", "email": "n@shop.example"}]}]
+    with (
+        patch("custom_components.friedafetch.mail.ICloudMail.async_search_uids", AsyncMock(return_value=[1])),
+        patch("custom_components.friedafetch.mail.ICloudMail.async_summaries", AsyncMock(return_value=summaries)),
+    ):
+        stats = await _call(api, "icloud_mailbox_stats")
+    assert stats.data["top_senders"][0]["covered_by"] == "Abo"
+
+
+async def test_moved_rules_repair_issue(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    storage = Path(hass.config.path(".storage"))
+    await hass.async_add_executor_job(lambda: storage.mkdir(parents=True, exist_ok=True))
+    await hass.async_add_executor_job((storage / f"{DOMAIN}.rules.{entry.entry_id}").write_text, "{}")
+    with patch("custom_components.friedafetch.carddav_client.ICloudCardDav.async_search", AsyncMock(return_value=[])):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"rules_moved_{entry.entry_id}")
+    assert issue is not None and issue.translation_key == "rules_moved"

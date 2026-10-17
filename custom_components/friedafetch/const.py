@@ -22,8 +22,6 @@ CONF_READ_ONLY = "read_only"
 CONF_ALLOW_SEND_MAIL = "allow_send_mail"
 CONF_ALLOW_DELETE = "allow_delete"
 CONF_MAX_RESULTS = "max_results"
-CONF_RULES_AUTO = "rules_auto"
-CONF_RULES_INTERVAL = "rules_interval"
 
 DEFAULT_ENABLE_CALENDAR = True
 DEFAULT_ENABLE_CONTACTS = True
@@ -33,10 +31,6 @@ DEFAULT_READ_ONLY = False
 DEFAULT_ALLOW_SEND_MAIL = True
 DEFAULT_ALLOW_DELETE = True
 DEFAULT_MAX_RESULTS = 50
-DEFAULT_RULES_AUTO = True
-DEFAULT_RULES_INTERVAL = 5  # minutes
-MIN_RULES_INTERVAL = 1
-MAX_RULES_INTERVAL = 240
 MAX_RESULTS_LIMIT = 200
 
 # iCloud endpoints
@@ -92,12 +86,6 @@ MOBILE_ACTION_EVENT = "mobile_app_notification_action"
 CONF_ENDPOINT_ADMIN_ONLY = "endpoint_admin_only"
 DEFAULT_ENDPOINT_ADMIN_ONLY = False
 
-# Push delivery, daily overview and attachments (options)
-CONF_RULES_PUSH = "rules_push"  # IMAP IDLE: run the rules right after new mail arrives
-CONF_DIGEST_TIME = "digest_time"  # "HH:MM", empty = off
-CONF_DIGEST_NOTIFY = "digest_notify"  # notify service without "notify."
-CONF_DIGEST_AI_TASK = "digest_ai_task"  # optional ai_task entity that phrases the overview
+# Attachments (option)
 CONF_ATTACHMENTS_DIR = "attachments_dir"  # folder for stored attachments (must be an allowed path)
-DEFAULT_RULES_PUSH = True
 DEFAULT_ATTACHMENTS_SUBDIR = "frieda"
-SERVICE_SEND_DIGEST = "send_digest"

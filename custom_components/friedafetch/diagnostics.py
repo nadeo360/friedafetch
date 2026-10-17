@@ -29,6 +29,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ICloudC
         },
         "tools": [t.name for t in build_tools(clients)],
         "calendars": calendars,
-        "rules": (await clients.rules.async_list()) if clients.rules else [],
-        "rules_last_run": clients.rules.last_run if clients.rules else None,
+        "extensions": sorted(clients.extensions),
     }

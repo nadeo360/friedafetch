@@ -117,7 +117,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert set(result["menu_options"]) == {"tools", "security", "approvals", "rules", "extras"}
+    assert set(result["menu_options"]) == {"tools", "security", "approvals"}
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "tools"})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "tools"
@@ -174,15 +174,6 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
     assert entry.options["limit_mail_send"] == 5
     assert entry.options["protected_mailboxes"] == ["Steuer"]
     assert entry.options[CONF_READ_ONLY] is True  # kept from the tools section
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "rules"})
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"rules_auto": False, "rules_interval": 15.0}
-    )
-    await hass.async_block_till_done()
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options["rules_interval"] == 15 and entry.options["rules_auto"] is False
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "approvals"})

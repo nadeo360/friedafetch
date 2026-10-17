@@ -40,9 +40,7 @@
         "menu_options": {
           "tools": "Tools und Konto",
           "security": "Sicherheit und Leitplanken",
-          "rules": "Posteingangsregeln",
-          "approvals": "Freigaben",
-          "extras": "Push, Tagesüberblick und Anhänge"
+          "approvals": "Freigaben"
         }
       },
       "tools": {
@@ -58,7 +56,8 @@
           "allow_delete": "Löschen von Terminen, Kontakten, E-Mails und Notizen erlauben",
           "max_results": "Standard-Maximalanzahl an Ergebnissen",
           "account_label": "Kontobezeichnung (für Tool-Namen bei mehreren Konten)",
-          "from_address": "Absenderadresse für ausgehende E-Mails"
+          "from_address": "Absenderadresse für ausgehende E-Mails",
+          "attachments_dir": "Ordner für Anhänge (leer = Unterordner frieda im Medienordner)"
         },
         "data_description": {
           "account_label": "Kurzname wie privat oder arbeit. Bei mehr als einem iCloud-Konto erhalten die Tools weiterer Konten dieses Suffix, z. B. icloud_list_events_arbeit. Standard: lokaler Teil der Apple-ID."
@@ -86,14 +85,6 @@
           "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/friedafetch, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/friedafetch/readonly."
         }
       },
-      "rules": {
-        "title": "Posteingangsregeln",
-        "data": {
-          "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
-          "rules_interval": "Intervall für automatische Regeln (Minuten)",
-          "rules_push": "Push: Regeln direkt nach dem Eingang neuer Mails anwenden (IMAP IDLE)"
-        }
-      },
       "approvals": {
         "title": "Freigaben (Human-in-the-Loop)",
         "description": "Kritische Aktionen werden nicht sofort ausgeführt, sondern als Freigabeanfrage geparkt: als Benachrichtigung in Home Assistant, optional als Push mit Freigeben/Ablehnen-Buttons auf dem Handy, und im Panel „Frieda“. Nach Freigabe führt Home Assistant die Aktion aus; die KI kann das Ergebnis mit icloud_approval_status abfragen.",
@@ -107,20 +98,9 @@
         "data_description": {
           "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App."
         }
-      },
-      "extras": {
-        "title": "Push, Tagesüberblick und Anhänge",
-        "description": "Tagesüberblick: morgens eine kurze Zusammenfassung mit ungelesenen Mails, Regelaktivität, heutigen Terminen und Geburtstagen. Anhänge: Ordner für Belege und Rechnungen, die das Tool oder Posteingangsregeln speichern (muss ein erlaubter Pfad sein, z. B. /media/frieda).",
-        "data": {
-          "digest_time": "Tagesüberblick um (HH:MM, leer = aus)",
-          "digest_notify": "Überblick senden mit (Notify-Dienst; leer = Benachrichtigung in Home Assistant)",
-          "digest_ai_task": "Überblick mit dieser KI-Aufgabe formulieren (optional)",
-          "attachments_dir": "Ordner für Anhänge (leer = Unterordner frieda im Medienordner)"
-        }
       }
     },
     "error": {
-      "invalid_time": "Bitte eine Uhrzeit im Format HH:MM eingeben, z. B. 07:30.",
       "path_not_allowed": "Home Assistant erlaubt kein Schreiben in diesen Ordner. Einen Medienordner verwenden oder ihn in allowlist_external_dirs eintragen."
     }
   },
@@ -141,25 +121,10 @@
     "wrong_folder": {
       "title": "Frieda liegt im falschen Ordner",
       "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; HACS-Updates von Frieda landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über HACS neu installieren (Repository `{repository}`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
-    }
-  },
-  "entity": {
-    "sensor": {
-      "next_birthday": {
-        "name": "Nächster Geburtstag"
-      }
-    }
-  },
-  "services": {
-    "send_digest": {
-      "name": "Tagesüberblick senden",
-      "description": "Sendet den Tagesüberblick (ungelesene Mails, Regelaktivität, heutige Termine, Geburtstage) sofort.",
-      "fields": {
-        "account": {
-          "name": "Konto",
-          "description": "Bezeichnung oder Apple-ID des Kontos (Standard: alle Konten)."
-        }
-      }
+    },
+    "rules_moved": {
+      "title": "Posteingangsregeln jetzt in Frieda Postfach",
+      "description": "Für das Konto {account} gibt es gespeicherte Posteingangsregeln. Seit Frieda 2.0 werden Regeln, Push und Tagesüberblick von der eigenen Integration „Frieda Postfach“ ausgeführt. Installiere sie über HACS (Repository nadeo360/friedafetch-mail) und richte sie für dieses Konto ein – die vorhandenen Regeln und der Verlauf werden automatisch übernommen. Bis dahin laufen keine Regeln."
     }
   }
 }

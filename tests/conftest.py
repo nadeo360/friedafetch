@@ -19,13 +19,6 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     return
 
 
-@pytest.fixture(autouse=True)
-def no_imap_idle() -> Generator[None]:
-    """Never open the IMAP IDLE connection in tests (it has its own tests)."""
-    with patch("custom_components.friedafetch.idle.MailWatcher.start"):
-        yield
-
-
 @pytest.fixture
 def mock_discover() -> Generator[AsyncMock]:
     """Make CalDAV discovery succeed without network."""

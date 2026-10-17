@@ -23,7 +23,8 @@
 **calendars, contacts, e-mail and notes** as tools for LLMs. The tools are registered as a Home Assistant
 **LLM API**, so they are available to every conversation agent that enables the API (Assist, Google Generative AI,
 OpenAI, Ollama …) and to any **MCP client** (Claude, ChatGPT connectors, local agents) through Home Assistant's
-MCP Server integration or the integration's own MCP endpoint. Inbox rules can be managed in a sidebar panel.
+MCP Server integration or the integration's own MCP endpoint. Inbox rules, push delivery and a daily overview
+come with the separate extension [Frieda Postfach](https://github.com/nadeo360/friedafetch-mail).
 The project is named after the maintainer's dog Frieda, who looks out of the cloud in the logo.
 
 ## Features
@@ -34,8 +35,8 @@ The project is named after the maintainer's dog Frieda, who looks out of the clo
 | Contacts  | CardDAV             | search (name, mail, phone, company …) and read contacts     | create, update and delete contacts                               |
 | E-mail    | IMAP + SMTP         | mailboxes, search/filter, read mail (text, attachment list) | send/reply, mark read/flagged, move, trash – many uids at once   |
 | Notes     | IMAP folder `Notes` | list/search/read notes                                      | create, update and delete notes                                  |
-| Rules     | HA storage + IMAP   | list inbox rules, run history                               | create/update/delete rules, run them on new mail (push or timer) |
-| Insights  | all of the above    | mailbox statistics, free time slots, birthdays, duplicate contacts, daily overview | unsubscribe from newsletters, store attachments (receipts) |
+| Rules     | –                   | with the extension [Frieda Postfach](https://github.com/nadeo360/friedafetch-mail) | inbox rules, push, daily overview          |
+| Insights  | all of the above    | mailbox statistics, free time slots, birthdays, duplicate contacts | unsubscribe from newsletters, store attachments (receipts) |
 
 ### Important note on Notes
 
@@ -67,6 +68,14 @@ Copy `custom_components/friedafetch` into the `custom_components` directory of y
 restart Home Assistant.
 
 
+### Upgrading to 2.0
+
+Frieda 2.0 is a pure connector: inbox rules, push delivery, the daily overview and the birthday sensor moved to the
+separate integration [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail). Install it via HACS and add
+it for your account; existing rules, hit counters, run history and automation settings are picked up automatically.
+Until then Frieda shows a repair notice for accounts with stored rules, and no rules run. The rule tools
+(`icloud_*_rule`, `icloud_run_rules`, `icloud_daily_overview`) appear again as soon as Frieda Postfach is set up.
+
 ### Upgrading from “iCloud MCP” (versions up to 1.0.x)
 
 The project was renamed to Frieda with version 1.1.0; the integration domain changed from `icloud_mcp` to
@@ -94,8 +103,7 @@ Frieda detects this at startup and shows a repair issue – delete the folder na
 
 ### Options (Configure)
 
-The options dialog has five sections: **Tools and account**, **Security and guard rails**, **Approvals**, **Inbox rules**
-and **Push, overview and attachments**.
+The options dialog has three sections: **Tools and account**, **Security and guard rails** and **Approvals**.
 
 | Option                                   | Effect                                                                   |
 |------------------------------------------|--------------------------------------------------------------------------|
@@ -105,13 +113,7 @@ and **Push, overview and attachments**.
 | Allow deleting                           | hides all `icloud_delete_*` tools (except rule deletion) when disabled   |
 | Default maximum number of results        | default list limit (1–200)                                               |
 | Sender address                           | `From:` for outgoing mail (default: Apple ID; must be an iCloud alias)   |
-| Apply inbox rules automatically          | run rules periodically on new mail (default: on)                         |
-| Interval for automatic rules             | minutes between automatic runs (default 5, 1–240)                        |
-| Push                                     | IMAP IDLE: apply the rules seconds after new mail arrives (default: on; the interval stays as a fallback) |
-| Daily overview at                        | `HH:MM` for a morning summary (empty = off)                               |
-| Send the overview with                   | a `notify` service, e.g. the companion app (empty = notification in Home Assistant) |
-| Phrase the overview with                 | optional `ai_task` entity that turns the facts into a short text          |
-| Attachment folder                        | where receipts are stored (default `<media>/frieda`; must be an allowed path) |
+| Attachment folder                        | where `icloud_save_attachments` (and Frieda Postfach rules) store files (default `<media>/frieda`; must be an allowed path) |
 | Account label                            | short name used as tool suffix when several accounts are configured      |
 | Security section                         | quotas, recipient policy, protected calendars/mailboxes, hidden mailboxes (see Security) |
 
@@ -154,7 +156,7 @@ sessions are not needed; every POST is handled on its own.
 Add the integration once per Apple ID. The first account keeps the plain tool names (`icloud_list_events`); every
 further account gets a suffix derived from its **account label** (option) or the local part of its Apple ID, for
 example `icloud_list_events_work`. The LLM APIs are registered the same way (`friedafetch`, `friedafetch_work`), and
-the rules panel offers an account selector. Each account has its own rules and options.
+the panel offers an account selector. Each account has its own options.
 
 ## Tools
 
@@ -178,11 +180,6 @@ the rules panel offers an account selector. Each account has its own rules and o
 | `icloud_mark_mail`       | read/unread, flagged/unflagged – one or many uids (`uids`) at once          |
 | `icloud_move_mail`       | move to another folder – one or many uids with a single IMAP command        |
 | `icloud_delete_mail`     | move to trash (or delete permanently when already in trash) – one or many uids |
-| `icloud_list_rules`      | inbox rules with hit counters and the last run                              |
-| `icloud_create_rule`     | create a rule (conditions + actions)                                        |
-| `icloud_update_rule`     | change, enable/disable or reorder a rule                                    |
-| `icloud_delete_rule`     | delete a rule                                                               |
-| `icloud_run_rules`       | apply rules now (`scope` all/new, `dry_run` only reports)                   |
 | `icloud_approval_status` | outcome of an action that required human approval                           |
 | `icloud_mailbox_stats`   | top senders/domains, unread and newsletter share, rule coverage and rule suggestions |
 | `icloud_unsubscribe`     | unsubscribe from a newsletter (one-click https or unsubscribe e-mail)       |
@@ -190,7 +187,6 @@ the rules panel offers an account selector. Each account has its own rules and o
 | `icloud_find_free_time`  | free slots of a given length within working hours                           |
 | `icloud_upcoming_birthdays` | birthdays of the contacts in the coming days (with age, if known)        |
 | `icloud_find_duplicate_contacts` | probable duplicates (same e-mail, phone or name)                    |
-| `icloud_daily_overview`  | unread mail since yesterday, rule activity, today's events, birthdays       |
 | `icloud_list_notes`      | list/search notes                                                           |
 | `icloud_get_note`        | read a note                                                                 |
 | `icloud_create_note`     | create a note                                                               |
@@ -202,65 +198,31 @@ Times are ISO 8601; naive times are interpreted in the Home Assistant time zone.
 `icloud_delete_mail` accept a `uids` list (up to 500) and process it with a single IMAP command, so cleaning up spam
 is one call instead of one per message.
 
-## Inbox rules
-
-iCloud offers no API for its server-side mail rules, so the integration runs **its own rules**, stored in Home
-Assistant (`.storage/friedafetch.rules.<entry>`):
-
-- **Conditions** on `from`, `to`, `cc`, `subject` or `any` with `contains`, `equals`, `starts_with`, `ends_with`,
-  `domain` (sender domain incl. subdomains) or `regex`; combined with `all` (default) or `any`.
-- **Actions:** `move_to` (folder), `mark_seen`, `flag`, `delete` (trash), `save_attachments` (with an optional
-  `attachments_folder`, e.g. `Receipts`) and `stop` (default: skip further rules for this message). Deleting through
-  rules requires the "Allow deleting" option; attachments are stored before a message is moved or deleted.
-- **Automation:** with **push** (IMAP IDLE) the rules run a few seconds after new mail arrives in the inbox; the
-  timer (every 5 minutes by default) remains as a fallback and covers other mailboxes. Only **new** mail since the
-  last run is processed. The very first run only sets
-  the baseline; existing mail is left alone. Use `icloud_run_rules` with `scope: "all"` (newest 2000 messages) and
-  `dry_run: true` for a preview.
-- **Execution:** matches are grouped per action and executed with the batch commands in a few IMAP round trips.
-
-Example rule (as a tool call):
-
-```json
-{
-  "name": "Archive newsletters",
-  "conditions": [{"field": "from", "op": "domain", "value": "newsletter.example.com"}],
-  "actions": {"move_to": "Archive", "mark_seen": true}
-}
-```
-
-Rules only run while Home Assistant is running; nothing happens on the phone without a connection to HA.
-
-### Management panel
+## Panel
 
 The integration adds **"Frieda"** to the Home Assistant sidebar (admins only, German/English following the HA
-language). Rules can be created, edited, reordered, enabled/disabled and deleted; dry runs and real runs show a
-per-message report. Rules are listed compactly and expand on click (or all at once); a new rule opens its editor
-in place and scrolls it into view. The "Runs" card lists every manual and automatic run (consecutive automatic runs
-without hits are merged), and the "Runs" and "Activity" tables can be filtered per column (text, selection, or
-numbers such as `>0`). Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel is optimised for phones (stacked cards instead of tables, large touch targets, approvals with one tap in
-the Home Assistant companion app), has no external dependencies and talks to the integration via WebSocket commands
-(`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`).
+language): accounts with their security state, pending and decided **approvals** (approve or deny with one tap, also
+from the companion app) and the **activity** log with quotas and filters per column. The panel has no external
+dependencies and talks to the integration via WebSocket commands (`friedafetch/accounts`, `friedafetch/approvals/*`,
+`friedafetch/audit/*`).
 
-## Push, daily overview and attachments
+## Attachments and unsubscribing
 
-- **Push:** a second IMAP connection waits with IDLE for new mail in the inbox and starts the rules (debounced, so a
-  burst of mails is one run). Lost connections are re-established with backoff; the panel shows the push state next
-  to the automation line, and runs are marked *push* in the history and the activity log.
-- **Daily overview:** at the configured time Frieda collects unread mail since yesterday (newsletters left out),
-  the rule activity of the last 24 hours, today's events and birthdays in the next 7 days, and sends them through
-  the chosen `notify` service. With an `ai_task` entity (e.g. Google Gemini or OpenAI) the overview is phrased as a
-  short text; the mail subjects are passed as data with the instruction not to follow anything inside them. The
-  action `friedafetch.send_digest` sends the overview on demand, e.g. from an automation, and returns the text.
-- **Birthday sensor:** `sensor.frieda_<account>_next_birthday` shows the date of the next birthday; the attributes
-  list the names, the age and everyone in the next 30 days.
-- **Attachments:** `icloud_save_attachments` and the rule action `save_attachments` store attachments below the
-  attachment folder, sorted by month and named `<date>_<sender>_<file>`. Identical files are not stored twice,
-  small images (logos, signatures) are skipped. Home Assistant must allow the folder (media folders are allowed by
-  default, others go into `allowlist_external_dirs`).
+- **Attachments:** `icloud_save_attachments` stores the attachments of a mail below the attachment folder, sorted by
+  month and named `<date>_<sender>_<file>`. Identical files are not stored twice, small images (logos, signatures)
+  are skipped. Home Assistant must allow the folder (media folders are allowed by default, others go into
+  `allowlist_external_dirs`).
 - **Unsubscribe:** `icloud_unsubscribe` uses the `List-Unsubscribe` header: one-click https (RFC 8058) first, then an
   unsubscribe e-mail (only when sending is allowed; it counts against the sending quota and needs approval if
   sending does). Links that require a web page are returned for you to open.
+
+## Extensions
+
+Frieda only acts when an AI client or you call it. Everything that runs on its own lives in extensions that attach to
+a Frieda account, reuse its connection and guard rails, and add their tools to it:
+
+- [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail) (`friedafetch_mail`): inbox rules with push
+  delivery (IMAP IDLE), receipts via rules, the daily overview, a birthday sensor and the rule tools.
 
 ## Security
 
