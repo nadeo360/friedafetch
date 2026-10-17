@@ -180,14 +180,18 @@ aus seiner Entry-ID (`icloud_list_events_1a2b3c4d`); die Tool-Beschreibung nennt
 | `icloud_search_mail`     | Mails filtern (Absender, Betreff, Volltext, Zeitraum, ungelesen, markiert)   |
 | `icloud_get_mail`        | Mail lesen (Text, optional HTML, Anhangsliste)                               |
 | `icloud_send_mail`       | Mail senden oder beantworten (Zitat, In-Reply-To, Kopie in „Sent Messages“)  |
-| `icloud_mark_mail`       | gelesen/ungelesen, markiert/unmarkiert                                        |
-| `icloud_move_mail`       | In anderen Ordner verschieben                                                 |
-| `icloud_delete_mail`     | In den Papierkorb (bzw. endgültig, wenn schon im Papierkorb)                 |
+| `icloud_mark_mail`       | gelesen/ungelesen, markiert/unmarkiert – eine oder viele UIDs (`uids`) auf einmal |
+| `icloud_move_mail`       | In anderen Ordner verschieben – eine oder viele UIDs mit einem IMAP-Befehl   |
+| `icloud_delete_mail`     | In den Papierkorb (bzw. endgültig, wenn schon im Papierkorb) – eine oder viele UIDs |
 | `icloud_list_notes`      | Notizen auflisten/suchen                                                     |
 | `icloud_get_note`        | Notiz lesen                                                                  |
 | `icloud_create_note`     | Notiz anlegen                                                                |
 | `icloud_update_note`     | Notiz ersetzen (erhält eine neue UID)                                        |
 | `icloud_delete_note`     | Notiz löschen                                                                |
+
+Die Mail-Tools `icloud_mark_mail`, `icloud_move_mail` und `icloud_delete_mail` akzeptieren neben `uid` auch eine Liste
+`uids` (bis zu 500) und verarbeiten sie mit einem einzigen IMAP-Befehl – beim Aufräumen von Spam also ein Aufruf statt
+einer pro Mail.
 
 Zeitangaben sind ISO 8601; Zeiten ohne Zeitzone werden in der Home-Assistant-Zeitzone interpretiert. Ganztägige
 Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusiv**.
