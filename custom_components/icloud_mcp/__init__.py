@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -14,6 +15,7 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import client_context
@@ -23,14 +25,26 @@ from .carddav_client import ICloudCardDav
 from .const import (
     CALDAV_URL,
     CARDDAV_URL,
+    CONF_ALLOW_DELETE,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
+    CONF_ENABLE_MAIL,
     CONF_FROM_ADDRESS,
+    CONF_READ_ONLY,
+    CONF_RULES_AUTO,
+    CONF_RULES_INTERVAL,
+    DEFAULT_ALLOW_DELETE,
+    DEFAULT_ENABLE_MAIL,
+    DEFAULT_READ_ONLY,
+    DEFAULT_RULES_AUTO,
+    DEFAULT_RULES_INTERVAL,
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
     LLM_API_ID,
     LLM_API_NAME,
+    MAX_RULES_INTERVAL,
+    MIN_RULES_INTERVAL,
     NOTES_MAILBOX,
     REQUEST_TIMEOUT,
     SMTP_HOST,
@@ -42,6 +56,8 @@ from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
 from .mcp_http import async_register as async_register_mcp_http
 from .notes import ICloudNotes
+from .rules import RuleEngine
+from .util import clamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +103,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         raise ConfigEntryNotReady(f"Cannot reach iCloud: {err}") from err
 
     entry.runtime_data = clients
+
+    # inbox rules (stored in HA, applied by this integration)
+    opts = entry.options
+    rules = RuleEngine(
+        hass, entry.entry_id, clients.mail, allow_delete=opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)
+    )
+    await rules.async_load()
+    clients.rules = rules
+    if (
+        opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL)
+        and opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)
+        and not opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY)
+    ):
+        minutes = clamp(opts.get(CONF_RULES_INTERVAL), DEFAULT_RULES_INTERVAL, MAX_RULES_INTERVAL)
+        minutes = max(MIN_RULES_INTERVAL, minutes)
+
+        async def _apply_rules(_now: datetime) -> None:
+            if not rules.has_enabled_rules:
+                return
+            try:
+                report = await rules.async_run(scope="new")
+            except Exception as err:  # noqa: BLE001 - keep the timer alive
+                _LOGGER.warning("Automatic inbox rules failed: %s", err)
+                return
+            if report["matched"]:
+                _LOGGER.info("Inbox rules: %s messages checked, %s matched", report["checked"], report["matched"])
+
+        entry.async_on_unload(async_track_time_interval(hass, _apply_rules, timedelta(minutes=minutes)))
 
     apple_id = entry.data[CONF_APPLE_ID]
     try:

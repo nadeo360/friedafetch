@@ -40,6 +40,7 @@ from .const import (
 from .dav import DavAuthError, DavConflictError, DavError, DavNotFoundError
 from .mail import ICloudMail, MailAuthError, MailboxNotFound, MailError, MessageNotFound
 from .notes import ICloudNotes
+from .rules import FIELDS, MATCH_MODES, OPS, RuleEngine, RuleError, RuleNotFound
 from .schema import vol
 from .util import clamp, parse_datetime
 
@@ -69,12 +70,14 @@ class ICloudClients:
         mail: ICloudMail,
         notes: ICloudNotes,
         options: dict[str, Any],
+        rules: RuleEngine | None = None,
     ) -> None:
         self.caldav = caldav
         self.carddav = carddav
         self.mail = mail
         self.notes = notes
         self.options = options
+        self.rules = rules
 
     @property
     def max_results(self) -> int:
@@ -114,7 +117,14 @@ class ICloudTool(llm.Tool):
         args = dict(tool_input.tool_args or {})
         try:
             data = await self.run(hass, args)
-        except (CalendarNotFound, ContactNotFound, MessageNotFound, MailboxNotFound, DavNotFoundError) as err:
+        except (
+            CalendarNotFound,
+            ContactNotFound,
+            MessageNotFound,
+            MailboxNotFound,
+            DavNotFoundError,
+            RuleNotFound,
+        ) as err:
             return _result({"error": str(err), "code": "not_found"}, error=True)
         except (DavAuthError, MailAuthError) as err:
             _LOGGER.warning("iCloud authentication failed: %s", err)
@@ -130,7 +140,7 @@ class ICloudTool(llm.Tool):
                 {"error": f"The item changed on the server in the meantime, please retry: {err}", "code": "conflict"},
                 error=True,
             )
-        except (CalendarError, ContactError, MailError, DavError, ValueError) as err:
+        except (CalendarError, ContactError, MailError, DavError, RuleError, ValueError) as err:
             return _result({"error": str(err), "code": "failed"}, error=True)
         except HomeAssistantError as err:
             return _result({"error": str(err), "code": "failed"}, error=True)
@@ -584,6 +594,133 @@ class DeleteMail(ICloudTool):
         return await self.clients.mail.async_delete(args.get("mailbox") or "INBOX", _uids(args))
 
 
+# ================================================================= rules
+_CONDITION = {
+    vol.Required("field", description="Which header to test: from, to, cc, subject or any"): vol.In(FIELDS),
+    vol.Required("op", description="contains, equals, starts_with, ends_with, domain (sender domain) or regex"): vol.In(
+        OPS
+    ),
+    vol.Required("value", description="Text to compare with (case-insensitive)"): str,
+}
+_ACTIONS = {
+    vol.Optional("move_to", description="Target mailbox name (see icloud_list_mailboxes)"): str,
+    vol.Optional("mark_seen", description="Mark as read (true) or unread (false)"): bool,
+    vol.Optional("flag", description="Flag (true) or unflag (false)"): bool,
+    vol.Optional("delete", description="Move to the trash"): bool,
+    vol.Optional("stop", description="Stop evaluating further rules for a matching message (default true)"): bool,
+}
+
+
+class RuleTool(ICloudTool):
+    """Base for rule tools: requires the rule engine."""
+
+    @property
+    def rules(self) -> RuleEngine:
+        if self.clients.rules is None:
+            raise ValueError("Inbox rules are not available (mail tools disabled)")
+        return self.clients.rules
+
+
+class ListRules(RuleTool):
+    name = "icloud_list_rules"
+    feature = "mail"
+    description = (
+        "List the inbox rules managed by Home Assistant (with ids, conditions, actions, hit counters) and the last run."
+    )
+    parameters = vol.Schema({})
+
+    async def run(self, hass, args):
+        return {"rules": await self.rules.async_list(), "last_run": self.rules.last_run}
+
+
+class CreateRule(RuleTool):
+    name = "icloud_create_rule"
+    feature = "mail"
+    writes = True
+    description = (
+        "Create an inbox rule that Home Assistant applies to new e-mails (and on demand to the whole mailbox). "
+        "Example: move everything from newsletter@example.com to 'Archive'. Rules are evaluated in order."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required("name"): str,
+            vol.Required("conditions", description="One or more conditions"): [_CONDITION],
+            vol.Required("actions"): _ACTIONS,
+            vol.Optional("match", description="all (default) or any of the conditions"): vol.In(MATCH_MODES),
+            vol.Optional("enabled"): bool,
+            vol.Optional("mailbox", description="Mailbox the rule watches, default INBOX"): str,
+        }
+    )
+
+    async def run(self, hass, args):
+        return await self.rules.async_create(args)
+
+
+class UpdateRule(RuleTool):
+    name = "icloud_update_rule"
+    feature = "mail"
+    writes = True
+    description = "Change an inbox rule (only the provided fields change; conditions replace the list). 'position' reorders the rule."
+    parameters = vol.Schema(
+        {
+            vol.Required("rule_id"): str,
+            vol.Optional("name"): str,
+            vol.Optional("conditions"): [_CONDITION],
+            vol.Optional("actions"): _ACTIONS,
+            vol.Optional("match"): vol.In(MATCH_MODES),
+            vol.Optional("enabled"): bool,
+            vol.Optional("mailbox"): str,
+            vol.Optional("position", description="New index in the rule order (0 = first)"): int,
+        }
+    )
+
+    async def run(self, hass, args):
+        rule_id = args.pop("rule_id")
+        if not args:
+            raise ValueError("No fields to update")
+        return await self.rules.async_update(rule_id, args)
+
+
+class DeleteRule(RuleTool):
+    name = "icloud_delete_rule"
+    feature = "mail"
+    writes = True
+    description = "Delete an inbox rule."
+    parameters = vol.Schema({vol.Required("rule_id"): str})
+
+    async def run(self, hass, args):
+        await self.rules.async_delete(args["rule_id"])
+        return {"deleted": True, "rule_id": args["rule_id"]}
+
+
+class RunRules(RuleTool):
+    name = "icloud_run_rules"
+    feature = "mail"
+    writes = True
+    description = (
+        "Apply the inbox rules now. scope 'all' (default) checks the newest messages of the mailbox, "
+        "'new' only messages since the last automatic run. dry_run=true only reports what would happen."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Optional("scope"): vol.In(["new", "all"]),
+            vol.Optional("dry_run"): bool,
+            vol.Optional("mailbox"): str,
+            vol.Optional("rule_ids", description="Only these rules"): [str],
+            vol.Optional("limit", description="Newest messages to inspect for scope 'all' (default 2000)"): int,
+        }
+    )
+
+    async def run(self, hass, args):
+        return await self.rules.async_run(
+            scope=args.get("scope") or "all",
+            dry_run=bool(args.get("dry_run")),
+            mailbox=args.get("mailbox"),
+            rule_ids=args.get("rule_ids"),
+            limit=clamp(args.get("limit"), 2000, 2000),
+        )
+
+
 # ================================================================= notes
 class ListNotes(ICloudTool):
     name = "icloud_list_notes"
@@ -663,6 +800,11 @@ ALL_TOOLS: list[type[ICloudTool]] = [
     MarkMail,
     MoveMail,
     DeleteMail,
+    ListRules,
+    CreateRule,
+    UpdateRule,
+    DeleteRule,
+    RunRules,
     ListNotes,
     GetNote,
     CreateNote,

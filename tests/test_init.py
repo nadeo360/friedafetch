@@ -76,6 +76,7 @@ async def test_options_restrict_tools(hass: HomeAssistant, mock_discover: AsyncM
         "icloud_list_mailboxes",
         "icloud_search_mail",
         "icloud_get_mail",
+        "icloud_list_rules",
     }
     assert all(t.annotations.read_only for t in api.tools)
 
@@ -88,7 +89,8 @@ async def test_no_send_no_delete(hass: HomeAssistant, mock_discover: AsyncMock) 
     api = await llm.async_get_api(hass, LLM_API_ID, _context(hass))
     names = {t.name for t in api.tools}
     assert "icloud_send_mail" not in names
-    assert not any(n.startswith("icloud_delete_") for n in names)
+    # deleting data is blocked; deleting a rule (configuration) stays available
+    assert not any(n.startswith("icloud_delete_") and n != "icloud_delete_rule" for n in names)
     assert "icloud_create_event" in names
 
 

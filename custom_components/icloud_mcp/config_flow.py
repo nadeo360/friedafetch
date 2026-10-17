@@ -40,6 +40,8 @@ from .const import (
     CONF_FROM_ADDRESS,
     CONF_MAX_RESULTS,
     CONF_READ_ONLY,
+    CONF_RULES_AUTO,
+    CONF_RULES_INTERVAL,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
     DEFAULT_ENABLE_CALENDAR,
@@ -48,10 +50,14 @@ from .const import (
     DEFAULT_ENABLE_NOTES,
     DEFAULT_MAX_RESULTS,
     DEFAULT_READ_ONLY,
+    DEFAULT_RULES_AUTO,
+    DEFAULT_RULES_INTERVAL,
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
     MAX_RESULTS_LIMIT,
+    MAX_RULES_INTERVAL,
+    MIN_RULES_INTERVAL,
     REQUEST_TIMEOUT,
     SMTP_HOST,
     SMTP_PORT,
@@ -213,6 +219,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_MAX_RESULTS] = int(user_input.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS))
+            user_input[CONF_RULES_INTERVAL] = int(user_input.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL))
             if not user_input.get(CONF_FROM_ADDRESS):
                 user_input[CONF_FROM_ADDRESS] = self.config_entry.data[CONF_APPLE_ID]
             return self.async_create_entry(title="", data=user_input)
@@ -242,6 +249,14 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 ): BooleanSelector(),
                 vol.Required(CONF_MAX_RESULTS, default=opts.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS)): NumberSelector(
                     NumberSelectorConfig(min=1, max=MAX_RESULTS_LIMIT, step=1, mode=NumberSelectorMode.BOX)
+                ),
+                vol.Required(CONF_RULES_AUTO, default=opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)): BooleanSelector(),
+                vol.Required(
+                    CONF_RULES_INTERVAL, default=opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=MIN_RULES_INTERVAL, max=MAX_RULES_INTERVAL, step=1, mode=NumberSelectorMode.BOX
+                    )
                 ),
                 vol.Optional(
                     CONF_FROM_ADDRESS,

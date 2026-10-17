@@ -45,7 +45,9 @@
           "allow_send_mail": "Allow sending e-mails",
           "allow_delete": "Allow deleting events, contacts, e-mails and notes",
           "max_results": "Default maximum number of results",
-          "from_address": "Sender address for outgoing e-mails"
+          "from_address": "Sender address for outgoing e-mails",
+          "rules_auto": "Apply inbox rules automatically to new e-mails",
+          "rules_interval": "Interval for automatic rules (minutes)"
         }
       }
     }

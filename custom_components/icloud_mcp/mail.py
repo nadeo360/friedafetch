@@ -588,6 +588,36 @@ class ICloudMail:
         summaries.sort(key=lambda s: order.get(s["uid"], 1_000_000))
         return summaries
 
+    async def async_search_uids(self, mailbox: str, criteria: list[str]) -> list[int]:
+        """Return the uids matching IMAP search criteria (ascending)."""
+
+        async def op(client: aioimaplib.IMAP4_SSL) -> list[int]:
+            await self._select(client, mailbox)
+            response = await client.uid_search(*criteria, charset=None)
+            if response.result != "OK":
+                raise MailError(f"SEARCH failed: {response.lines}")
+            uids: list[int] = []
+            for line in response.lines:
+                if isinstance(line, (bytes, bytearray)):
+                    text = bytes(line).decode(errors="replace")
+                    if text.upper().startswith("SEARCH"):
+                        continue
+                    uids.extend(int(x) for x in text.split() if x.isdigit())
+            return sorted(set(uids))
+
+        return await self._run(op)
+
+    async def async_summaries(self, mailbox: str, uids: list[int]) -> list[dict[str, Any]]:
+        """Return header summaries for the given uids."""
+        if not uids:
+            return []
+
+        async def op(client: aioimaplib.IMAP4_SSL) -> list[dict[str, Any]]:
+            await self._select(client, mailbox)
+            return await self._fetch_summaries(client, mailbox, list(uids))
+
+        return await self._run(op)
+
     async def async_recent(
         self, mailbox: str = "INBOX", limit: int = 25, unseen_only: bool = False
     ) -> list[dict[str, Any]]:

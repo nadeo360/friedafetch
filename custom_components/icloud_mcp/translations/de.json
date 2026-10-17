@@ -45,7 +45,9 @@
           "allow_send_mail": "Senden von E-Mails erlauben",
           "allow_delete": "Löschen von Terminen, Kontakten, E-Mails und Notizen erlauben",
           "max_results": "Standard-Maximalanzahl an Ergebnissen",
-          "from_address": "Absenderadresse für ausgehende E-Mails"
+          "from_address": "Absenderadresse für ausgehende E-Mails",
+          "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
+          "rules_interval": "Intervall für automatische Regeln (Minuten)"
         }
       }
     }
