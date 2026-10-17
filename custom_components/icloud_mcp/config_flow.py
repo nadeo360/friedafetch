@@ -24,6 +24,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 from homeassistant.util import dt as dt_util
+from homeassistant.util.ssl import client_context
 
 from .caldav_client import ICloudCalDav
 from .const import (
@@ -109,6 +110,7 @@ async def validate_credentials(hass: HomeAssistant, apple_id: str, password: str
         smtp_host=SMTP_HOST,
         smtp_port=SMTP_PORT,
         timeout=REQUEST_TIMEOUT,
+        ssl_context=client_context(),
     )
     mail_ok = True
     try:

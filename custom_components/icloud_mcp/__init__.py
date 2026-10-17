@@ -16,6 +16,7 @@ from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
+from homeassistant.util.ssl import client_context
 
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
@@ -63,6 +64,7 @@ def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
         smtp_host=SMTP_HOST,
         smtp_port=SMTP_PORT,
         timeout=REQUEST_TIMEOUT,
+        ssl_context=client_context(),
     )
     return ICloudClients(
         caldav=ICloudCalDav(dav, CALDAV_URL, tz),
