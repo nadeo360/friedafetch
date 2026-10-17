@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ISSUE_STALE_COPY = "stale_copy"
 ISSUE_WRONG_FOLDER = "wrong_folder"
+REPOSITORY_URL = "https://github.com/nadeo360/friedafetch"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +93,7 @@ async def async_check_install(hass: HomeAssistant, loaded: Path | None = None) -
             "paths": paths,
             "loaded": str(check.loaded),
             "expected": str(check.expected),
+            "repository": REPOSITORY_URL,
         },
         learn_more_url="https://github.com/nadeo360/friedafetch#upgrading-from-icloud-mcp-versions-up-to-10x",
     )

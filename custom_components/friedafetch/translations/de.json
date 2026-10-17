@@ -124,7 +124,7 @@
     },
     "wrong_folder": {
       "title": "Frieda liegt im falschen Ordner",
-      "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; HACS-Updates von Frieda landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über HACS neu installieren (Repository `https://github.com/nadeo360/friedafetch`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
+      "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; HACS-Updates von Frieda landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über HACS neu installieren (Repository `{repository}`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
     }
   }
 }
