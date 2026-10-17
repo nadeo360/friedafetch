@@ -25,13 +25,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import sys
 from io import BytesIO
 from pathlib import Path
 
 try:
     import resvg_py
-    from PIL import Image
+    from PIL import Image, ImageChops
 except ImportError as err:  # pragma: no cover
     sys.exit(f"Missing dependency: {err}. Run: pip install resvg-py pillow")
 
@@ -93,6 +94,30 @@ def build() -> dict[Path, bytes]:
     return out
 
 
+# PNG encoders and rasterisers differ slightly between platforms, so the check compares pixels with a small
+# tolerance instead of bytes: same size, no channel differs by more than MAX_CHANNEL_DIFF, tiny mean difference.
+MAX_CHANNEL_DIFF = 8
+MAX_MEAN_DIFF = 0.5
+
+
+def same_image(expected: bytes, actual: bytes) -> bool:
+    try:
+        a = Image.open(BytesIO(expected)).convert("RGBA")
+        b = Image.open(BytesIO(actual)).convert("RGBA")
+    except OSError:
+        return False
+    if a.size != b.size:
+        return False
+    diff = ImageChops.difference(a, b)
+    extrema = diff.getextrema()
+    if max(hi for _, hi in extrema) > MAX_CHANNEL_DIFF:
+        return False
+    hist = diff.convert("L").histogram()
+    total = sum(hist)
+    mean = sum(i * n for i, n in enumerate(hist)) / total if total else 0.0
+    return math.isfinite(mean) and mean <= MAX_MEAN_DIFF
+
+
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:12]
 
@@ -120,7 +145,12 @@ def main() -> int:
     for path, data in outputs.items():
         rel = path.relative_to(ROOT)
         if args.check:
-            if not path.exists() or path.read_bytes() != data:
+            if not path.exists():
+                stale.append(f"{rel} (missing)")
+            elif path.suffix == ".png":
+                if not same_image(data, path.read_bytes()):
+                    stale.append(f"{rel} (pixels differ)")
+            elif path.read_bytes() != data:
                 stale.append(str(rel))
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
