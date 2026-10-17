@@ -7,6 +7,7 @@
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml/badge.svg"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/ha-icloud-mcp"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/ha-icloud-mcp/badge"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/ha-icloud-mcp?display_name=tag"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
@@ -224,8 +225,11 @@ talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
   marked as third-party content in the tool results, and scanned for typical injection patterns; hits are flagged
   with `suspicious: true` and `warnings`. The LLM prompt instructs the model never to follow instructions found in
   such content.
-- Every commit runs tests, Ruff with the Bandit rule set, Bandit, CodeQL, pip-audit, hassfest and HACS validation;
-  Dependabot and GitHub security alerts are enabled. Details and the disclosure process: [SECURITY.md](SECURITY.md).
+- **Supply chain:** every commit runs tests, Ruff with the Bandit rule set, Bandit, CodeQL, pip-audit, hassfest and
+  HACS validation; GitHub Actions are pinned to commit SHAs, the `main` branch is protected, OpenSSF Scorecard rates
+  the repository continuously, Dependabot and GitHub security alerts are enabled. Releases are built by GitHub
+  Actions and published with signed build provenance (Sigstore) and a CycloneDX SBOM; HACS installs exactly this
+  signed package (`gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp`). Details and the disclosure process: [SECURITY.md](SECURITY.md).
 
 Example automation on the audit event:
 

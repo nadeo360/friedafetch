@@ -1,0 +1,69 @@
+name: Release assets
+
+# Builds the HACS zip from the tagged source, attaches a CycloneDX SBOM of the
+# runtime requirements and signs both with GitHub's build provenance attestation.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to (re)build assets for
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, SBOM and attest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+
+      - name: Check that manifest version matches the tag
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          VERSION=$(python -c "import json; print(json.load(open('custom_components/icloud_mcp/manifest.json'))['version'])")
+          echo "tag=$TAG manifest=$VERSION"
+          test "v$VERSION" = "$TAG"
+
+      - name: Build HACS zip
+        run: |
+          cd custom_components/icloud_mcp
+          find . -name "__pycache__" -prune -exec rm -rf {} +
+          zip -r -X ../../icloud_mcp.zip . -x "*.pyc"
+          cd ../..
+          sha256sum icloud_mcp.zip | tee icloud_mcp.zip.sha256
+
+      - name: SBOM of the runtime requirements (CycloneDX)
+        run: |
+          python -c "import json; print('\n'.join(json.load(open('custom_components/icloud_mcp/manifest.json'))['requirements']))" > requirements_manifest.txt
+          python -m venv sbom-venv
+          sbom-venv/bin/pip install -q -r requirements_manifest.txt cyclonedx-bom
+          sbom-venv/bin/cyclonedx-py environment sbom-venv --of JSON -o sbom.cdx.json --mc-type library
+          python -c "import json; d=json.load(open('sbom.cdx.json')); print(len(d.get('components', [])), 'components')"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            icloud_mcp.zip
+            sbom.cdx.json
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" icloud_mcp.zip icloud_mcp.zip.sha256 sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"

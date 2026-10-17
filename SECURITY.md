@@ -49,6 +49,26 @@ Every commit and pull request automatically runs:
 - **hassfest** and **HACS validation**,
 - **Dependabot** for Python dependencies and GitHub Actions; security alerts are enabled for the repository.
 
+## Threat model (summary)
+
+| Threat | Mitigation |
+|--------|------------|
+| Stolen or leaked Home Assistant token used against the MCP endpoint | Tokens can be revoked in HA; optional admin-only restriction; read-only profile for less trusted clients; quotas limit damage per hour; every writing call is audited. |
+| Prompt injection via e-mail, notes or calendar content making the AI act against the user | Content is sanitised, labelled as third-party data and scanned for injection patterns (`suspicious`); the prompt forbids following embedded instructions; approvals and quotas bound the consequences. |
+| Runaway or buggy agent deleting or sending in bulk | Hourly quotas, recipient policy, protected/hidden areas, approvals for sending/deleting/mass actions, trash instead of permanent deletion, audit log and `icloud_mcp_action` events for alerting. |
+| Compromised dependency or build | Pinned dependencies with pip-audit, Bandit/Ruff/CodeQL, GitHub Actions pinned to commit SHAs, OpenSSF Scorecard, SBOM and signed build provenance for release assets, Dependabot, protected `main` branch. |
+| Loss of the app-specific password from HA storage | The password is only as safe as the HA instance; keep HA updated, use strong admin passwords/2FA, revoke the app-specific password at Apple if in doubt. |
+
+## Verifying a release
+
+Release assets are built by GitHub Actions and carry a signed build provenance attestation (Sigstore). Verify:
+
+```bash
+gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp
+```
+
+A CycloneDX SBOM (`sbom.cdx.json`) listing the runtime dependencies is attached to every release.
+
 ---
 
 # Sicherheit
@@ -102,3 +122,23 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
   zustandsbehaftete MCP-Sitzungen, der Endpunkt dieser Integration arbeitet zustandslos),
 - **hassfest** und **HACS-Validierung**,
 - **Dependabot** für Python-Abhängigkeiten und GitHub Actions; Sicherheitswarnungen sind für das Repository aktiviert.
+
+## Bedrohungsmodell (Kurzfassung)
+
+| Bedrohung | Gegenmaßnahme |
+|-----------|---------------|
+| Gestohlener oder geleakter Home-Assistant-Token gegen den MCP-Endpunkt | Tokens sind in HA widerrufbar; optionale Admin-only-Beschränkung; Nur-Lese-Profil für weniger vertrauenswürdige Clients; Kontingente begrenzen den Schaden pro Stunde; jeder schreibende Aufruf wird protokolliert. |
+| Prompt-Injection über Mail-, Notiz- oder Kalenderinhalte, die die KI gegen den Nutzer handeln lässt | Inhalte werden bereinigt, als Fremddaten gekennzeichnet und auf Injektionsmuster geprüft (`suspicious`); der Prompt verbietet das Befolgen eingebetteter Anweisungen; Freigaben und Kontingente begrenzen die Folgen. |
+| Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Papierkorb statt endgültigem Löschen, Aktivitätsprotokoll und Ereignisse `icloud_mcp_action` zur Alarmierung. |
+| Kompromittierte Abhängigkeit oder Build | Gepinnte Abhängigkeiten mit pip-audit, Bandit/Ruff/CodeQL, GitHub Actions auf Commit-SHAs gepinnt, OpenSSF Scorecard, SBOM und signierte Build-Provenance für Release-Artefakte, Dependabot, geschützter `main`-Branch. |
+| Verlust des App-Passworts aus dem HA-Speicher | Das Passwort ist nur so sicher wie die HA-Instanz; HA aktuell halten, starke Admin-Passwörter/2FA nutzen, im Zweifel das App-Passwort bei Apple widerrufen. |
+
+## Release prüfen
+
+Release-Artefakte werden von GitHub Actions gebaut und tragen eine signierte Build-Provenance (Sigstore). Prüfung:
+
+```bash
+gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp
+```
+
+Jedem Release liegt eine CycloneDX-SBOM (`sbom.cdx.json`) der Laufzeitabhängigkeiten bei.

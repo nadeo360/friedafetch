@@ -7,6 +7,7 @@
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml/badge.svg"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/ha-icloud-mcp"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/ha-icloud-mcp/badge"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/ha-icloud-mcp?display_name=tag"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
@@ -288,8 +289,11 @@ WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
   Bidi-Steuerzeichen befreit, in den Tool-Antworten als Fremdinhalt gekennzeichnet und auf typische Injektionsmuster
   geprüft; Treffer werden mit `suspicious: true` und `warnings` markiert. Der LLM-Prompt weist das Modell an,
   Anweisungen aus solchen Inhalten nie zu befolgen.
-- Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und HACS-Validierung;
-  Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
+- **Lieferkette:** Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und
+  HACS-Validierung; GitHub Actions sind auf Commit-SHAs gepinnt, der `main`-Branch ist geschützt, OpenSSF Scorecard
+  bewertet das Repository laufend, Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Releases werden von GitHub
+  Actions gebaut und mit signierter Build-Provenance (Sigstore) und einer CycloneDX-SBOM veröffentlicht; HACS
+  installiert genau dieses signierte Paket (`gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp`). Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
 
 Beispiel-Automation auf das Protokoll-Ereignis:
 
