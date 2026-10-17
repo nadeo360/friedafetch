@@ -270,3 +270,74 @@ async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: Asyn
     data = await _rpc(client, "tools/list")
     names = {tool["name"] for tool in data["result"]["tools"]}
     assert names == {t for t in tools if not t.endswith(suffix)}
+
+
+async def test_readonly_profile_and_admin_only(
+    hass: HomeAssistant, mock_discover: AsyncMock, hass_client, hass_admin_user
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=APPLE_ID,
+        data={CONF_APPLE_ID: APPLE_ID, CONF_APP_PASSWORD: APP_PASSWORD},
+        options={"endpoint_admin_only": True},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_client()
+
+    # read-only profile lists only non-writing tools
+    resp = await client.post(
+        "/api/icloud_mcp/readonly",
+        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    assert resp.status == 200
+    tools = (await resp.json())["result"]["tools"]
+    names = {t["name"] for t in tools}
+    assert "icloud_list_events" in names and "icloud_search_mail" in names
+    assert not any(
+        n.startswith(
+            (
+                "icloud_create_",
+                "icloud_delete_",
+                "icloud_update_",
+                "icloud_send_",
+                "icloud_move_",
+                "icloud_mark_",
+                "icloud_run_",
+            )
+        )
+        for n in names
+    )
+    assert all(t["annotations"]["readOnlyHint"] for t in tools)
+    # calling a writing tool through the read-only profile is unknown there
+    resp = await client.post(
+        "/api/icloud_mcp/readonly",
+        json={
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "icloud_delete_contact", "arguments": {"uid": "x"}},
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    body = await resp.json()
+    assert body["result"]["isError"] is True and "Unknown tool" in body["result"]["content"][0]["text"]
+
+    # oversized bodies are rejected
+    resp = await client.post(
+        "/api/icloud_mcp",
+        data=b"{" + b" " * (1024 * 1024 + 10) + b"}",
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    assert resp.status == 413
+
+    # non-admin tokens are refused when admin-only is set
+    hass_admin_user.groups = []
+    resp = await client.post(
+        "/api/icloud_mcp",
+        json={"jsonrpc": "2.0", "id": 3, "method": "tools/list"},
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    assert resp.status == 403

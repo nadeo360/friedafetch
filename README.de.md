@@ -83,7 +83,7 @@ und Home Assistant neu starten.
 
 ### Optionen (Konfigurieren)
 
-Der Optionsdialog hat drei Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken** und **Posteingangsregeln**.
+Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken**, **Freigaben** und **Posteingangsregeln**.
 
 | Option                       | Wirkung                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
@@ -212,6 +212,7 @@ Optionen.
 | `icloud_update_rule`     | Regel ändern, aktivieren/deaktivieren, umsortieren                            |
 | `icloud_delete_rule`     | Regel löschen                                                                |
 | `icloud_run_rules`       | Regeln jetzt anwenden (`scope` all/new, `dry_run` zeigt nur an)              |
+| `icloud_approval_status` | Ergebnis einer Aktion, die eine Freigabe erforderte                          |
 | `icloud_list_notes`      | Notizen auflisten/suchen                                                     |
 | `icloud_get_note`        | Notiz lesen                                                                  |
 | `icloud_create_note`     | Notiz anlegen                                                                |
@@ -275,6 +276,14 @@ WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
 - **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf wird mit Zeit, Client, HA-Benutzer, Tool,
   gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Aktivität“ des Panels protokolliert und als
   Ereignis `icloud_mcp_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
+- **Freigaben (Human-in-the-Loop, Optionen → Freigaben):** Senden, Löschen und Mail-Massenaktionen oberhalb einer
+  Schwelle können geparkt statt ausgeführt werden. Home Assistant zeigt eine Benachrichtigung (optional ein Push mit
+  Freigeben/Ablehnen-Buttons auf dem Handy), die Karte „Freigaben“ im Panel listet die Anfrage; nach Freigabe führt
+  Home Assistant die Aktion aus und die KI liest das Ergebnis mit `icloud_approval_status`. Anfragen verfallen nach
+  einstellbarer Zeit.
+- **Endpunkt-Profile:** Neben `/api/icloud_mcp` gibt es `/api/icloud_mcp/readonly`, das nur Tools ohne jede
+  Schreibwirkung ausliefert – der richtige Endpunkt für Experimente oder weniger vertrauenswürdige Agenten. Die Option
+  „MCP-Endpunkt nur für Admin-Tokens“ weist Nicht-Admin-Tokens ab; Anfragen sind auf 1 MiB begrenzt.
 - **Schutz vor Prompt-Injection:** Betreffzeilen, Mail-Texte, Notizen und Termintexte werden von unsichtbaren und
   Bidi-Steuerzeichen befreit, in den Tool-Antworten als Fremdinhalt gekennzeichnet und auf typische Injektionsmuster
   geprüft; Treffer werden mit `suspicious: true` und `warnings` markiert. Der LLM-Prompt weist das Modell an,

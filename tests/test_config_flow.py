@@ -117,7 +117,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert set(result["menu_options"]) == {"tools", "security", "rules"}
+    assert set(result["menu_options"]) == {"tools", "security", "approvals", "rules"}
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "tools"})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "tools"
@@ -162,6 +162,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
                 "send_allowlist": "Family@Example.com; example.org",
                 "send_max_recipients": 3.0,
                 "send_allow_bcc": False,
+                "endpoint_admin_only": True,
                 "protected_calendars": ["work"],
                 "protected_mailboxes": ["Steuer"],
                 "hidden_mailboxes": [],
@@ -182,3 +183,23 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options["rules_interval"] == 15 and entry.options["rules_auto"] is False
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "approvals"})
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "approvals"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "approval_send": True,
+            "approval_delete": False,
+            "approval_mass": 25.0,
+            "approval_notify": "notify.mobile_app_iphone",
+            "approval_timeout": 30.0,
+        },
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["approval_send"] is True
+    assert entry.options["approval_mass"] == 25
+    assert entry.options["approval_notify"] == "mobile_app_iphone"
+    assert entry.options["endpoint_admin_only"] is True

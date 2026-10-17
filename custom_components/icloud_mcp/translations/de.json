@@ -40,7 +40,8 @@
         "menu_options": {
           "tools": "Tools und Konto",
           "security": "Sicherheit und Leitplanken",
-          "rules": "Posteingangsregeln"
+          "rules": "Posteingangsregeln",
+          "approvals": "Freigaben"
         }
       },
       "tools": {
@@ -75,11 +76,13 @@
           "send_allow_bcc": "BCC erlauben",
           "protected_calendars": "Geschützte Kalender (nur lesen)",
           "protected_mailboxes": "Geschützte Postfächer (nur lesen, keine Regeln)",
-          "hidden_mailboxes": "Verborgene Postfächer (für die KI unsichtbar)"
+          "hidden_mailboxes": "Verborgene Postfächer (für die KI unsichtbar)",
+          "endpoint_admin_only": "MCP-Endpunkt nur für Admin-Tokens"
         },
         "data_description": {
           "send_policy": "„Beliebig“: jede Adresse. „Kontakte“: nur Adressen aus den iCloud-Kontakten oder der Allowlist. „Allowlist“: nur die Allowlist.",
-          "send_allowlist": "z. B. familie@example.com, example.org"
+          "send_allowlist": "z. B. familie@example.com, example.org",
+          "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/icloud_mcp, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/icloud_mcp/readonly."
         }
       },
       "rules": {
@@ -87,6 +90,20 @@
         "data": {
           "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
           "rules_interval": "Intervall für automatische Regeln (Minuten)"
+        }
+      },
+      "approvals": {
+        "title": "Freigaben (Human-in-the-Loop)",
+        "description": "Kritische Aktionen werden nicht sofort ausgeführt, sondern als Freigabeanfrage geparkt: als Benachrichtigung in Home Assistant, optional als Push mit Freigeben/Ablehnen-Buttons auf dem Handy, und im Panel „iCloud Regeln“. Nach Freigabe führt Home Assistant die Aktion aus; die KI kann das Ergebnis mit icloud_approval_status abfragen.",
+        "data": {
+          "approval_send": "Senden von E-Mails erfordert Freigabe",
+          "approval_delete": "Löschen erfordert Freigabe",
+          "approval_mass": "Mail-Aktionen ab dieser Anzahl Nachrichten erfordern Freigabe (0 = aus)",
+          "approval_notify": "Benachrichtigungsdienst für Push mit Buttons (optional)",
+          "approval_timeout": "Ablauf offener Anfragen (Minuten)"
+        },
+        "data_description": {
+          "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App."
         }
       }
     }

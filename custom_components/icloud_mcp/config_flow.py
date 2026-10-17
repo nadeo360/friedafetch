@@ -38,10 +38,16 @@ from .const import (
     CONF_ALLOW_SEND_MAIL,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
+    CONF_APPROVAL_DELETE,
+    CONF_APPROVAL_MASS,
+    CONF_APPROVAL_NOTIFY,
+    CONF_APPROVAL_SEND,
+    CONF_APPROVAL_TIMEOUT,
     CONF_ENABLE_CALENDAR,
     CONF_ENABLE_CONTACTS,
     CONF_ENABLE_MAIL,
     CONF_ENABLE_NOTES,
+    CONF_ENDPOINT_ADMIN_ONLY,
     CONF_FROM_ADDRESS,
     CONF_HIDDEN_MAILBOXES,
     CONF_LIMIT_ITEM_DELETE,
@@ -59,10 +65,15 @@ from .const import (
     CONF_SEND_POLICY,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
+    DEFAULT_APPROVAL_DELETE,
+    DEFAULT_APPROVAL_MASS,
+    DEFAULT_APPROVAL_SEND,
+    DEFAULT_APPROVAL_TIMEOUT,
     DEFAULT_ENABLE_CALENDAR,
     DEFAULT_ENABLE_CONTACTS,
     DEFAULT_ENABLE_MAIL,
     DEFAULT_ENABLE_NOTES,
+    DEFAULT_ENDPOINT_ADMIN_ONLY,
     DEFAULT_LIMIT_ITEM_DELETE,
     DEFAULT_LIMIT_MAIL_MODIFY,
     DEFAULT_LIMIT_MAIL_SEND,
@@ -240,7 +251,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
     """Options in three groups: tools, security guard rails, rules."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["tools", "security", "rules"])
+        return self.async_show_menu(step_id="init", menu_options=["tools", "security", "approvals", "rules"])
 
     def _save(self, changes: dict[str, Any]) -> ConfigFlowResult:
         return self.async_create_entry(title="", data={**self.config_entry.options, **changes})
@@ -360,6 +371,9 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_SEND_ALLOW_BCC, default=opts.get(CONF_SEND_ALLOW_BCC, DEFAULT_SEND_ALLOW_BCC)
                 ): BooleanSelector(),
+                vol.Required(
+                    CONF_ENDPOINT_ADMIN_ONLY, default=opts.get(CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY)
+                ): BooleanSelector(),
                 vol.Optional(CONF_PROTECTED_CALENDARS, default=list(opts.get(CONF_PROTECTED_CALENDARS) or [])): multi(
                     calendars, list(opts.get(CONF_PROTECTED_CALENDARS) or [])
                 ),
@@ -374,6 +388,41 @@ class ICloudMcpOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="security", data_schema=schema)
 
     # ----------------------------------------------------------------- rules
+    async def async_step_approvals(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input[CONF_APPROVAL_MASS] = int(user_input.get(CONF_APPROVAL_MASS, 0) or 0)
+            user_input[CONF_APPROVAL_TIMEOUT] = int(
+                user_input.get(CONF_APPROVAL_TIMEOUT, DEFAULT_APPROVAL_TIMEOUT) or 1
+            )
+            user_input[CONF_APPROVAL_NOTIFY] = str(user_input.get(CONF_APPROVAL_NOTIFY) or "").removeprefix("notify.")
+            return self._save(user_input)
+        opts = self.config_entry.options
+        notify_services = sorted(self.hass.services.async_services().get("notify", {}))
+        current = opts.get(CONF_APPROVAL_NOTIFY) or ""
+        options = [{"value": "", "label": "–"}] + [{"value": n, "label": f"notify.{n}"} for n in notify_services]
+        if current and current not in notify_services:
+            options.append({"value": current, "label": f"notify.{current}"})
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_APPROVAL_SEND, default=opts.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND)
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_APPROVAL_DELETE, default=opts.get(CONF_APPROVAL_DELETE, DEFAULT_APPROVAL_DELETE)
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_APPROVAL_MASS, default=opts.get(CONF_APPROVAL_MASS, DEFAULT_APPROVAL_MASS)
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Optional(CONF_APPROVAL_NOTIFY, default=current): SelectSelector(
+                    SelectSelectorConfig(options=options, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Required(
+                    CONF_APPROVAL_TIMEOUT, default=opts.get(CONF_APPROVAL_TIMEOUT, DEFAULT_APPROVAL_TIMEOUT)
+                ): NumberSelector(NumberSelectorConfig(min=1, max=1440, step=1, mode=NumberSelectorMode.BOX)),
+            }
+        )
+        return self.async_show_form(step_id="approvals", data_schema=schema)
+
     async def async_step_rules(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_RULES_INTERVAL] = int(user_input.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL))

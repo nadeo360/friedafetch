@@ -89,6 +89,23 @@ const I18N = {
     copied: "Regel nach „{0}“ kopiert.",
     allAccounts: "Alle Konten",
     switchHint: "Regeln, Läufe und Berichte gelten je Konto. Wähle oben das Konto.",
+    approvals: "Freigaben",
+    approvalsHint: "Aktionen, die auf deine Freigabe warten. Freigegebene Aktionen werden sofort ausgeführt.",
+    noApprovals: "Keine offenen Freigaben.",
+    approve: "Freigeben",
+    deny: "Ablehnen",
+    pending: "wartet",
+    executed: "ausgeführt",
+    failed: "fehlgeschlagen",
+    denied: "abgelehnt",
+    expired: "abgelaufen",
+    validUntil: "gültig bis",
+    decidedBy: "entschieden von",
+    recentDecisions: "Letzte Entscheidungen",
+    approvalsOff: "Freigaben sind für dieses Konto nicht aktiviert (Optionen → Freigaben).",
+    reason_send: "E-Mail senden",
+    reason_delete: "Löschen",
+    reason_mass: "Massenaktion",
     activity: "Aktivität",
     activityHint: "Schreibende Aktionen der KI-Clients und Regelläufe, neueste zuerst.",
     noActivity: "Noch keine Aktionen protokolliert.",
@@ -194,6 +211,23 @@ const I18N = {
     copied: "Rule copied to “{0}”.",
     allAccounts: "All accounts",
     switchHint: "Rules, runs and reports are per account. Pick the account above.",
+    approvals: "Approvals",
+    approvalsHint: "Actions waiting for your approval. Approved actions run immediately.",
+    noApprovals: "No pending approvals.",
+    approve: "Approve",
+    deny: "Deny",
+    pending: "pending",
+    executed: "executed",
+    failed: "failed",
+    denied: "denied",
+    expired: "expired",
+    validUntil: "valid until",
+    decidedBy: "decided by",
+    recentDecisions: "Recent decisions",
+    approvalsOff: "Approvals are not enabled for this account (options → Approvals).",
+    reason_send: "send e-mail",
+    reason_delete: "delete",
+    reason_mass: "mass action",
     activity: "Activity",
     activityHint: "Writing actions of AI clients and rule runs, newest first.",
     noActivity: "No actions logged yet.",
@@ -280,6 +314,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       notice: null,
       audit: [],
       quota: {},
+      approvals: null,
       auditLimit: 25,
       busy: false,
       loaded: false,
@@ -337,8 +372,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
     try {
       await this._loadAccounts();
       await this._loadAudit();
+      await this._loadApprovals();
     } catch (err) {
-      /* account stats and audit are optional */
+      /* account stats, audit and approvals are optional */
     }
   }
 
@@ -450,6 +486,45 @@ class ICloudMcpRulesPanel extends HTMLElement {
     if (!accounts.some((a) => a.entry_id === this._s.entryId)) this._s.entryId = accounts[0]?.entry_id || null;
   }
 
+  async _loadApprovals() {
+    const res = await this._ws({ type: "icloud_mcp/approvals/list", entry_id: this._s.entryId });
+    this._s.approvals = res;
+  }
+
+  async _decide(requestId, decision) {
+    await this._call(async () => {
+      await this._ws({ type: "icloud_mcp/approvals/decide", entry_id: this._s.entryId, request_id: requestId, decision });
+      await this._loadApprovals();
+      await this._loadAudit();
+      await this._loadAccounts();
+    });
+  }
+
+  _renderApprovals() {
+    const t = this.t;
+    const a = this._s.approvals;
+    if (!a) return "";
+    const status = (st) => `<span class="badge ${st === "pending" ? "warn" : ""}">${esc(t[st] || st)}</span>`;
+    const reason = (r) => esc(t[`reason_${r}`] || r);
+    const pending = (a.requests || []).filter((r) => r.status === "pending");
+    const decided = (a.requests || []).filter((r) => r.status !== "pending").slice(0, 10);
+    const row = (r, withButtons) => `<tr>
+        <td style="white-space:nowrap">${esc(new Date(r.created).toLocaleString())}</td>
+        <td>${esc(r.client || "–")}</td>
+        <td><code>${esc(r.tool)}</code><div class="muted">${reason(r.reason)}</div></td>
+        <td>${esc(r.summary)}${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
+        <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(t.validUntil)} ${esc(new Date(r.expires).toLocaleTimeString())}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by)}</div>` : ""}</td>
+        <td style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.deny)}</button>` : ""}</td>
+      </tr>`;
+    const table = (rows) => `<div class="scroll"><table><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="card">
+      <h2><span class="grow">${esc(t.approvals)}${pending.length ? ` <span class="badge warn">${pending.length}</span>` : ""}</span></h2>
+      <p class="muted" style="margin:0 0 10px">${esc(a.enabled ? t.approvalsHint : t.approvalsOff)}</p>
+      ${a.enabled ? (pending.length ? table(pending.map((r) => row(r, true)).join("")) : `<p class="muted">${esc(t.noApprovals)}</p>`) : ""}
+      ${decided.length ? `<h3 class="muted">${esc(t.recentDecisions)}</h3>${table(decided.map((r) => row(r, false)).join(""))}` : ""}
+    </div>`;
+  }
+
   async _loadAudit() {
     const res = await this._ws({ type: "icloud_mcp/audit/list", entry_id: this._s.entryId, limit: this._s.auditLimit });
     this._s.audit = res.entries || [];
@@ -559,6 +634,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
           `<span class="badge">${esc(a.rules_auto && a.mail_enabled && !a.read_only ? fmt(t.accountAuto, a.rules_interval) : t.accountManual)}</span>`,
           a.read_only ? `<span class="badge warn">${esc(t.accountReadOnly)}</span>` : "",
           a.mail_enabled ? "" : `<span class="badge warn">${esc(t.accountNoMail)}</span>`,
+          a.approvals_pending ? `<span class="badge warn">${esc(t.approvals)}: ${a.approvals_pending}</span>` : "",
         ].join("");
         return `<button class="tab ${active ? "active" : ""}" data-action="account" data-id="${esc(a.entry_id)}" aria-pressed="${active}">
           <span class="label"><span class="dot ${a.rules_enabled ? "" : "off"}"></span>${esc(a.label)}</span>
@@ -696,6 +772,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
         </div>
       </div>
       ${this._renderReport()}
+      ${this._renderApprovals()}
       ${this._renderActivity()}`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style>
       <div class="toolbar"><ha-menu-button></ha-menu-button><span>${esc(t.title)}</span><span class="grow"></span>${accountSel}</div>
@@ -741,6 +818,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
           this._render();
         },
         run: () => this._run(el.dataset.scope, el.dataset.dry === "1"),
+        approve: () => this._decide(el.dataset.id, "approve"),
+        deny: () => this._decide(el.dataset.id, "deny"),
         "audit-clear": () => this._clearAudit(),
         "audit-more": () => {
           this._s.auditLimit = Math.min(500, this._s.auditLimit + 50);

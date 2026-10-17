@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.util.hass_dict import HassKey
 
 from .accounts import account_label
+from .approvals import ApprovalError
 from .const import (
     CONF_ALLOW_DELETE,
     CONF_APPLE_ID,
@@ -56,6 +57,8 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         ws_rules_run,
         ws_audit_list,
         ws_audit_clear,
+        ws_approvals_list,
+        ws_approvals_decide,
     ):
         websocket_api.async_register_command(hass, command)
     await panel_custom.async_register_panel(
@@ -108,6 +111,8 @@ def _ws_errors(func):
             await func(hass, connection, msg)
         except RuleNotFound as err:
             connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, str(err))
+        except ApprovalError as err:
+            connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, str(err))
         except (RuleError, MailError, ValueError) as err:
             connection.send_error(msg["id"], "rule_error", str(err))
 
@@ -143,6 +148,8 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
                 "rules_enabled": sum(1 for r in rule_list if r.get("enabled")),
                 "hits": sum(int(r.get("hits") or 0) for r in rule_list),
                 "last_run": rules.last_run if rules else None,
+                "approvals_enabled": clients.approvals is not None,
+                "approvals_pending": clients.approvals.pending_count if clients.approvals else 0,
             }
         )
     connection.send_result(msg["id"], {"accounts": accounts})
@@ -281,3 +288,50 @@ async def ws_audit_clear(hass: HomeAssistant, connection: websocket_api.ActiveCo
     if entry.runtime_data.audit is not None:
         await entry.runtime_data.audit.async_clear()
     connection.send_result(msg["id"], {"cleared": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/approvals/list", vol.Optional("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_approvals_list(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """List pending and recently decided approval requests."""
+    entry, _ = _engine(hass, msg.get("entry_id"))
+    approvals = entry.runtime_data.approvals
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry.entry_id,
+            "enabled": approvals is not None,
+            "requests": approvals.list() if approvals else [],
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/approvals/decide",
+        vol.Optional("entry_id"): str,
+        vol.Required("request_id"): str,
+        vol.Required("decision"): vol.In(["approve", "deny"]),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_approvals_decide(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Approve or deny a parked action."""
+    entry, _ = _engine(hass, msg.get("entry_id"))
+    approvals = entry.runtime_data.approvals
+    if approvals is None:
+        raise RuleError("Approvals are not enabled for this account")
+    decided_by = connection.user.name or connection.user.id
+    if msg["decision"] == "approve":
+        req = await approvals.async_approve(msg["request_id"], decided_by)
+    else:
+        req = await approvals.async_deny(msg["request_id"], decided_by)
+    connection.send_result(msg["id"], {"request": req.to_dict()})

@@ -12,6 +12,7 @@
     "http",
     "frontend",
     "panel_custom",
+    "persistent_notification",
     "websocket_api"
   ],
   "documentation": "https://github.com/nadeo360/ha-icloud-mcp",
@@ -25,5 +26,5 @@
     "mcp>=1.28.1",
     "anyio>=4.14.2"
   ],
-  "version": "0.7.0"
+  "version": "0.8.0"
 }

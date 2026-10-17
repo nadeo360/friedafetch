@@ -21,6 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import client_context
 
 from .accounts import account_label
+from .approvals import ApprovalManager
 from .audit import AuditLog
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
@@ -30,12 +31,21 @@ from .const import (
     CONF_ALLOW_DELETE,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
+    CONF_APPROVAL_DELETE,
+    CONF_APPROVAL_MASS,
+    CONF_APPROVAL_NOTIFY,
+    CONF_APPROVAL_SEND,
+    CONF_APPROVAL_TIMEOUT,
     CONF_ENABLE_MAIL,
     CONF_FROM_ADDRESS,
     CONF_READ_ONLY,
     CONF_RULES_AUTO,
     CONF_RULES_INTERVAL,
     DEFAULT_ALLOW_DELETE,
+    DEFAULT_APPROVAL_DELETE,
+    DEFAULT_APPROVAL_MASS,
+    DEFAULT_APPROVAL_SEND,
+    DEFAULT_APPROVAL_TIMEOUT,
     DEFAULT_ENABLE_MAIL,
     DEFAULT_READ_ONLY,
     DEFAULT_RULES_AUTO,
@@ -47,6 +57,7 @@ from .const import (
     LLM_API_NAME,
     MAX_RULES_INTERVAL,
     MIN_RULES_INTERVAL,
+    MOBILE_ACTION_EVENT,
     NOTES_MAILBOX,
     REQUEST_TIMEOUT,
     SMTP_HOST,
@@ -114,6 +125,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     audit = AuditLog(hass, entry.entry_id, entry.data[CONF_APPLE_ID])
     await audit.async_load()
     clients.audit = audit
+    if (
+        opts.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND)
+        or opts.get(CONF_APPROVAL_DELETE, DEFAULT_APPROVAL_DELETE)
+        or int(opts.get(CONF_APPROVAL_MASS, DEFAULT_APPROVAL_MASS) or 0) > 0
+    ):
+        approvals = ApprovalManager(
+            hass,
+            entry.entry_id,
+            entry.data[CONF_APPLE_ID],
+            audit=audit,
+            notify_service=opts.get(CONF_APPROVAL_NOTIFY),
+            timeout_minutes=int(opts.get(CONF_APPROVAL_TIMEOUT, DEFAULT_APPROVAL_TIMEOUT) or DEFAULT_APPROVAL_TIMEOUT),
+            language=hass.config.language or "en",
+        )
+        clients.approvals = approvals
+        entry.async_on_unload(hass.bus.async_listen(MOBILE_ACTION_EVENT, approvals.handle_mobile_action))
+        entry.async_on_unload(approvals.shutdown)
     rules = RuleEngine(
         hass,
         entry.entry_id,

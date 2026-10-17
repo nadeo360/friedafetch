@@ -13,12 +13,16 @@ from homeassistant.helpers import llm
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import JsonObjectType
 
+from .approvals import ApprovalError, ApprovalManager
 from .audit import AuditLog
 from .caldav_client import CalendarError, CalendarNotFound, ICloudCalDav
 from .carddav_client import ContactError, ContactNotFound, ICloudCardDav
 from .const import (
     CONF_ALLOW_DELETE,
     CONF_ALLOW_SEND_MAIL,
+    CONF_APPROVAL_DELETE,
+    CONF_APPROVAL_MASS,
+    CONF_APPROVAL_SEND,
     CONF_ENABLE_CALENDAR,
     CONF_ENABLE_CONTACTS,
     CONF_ENABLE_MAIL,
@@ -27,6 +31,9 @@ from .const import (
     CONF_READ_ONLY,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
+    DEFAULT_APPROVAL_DELETE,
+    DEFAULT_APPROVAL_MASS,
+    DEFAULT_APPROVAL_SEND,
     DEFAULT_ENABLE_CALENDAR,
     DEFAULT_ENABLE_CONTACTS,
     DEFAULT_ENABLE_MAIL,
@@ -75,6 +82,7 @@ class ICloudClients:
         rules: RuleEngine | None = None,
         guard: Guard | None = None,
         audit: AuditLog | None = None,
+        approvals: ApprovalManager | None = None,
     ) -> None:
         self.caldav = caldav
         self.carddav = carddav
@@ -84,6 +92,7 @@ class ICloudClients:
         self.rules = rules
         self.guard = guard or Guard(options)
         self.audit = audit
+        self.approvals = approvals
 
     @property
     def max_results(self) -> int:
@@ -121,6 +130,19 @@ class ICloudTool(llm.Tool):
         self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext
     ) -> llm.ToolResult | JsonObjectType:
         args = dict(tool_input.tool_args or {})
+        if (reason := self.approval_reason(args)) is not None:
+            context = getattr(llm_context, "context", None)
+            parked = await self.clients.approvals.async_request(  # type: ignore[union-attr]
+                tool_name=self.name,
+                action="delete" if self.deletes else ("send" if self.sends_mail else "write"),
+                reason=reason,
+                summary=self.approval_summary(args),
+                params=args,
+                runner=lambda: self.run(hass, dict(args)),
+                client=getattr(llm_context, "platform", None),
+                user_id=getattr(context, "user_id", None),
+            )
+            return _result(parked)
         try:
             data = await self.run(hass, args)
         except PolicyError as err:
@@ -193,6 +215,34 @@ class ICloudTool(llm.Tool):
 
     async def run(self, hass: HomeAssistant, args: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
+
+    def approval_reason(self, args: dict[str, Any]) -> str | None:
+        """Return why this call needs human approval, or None."""
+        approvals = self.clients.approvals
+        if approvals is None or not self.writes:
+            return None
+        opts = self.clients.options
+        if self.sends_mail and opts.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND):
+            return "send"
+        if self.deletes and opts.get(CONF_APPROVAL_DELETE, DEFAULT_APPROVAL_DELETE):
+            return "delete"
+        threshold = int(opts.get(CONF_APPROVAL_MASS, DEFAULT_APPROVAL_MASS) or 0)
+        if threshold and self.feature == "mail":
+            count = len(args.get("uids") or []) + (1 if args.get("uid") is not None else 0)
+            if count > threshold:
+                return "mass"
+        return None
+
+    def approval_summary(self, args: dict[str, Any]) -> str:
+        """Human-readable one-liner for the approval notification."""
+        parts: list[str] = []
+        for key in ("subject", "summary", "name", "to", "target_mailbox", "mailbox", "calendar_id", "uid"):
+            if key in args and args[key] not in (None, "", []):
+                value = args[key]
+                parts.append(f"{key}: {', '.join(map(str, value)) if isinstance(value, list) else value}")
+        if args.get("uids"):
+            parts.append(f"{len(args['uids'])} messages")
+        return "; ".join(parts) or self.name
 
     async def _check_calendar(self, calendar_id: str) -> None:
         """Block writes to protected calendars (matched by id or name)."""
@@ -689,6 +739,25 @@ class DeleteMail(ICloudTool):
         return result
 
 
+# ============================================================= approvals
+class ApprovalStatus(ICloudTool):
+    name = "icloud_approval_status"
+    feature = "core"
+    description = (
+        "Check the outcome of an action that required human approval (see code approval_required): "
+        "pending, executed (with result), failed, denied or expired."
+    )
+    parameters = vol.Schema({vol.Required("request_id"): str})
+
+    async def run(self, hass, args):
+        if self.clients.approvals is None:
+            raise ValueError("Approvals are not enabled")
+        try:
+            return self.clients.approvals.status(args["request_id"])
+        except ApprovalError as err:
+            raise ValueError(str(err)) from err
+
+
 # ================================================================= rules
 _CONDITION = {
     vol.Required("field", description="Which header to test: from, to, cc, subject or any"): vol.In(FIELDS),
@@ -903,6 +972,7 @@ ALL_TOOLS: list[type[ICloudTool]] = [
     UpdateRule,
     DeleteRule,
     RunRules,
+    ApprovalStatus,
     ListNotes,
     GetNote,
     CreateNote,
@@ -926,6 +996,11 @@ def build_tools(clients: ICloudClients) -> list[llm.Tool]:
     allow_delete = opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)
     tools: list[llm.Tool] = []
     for cls in ALL_TOOLS:
+        if cls.feature == "core":
+            if cls is ApprovalStatus and clients.approvals is None:
+                continue
+            tools.append(cls(clients))
+            continue
         key, default = _FEATURE_OPTION[cls.feature]
         if not opts.get(key, default):
             continue

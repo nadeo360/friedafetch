@@ -34,7 +34,7 @@ from typing import Any, get_args
 
 import anyio
 from aiohttp import web
-from aiohttp.web_exceptions import HTTPBadRequest, HTTPNotFound
+from aiohttp.web_exceptions import HTTPBadRequest, HTTPForbidden, HTTPNotFound, HTTPRequestEntityTooLarge
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
@@ -48,13 +48,16 @@ from mcp.server import InitializationOptions, Server
 from mcp.shared.message import SessionMessage
 
 from .accounts import account_label
-from .const import CONF_APPLE_ID, DOMAIN
+from .const import CONF_APPLE_ID, CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY, DOMAIN
 from .llm_api import API_PROMPT, ICloudClients, build_tools
 from .schema import vol
 
 _LOGGER = logging.getLogger(__name__)
 
 STREAMABLE_API = f"/api/{DOMAIN}"
+READONLY_API = f"{STREAMABLE_API}/readonly"
+MAX_BODY_BYTES = 1024 * 1024  # 1 MiB is plenty for JSON-RPC tool calls
+PROFILES = ("full", "readonly")
 SERVER_NAME = "icloud-mcp"
 TIMEOUT = 120  # seconds; IMAP searches can be slow
 
@@ -105,8 +108,15 @@ def _tool_suffix(entry: ConfigEntry) -> str:
     return f"_{account_label(entry)}"
 
 
+def _is_read_only(tool: Any) -> bool:
+    ann = getattr(tool, "annotations", None)
+    if ann is not None:
+        return bool(getattr(ann, "read_only", False))
+    return not getattr(tool, "writes", False)
+
+
 @callback
-def async_served_tools(hass: HomeAssistant) -> list[ServedTool]:
+def async_served_tools(hass: HomeAssistant, profile: str = "full") -> list[ServedTool]:
     """Collect the tools of all loaded entries.
 
     With one account the tools keep their plain names. With several accounts
@@ -117,8 +127,15 @@ def async_served_tools(hass: HomeAssistant) -> list[ServedTool]:
     for index, entry in enumerate(_loaded_entries(hass)):
         suffix = "" if index == 0 else _tool_suffix(entry)
         for tool in build_tools(entry.runtime_data):
+            if profile == "readonly" and not _is_read_only(tool):
+                continue
             served.append(ServedTool(name=f"{tool.name}{suffix}", tool=tool, entry=entry))
     return served
+
+
+def _admin_only(hass: HomeAssistant) -> bool:
+    """The endpoint requires admin tokens as soon as one account demands it."""
+    return any(e.options.get(CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY) for e in _loaded_entries(hass))
 
 
 def _format_tool(served: ServedTool) -> types.Tool:
@@ -185,27 +202,32 @@ async def async_call_served_tool(
 # --------------------------------------------------------------------------- server
 
 
-def _instructions(hass: HomeAssistant) -> str:
+def _instructions(hass: HomeAssistant, profile: str = "full") -> str:
     now = dt_util.now()
     accounts = ", ".join(e.data.get(CONF_APPLE_ID, "") for e in _loaded_entries(hass)) or "(default)"
-    return API_PROMPT.format(
+    prompt = API_PROMPT.format(
         tz=now.tzname() or str(now.tzinfo), now=now.isoformat(timespec="minutes"), account=accounts
     )
+    if profile == "readonly":
+        prompt += " This endpoint is read-only: no tool here can change anything."
+    return prompt
 
 
-def create_server(hass: HomeAssistant, context: Context, version: str) -> tuple[Server, InitializationOptions]:
+def create_server(
+    hass: HomeAssistant, context: Context, version: str, profile: str = "full"
+) -> tuple[Server, InitializationOptions]:
     """Create an MCP server that serves the tools of all loaded iCloud entries."""
-    server = Server[Any](SERVER_NAME, version=version, instructions=_instructions(hass))
+    server = Server[Any](SERVER_NAME, version=version, instructions=_instructions(hass, profile))
 
     @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
     async def handle_list_tools() -> list[types.Tool]:
-        return [_format_tool(served) for served in async_served_tools(hass)]
+        return [_format_tool(served) for served in async_served_tools(hass, profile)]
 
     @server.call_tool(validate_input=False)  # type: ignore[untyped-decorator]
     async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> types.CallToolResult:
         arguments = arguments or {}
         _LOGGER.debug("MCP tool call: %s(%s)", name, arguments)
-        for served in async_served_tools(hass):
+        for served in async_served_tools(hass, profile):
             if served.name == name:
                 return await async_call_served_tool(hass, served, arguments, context)
         return _error_result(f"Unknown tool: {name}", "unknown_tool")
@@ -257,12 +279,20 @@ def _jsonrpc_error(request_id: Any, code: int, message: str, data: Any = None) -
     return web.json_response(data=error.model_dump(by_alias=True, exclude_none=True))
 
 
-async def async_handle_streamable_message(request: web.Request, context: Context) -> web.StreamResponse:
+async def async_handle_streamable_message(
+    request: web.Request, context: Context, profile: str = "full"
+) -> web.StreamResponse:
     """Process one JSON-RPC message with a short-lived stateless MCP server."""
     hass: HomeAssistant = request.app[KEY_HASS]
     data: MCPHttpData | None = hass.data.get(DATA_MCP_HTTP)
     if data is None or not _loaded_entries(hass):
         raise HTTPNotFound(text="iCloud MCP is not configured")
+    if _admin_only(hass):
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise HTTPForbidden(text="This MCP endpoint is restricted to administrator tokens")
+    if (request.content_length or 0) > MAX_BODY_BYTES:
+        raise HTTPRequestEntityTooLarge(max_size=MAX_BODY_BYTES, actual_size=request.content_length or 0)
 
     if CONTENT_TYPE_JSON not in request.headers.get("accept", ""):
         raise HTTPBadRequest(text=f"Client must accept {CONTENT_TYPE_JSON}")
@@ -284,7 +314,7 @@ async def async_handle_streamable_message(request: web.Request, context: Context
     if message.root.method not in KNOWN_MCP_METHODS:
         return _jsonrpc_error(message.root.id, types.METHOD_NOT_FOUND, "Method not found", message.root.method)
 
-    server, options = create_server(hass, context, data.version)
+    server, options = create_server(hass, context, data.version, profile)
 
     async with create_streams() as streams:
 
@@ -302,15 +332,16 @@ async def async_handle_streamable_message(request: web.Request, context: Context
 
 
 class ICloudMCPStreamableView(HomeAssistantView):
-    """Streamable HTTP endpoint serving the iCloud tools."""
+    """Streamable HTTP endpoint serving the iCloud tools (full profile)."""
 
     name = f"{DOMAIN}:streamable"
     url = STREAMABLE_API
     requires_auth = True
+    profile = "full"
 
     async def post(self, request: web.Request) -> web.StreamResponse:
         """Handle a JSON-RPC message."""
-        return await async_handle_streamable_message(request, self.context(request))
+        return await async_handle_streamable_message(request, self.context(request), self.profile)
 
     async def get(self, request: web.Request) -> web.StreamResponse:
         """Server-initiated streams are not supported (stateless server)."""
@@ -324,6 +355,14 @@ class ICloudMCPStreamableView(HomeAssistantView):
 # --------------------------------------------------------------------------- registration
 
 
+class ICloudMCPReadOnlyView(ICloudMCPStreamableView):
+    """Read-only profile: only tools that cannot change anything."""
+
+    name = f"{DOMAIN}:streamable_readonly"
+    url = READONLY_API
+    profile = "readonly"
+
+
 @callback
 def async_register(hass: HomeAssistant, version: str) -> None:
     """Register the endpoint once per Home Assistant instance."""
@@ -332,5 +371,6 @@ def async_register(hass: HomeAssistant, version: str) -> None:
         data = hass.data[DATA_MCP_HTTP] = MCPHttpData(version=version)
     if not data.registered:
         hass.http.register_view(ICloudMCPStreamableView())
+        hass.http.register_view(ICloudMCPReadOnlyView())
         data.registered = True
-        _LOGGER.info("iCloud MCP endpoint registered at %s", STREAMABLE_API)
+        _LOGGER.info("iCloud MCP endpoints registered at %s and %s", STREAMABLE_API, READONLY_API)

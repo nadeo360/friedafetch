@@ -26,7 +26,9 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Limiting the blast radius:** options allow switching off tool groups, enabling a read-only mode and forbidding
   sending e-mails and deleting separately. Hourly quotas, a recipient policy (contacts/allowlist), protected
   calendars and mailboxes and hidden mailboxes further bound what a connected client can do; every writing call is
-  written to a per-account audit log and fired as the `icloud_mcp_action` event. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
+  written to a per-account audit log and fired as the `icloud_mcp_action` event. Optional approvals park sending,
+  deleting and mass actions until an admin approves them (notification, actionable push or panel); the read-only
+  endpoint profile `/api/icloud_mcp/readonly` and the admin-only switch restrict what a token can reach. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
   clients can recognise writing tools and ask for confirmation. Deleting means "move to trash" by default.
 - **Untrusted content:** mail, note and event texts are sanitised (invisible/bidi characters), labelled as third-party
   content and scanned for prompt-injection patterns (`suspicious`/`warnings` flags).
@@ -79,7 +81,9 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
   Nur-Lesen-Modus aktivieren sowie das Senden von E-Mails und das Löschen getrennt verbieten. Stundenkontingente,
   eine Empfänger-Richtlinie (Kontakte/Allowlist), geschützte Kalender und Postfächer sowie verborgene Postfächer
   begrenzen zusätzlich, was ein verbundener Client tun kann; jeder schreibende Aufruf landet im Aktivitätsprotokoll
-  des Kontos und wird als Ereignis `icloud_mcp_action` gefeuert. Alle Tools tragen
+  des Kontos und wird als Ereignis `icloud_mcp_action` gefeuert. Optionale Freigaben parken Senden, Löschen und
+  Massenaktionen, bis ein Admin sie freigibt (Benachrichtigung, Push mit Buttons oder Panel); das Nur-Lese-Profil
+  `/api/icloud_mcp/readonly` und der Admin-only-Schalter begrenzen, was ein Token erreicht. Alle Tools tragen
   MCP-Annotationen (`readOnlyHint`, `destructiveHint`), sodass Clients schreibende Werkzeuge erkennen und
   Rückfragen stellen können. Löschen bedeutet standardmäßig „in den Papierkorb“.
 - **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt

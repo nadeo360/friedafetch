@@ -74,3 +74,20 @@ SEND_POLICIES = ("any", "contacts", "allowlist")
 # Audit log
 AUDIT_EVENT = "icloud_mcp_action"
 AUDIT_MAX_ENTRIES = 500
+
+# Human-in-the-loop approvals
+CONF_APPROVAL_SEND = "approval_send"  # sending mail needs approval
+CONF_APPROVAL_DELETE = "approval_delete"  # deleting needs approval
+CONF_APPROVAL_MASS = "approval_mass"  # mail operations touching more than N messages need approval (0 = off)
+CONF_APPROVAL_NOTIFY = "approval_notify"  # notify service (e.g. mobile_app_iphone) for actionable notifications
+CONF_APPROVAL_TIMEOUT = "approval_timeout"  # minutes until a pending request expires
+DEFAULT_APPROVAL_SEND = False
+DEFAULT_APPROVAL_DELETE = False
+DEFAULT_APPROVAL_MASS = 0
+DEFAULT_APPROVAL_TIMEOUT = 15
+APPROVAL_ACTION_PREFIX = "ICLOUD_MCP_"
+MOBILE_ACTION_EVENT = "mobile_app_notification_action"
+
+# MCP endpoint
+CONF_ENDPOINT_ADMIN_ONLY = "endpoint_admin_only"
+DEFAULT_ENDPOINT_ADMIN_ONLY = False

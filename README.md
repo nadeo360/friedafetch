@@ -77,7 +77,7 @@ restart Home Assistant.
 
 ### Options (Configure)
 
-The options dialog has three sections: **Tools and account**, **Security and guard rails** and **Inbox rules**.
+The options dialog has four sections: **Tools and account**, **Security and guard rails**, **Approvals** and **Inbox rules**.
 
 | Option                                   | Effect                                                                   |
 |------------------------------------------|--------------------------------------------------------------------------|
@@ -155,6 +155,7 @@ the rules panel offers an account selector. Each account has its own rules and o
 | `icloud_update_rule`     | change, enable/disable or reorder a rule                                    |
 | `icloud_delete_rule`     | delete a rule                                                               |
 | `icloud_run_rules`       | apply rules now (`scope` all/new, `dry_run` only reports)                   |
+| `icloud_approval_status` | outcome of an action that required human approval                           |
 | `icloud_list_notes`      | list/search notes                                                           |
 | `icloud_get_note`        | read a note                                                                 |
 | `icloud_create_note`     | create a note                                                               |
@@ -212,6 +213,13 @@ talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
 - **Activity log:** every writing tool call and every rule run is recorded (time, client, Home Assistant user, tool,
   shortened parameters without message bodies, result) in the "Activity" card of the panel and fired as the event
   `icloud_mcp_action`, so an automation can notify you, e.g. when more than ten mails are deleted at once.
+- **Approvals (human in the loop, options → Approvals):** sending, deleting and mass mail actions above a threshold
+  can be parked instead of executed. Home Assistant shows a notification (optionally an actionable push on your phone
+  with Approve/Deny) and the "Approvals" card in the panel lists the request; after approval Home Assistant runs the
+  action and the AI reads the outcome with `icloud_approval_status`. Requests expire after a configurable time.
+- **Endpoint profiles:** besides `/api/icloud_mcp` there is `/api/icloud_mcp/readonly`, which serves only tools that
+  cannot change anything – the right endpoint for experiments or less trusted agents. The option "MCP endpoint only
+  for administrator tokens" refuses non-admin tokens; request bodies are capped at 1 MiB.
 - **Prompt-injection defence:** subjects, bodies, notes and event texts are stripped of invisible/bidi characters,
   marked as third-party content in the tool results, and scanned for typical injection patterns; hits are flagged
   with `suspicious: true` and `warnings`. The LLM prompt instructs the model never to follow instructions found in

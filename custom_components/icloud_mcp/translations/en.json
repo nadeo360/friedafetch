@@ -40,7 +40,8 @@
         "menu_options": {
           "tools": "Tools and account",
           "security": "Security and guard rails",
-          "rules": "Inbox rules"
+          "rules": "Inbox rules",
+          "approvals": "Approvals"
         }
       },
       "tools": {
@@ -75,11 +76,13 @@
           "send_allow_bcc": "Allow BCC",
           "protected_calendars": "Protected calendars (read-only)",
           "protected_mailboxes": "Protected mailboxes (read-only, no rules)",
-          "hidden_mailboxes": "Hidden mailboxes (invisible to the AI)"
+          "hidden_mailboxes": "Hidden mailboxes (invisible to the AI)",
+          "endpoint_admin_only": "MCP endpoint only for administrator tokens"
         },
         "data_description": {
           "send_policy": "“Any”: every address. “Contacts”: only addresses from the iCloud contacts or the allowlist. “Allowlist”: only the allowlist.",
-          "send_allowlist": "e.g. family@example.com, example.org"
+          "send_allowlist": "e.g. family@example.com, example.org",
+          "endpoint_admin_only": "Applies to the whole endpoint /api/icloud_mcp as soon as one account demands it. For experiments use the read-only path /api/icloud_mcp/readonly."
         }
       },
       "rules": {
@@ -87,6 +90,20 @@
         "data": {
           "rules_auto": "Apply inbox rules automatically to new e-mails",
           "rules_interval": "Interval for automatic rules (minutes)"
+        }
+      },
+      "approvals": {
+        "title": "Approvals (human in the loop)",
+        "description": "Critical actions are not executed immediately but parked as an approval request: as a Home Assistant notification, optionally as a push with approve/deny buttons on your phone, and in the “iCloud Rules” panel. After approval Home Assistant executes the action; the AI can query the outcome with icloud_approval_status.",
+        "data": {
+          "approval_send": "Sending e-mails requires approval",
+          "approval_delete": "Deleting requires approval",
+          "approval_mass": "Mail actions touching more than this many messages require approval (0 = off)",
+          "approval_notify": "Notify service for actionable push (optional)",
+          "approval_timeout": "Pending requests expire after (minutes)"
+        },
+        "data_description": {
+          "approval_notify": "e.g. mobile_app_iphone – requires the Home Assistant companion app."
         }
       }
     }
