@@ -267,6 +267,7 @@ class ICloudCalDav:
         if master is None:
             raise CalendarNotFound(f"Event '{uid}' has no VEVENT")
         result = self._event_dict(master, cal)
+        result.pop("_sort", None)
         result["etag"] = record.etag
         overrides = [
             self._event_dict(c, cal) for c in record.calendar.walk("VEVENT") if c.get("RECURRENCE-ID") is not None
@@ -316,6 +317,7 @@ class ICloudCalDav:
             href, calendar.to_ical().decode("utf-8"), "text/calendar; charset=utf-8", create=True
         )
         result = self._event_dict(event, cal)
+        result.pop("_sort", None)
         result["etag"] = etag
         return result
 
@@ -398,6 +400,7 @@ class ICloudCalDav:
             etag=record.etag,
         )
         result = self._event_dict(master, cal)
+        result.pop("_sort", None)
         result["etag"] = etag
         return result
 

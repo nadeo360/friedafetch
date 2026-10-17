@@ -468,6 +468,7 @@ class GetMail(ICloudTool):
             vol.Optional("mailbox", description="Default INBOX"): str,
             vol.Optional("prefer_html", description="Return the HTML body instead of plain text"): bool,
             vol.Optional("max_chars", description="Truncate body to this many characters (default 20000)"): int,
+            vol.Optional("include_headers", description="Also return the raw header block (diagnostics)"): bool,
         }
     )
 
@@ -477,6 +478,7 @@ class GetMail(ICloudTool):
             int(args["uid"]),
             prefer_html=bool(args.get("prefer_html")),
             max_chars=clamp(args.get("max_chars"), 20000, 200000),
+            include_headers=bool(args.get("include_headers")),
         )
 
 
