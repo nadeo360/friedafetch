@@ -14,6 +14,7 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 
 from .caldav_client import ICloudCalDav
@@ -24,6 +25,7 @@ from .const import (
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
     CONF_FROM_ADDRESS,
+    DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
     LLM_API_ID,
@@ -36,6 +38,8 @@ from .const import (
 from .dav import DavAuthError, DavClient, DavError
 from .llm_api import ICloudClients, ICloudLLMAPI
 from .mail import ICloudMail
+from .mcp_http import STREAMABLE_API
+from .mcp_http import async_register as async_register_mcp_http
 from .notes import ICloudNotes
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,7 +101,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     entry.async_on_unload(unregister)
     entry.async_on_unload(clients.mail.async_close)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    _LOGGER.info("iCloud MCP ready; LLM API '%s' registered", api.id)
+
+    # Own Streamable-HTTP MCP endpoint (registered once; serves the tools of all loaded entries)
+    integration = await async_get_integration(hass, DOMAIN)
+    async_register_mcp_http(hass, str(integration.version or "0.0.0"))
+    _LOGGER.info("iCloud MCP ready; LLM API '%s' registered, MCP endpoint at %s", api.id, STREAMABLE_API)
     return True
 
 
