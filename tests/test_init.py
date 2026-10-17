@@ -7,7 +7,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.const import (
     CONF_ALLOW_DELETE,
     CONF_ALLOW_SEND_MAIL,
     CONF_APP_PASSWORD,
@@ -19,7 +19,7 @@ from custom_components.icloud_mcp.const import (
     DOMAIN,
     LLM_API_ID,
 )
-from custom_components.icloud_mcp.llm_api import disabled_capabilities
+from custom_components.friedafetch.llm_api import disabled_capabilities
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -89,7 +89,7 @@ async def test_options_restrict_tools(hass: HomeAssistant, mock_discover: AsyncM
     assert "Disabled by the administrator in the integration options:" in api.api_prompt
     assert "all write actions (read-only mode)" in api.api_prompt
     assert "notes tools" in api.api_prompt
-    assert "Settings → Devices & services → iCloud MCP → Configure" in api.api_prompt
+    assert "Settings → Devices & services → Frieda → Configure" in api.api_prompt
 
 
 async def test_no_send_no_delete(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
@@ -141,7 +141,7 @@ async def test_tool_call_and_error_mapping(hass: HomeAssistant, mock_discover: A
     api = await llm.async_get_api(hass, LLM_API_ID, _context(hass))
 
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_search",
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_search",
         new_callable=AsyncMock,
         return_value=[{"uid": "1", "full_name": "Max"}],
     ) as search:
@@ -152,10 +152,10 @@ async def test_tool_call_and_error_mapping(hass: HomeAssistant, mock_discover: A
     assert result.error is False
     assert result.data == {"count": 1, "contacts": [{"uid": "1", "full_name": "Max"}]}
 
-    from custom_components.icloud_mcp.carddav_client import ContactNotFound
+    from custom_components.friedafetch.carddav_client import ContactNotFound
 
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_get",
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_get",
         new_callable=AsyncMock,
         side_effect=ContactNotFound("Contact 'x' not found"),
     ):
@@ -170,12 +170,12 @@ async def test_tool_call_and_error_mapping(hass: HomeAssistant, mock_discover: A
 
 
 async def test_auth_failure_triggers_reauth(hass: HomeAssistant) -> None:
-    from custom_components.icloud_mcp.dav import DavAuthError
+    from custom_components.friedafetch.dav import DavAuthError
 
     entry = _entry()
     entry.add_to_hass(hass)
     with patch(
-        "custom_components.icloud_mcp.caldav_client.ICloudCalDav.async_discover",
+        "custom_components.friedafetch.caldav_client.ICloudCalDav.async_discover",
         new_callable=AsyncMock,
         side_effect=DavAuthError("401"),
     ):

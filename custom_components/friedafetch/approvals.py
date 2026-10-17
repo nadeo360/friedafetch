@@ -84,7 +84,7 @@ class ApprovalManager:
     def _t(self, key: str, **kw: Any) -> str:
         texts = {
             "de": {
-                "title": "iCloud MCP: Freigabe erforderlich",
+                "title": "Frieda: Freigabe erforderlich",
                 "body": "{client} möchte „{tool}“ ausführen ({reason}):\n{summary}\n\nKonto: {account}. Gültig bis {expires}.",
                 "approve": "Freigeben",
                 "deny": "Ablehnen",
@@ -93,7 +93,7 @@ class ApprovalManager:
                 "reason_mass": "Massenaktion",
             },
             "en": {
-                "title": "iCloud MCP: approval required",
+                "title": "Frieda: approval required",
                 "body": "{client} wants to run “{tool}” ({reason}):\n{summary}\n\nAccount: {account}. Valid until {expires}.",
                 "approve": "Approve",
                 "deny": "Deny",
@@ -155,7 +155,7 @@ class ApprovalManager:
             "expires": req.expires,
             "reason": reason,
             "message": (
-                "This action requires approval by the Home Assistant admin (notification or the 'iCloud Rules' "
+                "This action requires approval by the Home Assistant admin (notification or the 'Frieda' "
                 "panel). It will be executed automatically once approved; check the outcome with "
                 f"icloud_approval_status(request_id='{req.id}'). Do not retry the call."
             ),
@@ -175,7 +175,7 @@ class ApprovalManager:
         )
         persistent_notification.async_create(
             self._hass,
-            body + "\n\n→ /icloud-mcp",
+            body + "\n\n→ /friedafetch",
             title=self._t("title"),
             notification_id=f"{DOMAIN}_approval_{req.id}",
         )

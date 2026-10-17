@@ -1,7 +1,7 @@
 [project]
-name = "ha-icloud-mcp"
+name = "friedafetch"
 version = "0.1.0"
-description = "Home Assistant integration exposing iCloud calendars, contacts, mail and notes as MCP tools"
+description = "Frieda – MCP connector for iCloud: calendars, contacts, mail and notes for Home Assistant"
 requires-python = ">=3.13"
 
 [tool.pytest.ini_options]

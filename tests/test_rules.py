@@ -7,8 +7,8 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.icloud_mcp.const import CONF_APP_PASSWORD, CONF_APPLE_ID, DOMAIN, LLM_API_ID
-from custom_components.icloud_mcp.rules import Condition, Rule, RuleEngine, RuleError, RuleNotFound
+from custom_components.friedafetch.const import CONF_APP_PASSWORD, CONF_APPLE_ID, DOMAIN, LLM_API_ID
+from custom_components.friedafetch.rules import Condition, Rule, RuleEngine, RuleError, RuleNotFound
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -200,7 +200,7 @@ async def test_rule_tools_via_api(hass: HomeAssistant, mock_discover: AsyncMock)
     )
     entry.add_to_hass(hass)
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_mailboxes",
+        "custom_components.friedafetch.mail.ICloudMail.async_mailboxes",
         new_callable=AsyncMock,
         return_value=[{"name": "INBOX", "special_use": None}, {"name": "Archive", "special_use": None}],
     ):

@@ -1,1 +1,1 @@
-"""Tests for iCloud MCP."""
+"""Tests for Frieda."""

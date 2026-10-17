@@ -13,8 +13,8 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
-from custom_components.icloud_mcp.carddav_client import ContactNotFound
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.carddav_client import ContactNotFound
+from custom_components.friedafetch.const import (
     CONF_ALLOW_SEND_MAIL,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
@@ -22,7 +22,7 @@ from custom_components.icloud_mcp.const import (
     CONF_READ_ONLY,
     DOMAIN,
 )
-from custom_components.icloud_mcp.mcp_http import STREAMABLE_API
+from custom_components.friedafetch.mcp_http import STREAMABLE_API
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -83,8 +83,8 @@ async def test_initialize(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
         },
     )
     result = data["result"]
-    assert result["serverInfo"]["name"] == "icloud-mcp"
-    manifest = json.loads((Path(__file__).parents[1] / "custom_components/icloud_mcp/manifest.json").read_text())
+    assert result["serverInfo"]["name"] == "frieda"
+    manifest = json.loads((Path(__file__).parents[1] / "custom_components/friedafetch/manifest.json").read_text())
     assert result["serverInfo"]["version"] == manifest["version"]
     assert "tools" in result["capabilities"]
     assert "iCloud" in result["instructions"]
@@ -150,7 +150,7 @@ async def test_initialize_explains_disabled_options(hass: HomeAssistant, mock_di
     client = await hass_client()
     instructions = (await _initialize(client))["instructions"]
     assert "Disabled by the administrator in the integration options: sending e-mail" in instructions
-    assert "Settings → Devices & services → iCloud MCP → Configure" in instructions
+    assert "Settings → Devices & services → Frieda → Configure" in instructions
     assert "require human approval in Home Assistant: deleting" in instructions
     assert "'approval_required' is not an error" in instructions
     # one account: no label prefix
@@ -171,7 +171,7 @@ async def test_tools_call(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
     client = await hass_client()
 
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_search",
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_search",
         new_callable=AsyncMock,
         return_value=[{"uid": "1", "full_name": "Max Mustermann"}],
     ) as search:
@@ -182,7 +182,7 @@ async def test_tools_call(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
 
     # ToolResult.error -> isError
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_get",
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_get",
         new_callable=AsyncMock,
         side_effect=ContactNotFound("Contact 'x' not found"),
     ):
@@ -209,7 +209,7 @@ async def test_tools_call_mail(
 ) -> None:
     client = await hass_client()
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_mailboxes",
+        "custom_components.friedafetch.mail.ICloudMail.async_mailboxes",
         new_callable=AsyncMock,
         return_value=[{"name": "INBOX", "unread": 2}],
     ):
@@ -327,7 +327,7 @@ async def test_readonly_profile_and_admin_only(
 
     # read-only profile lists only non-writing tools
     resp = await client.post(
-        "/api/icloud_mcp/readonly",
+        "/api/friedafetch/readonly",
         json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         headers={"Accept": "application/json", "Content-Type": "application/json"},
     )
@@ -352,7 +352,7 @@ async def test_readonly_profile_and_admin_only(
     assert all(t["annotations"]["readOnlyHint"] for t in tools)
     # calling a writing tool through the read-only profile is unknown there
     resp = await client.post(
-        "/api/icloud_mcp/readonly",
+        "/api/friedafetch/readonly",
         json={
             "jsonrpc": "2.0",
             "id": 2,
@@ -366,7 +366,7 @@ async def test_readonly_profile_and_admin_only(
 
     # oversized bodies are rejected
     resp = await client.post(
-        "/api/icloud_mcp",
+        "/api/friedafetch",
         data=b"{" + b" " * (1024 * 1024 + 10) + b"}",
         headers={"Accept": "application/json", "Content-Type": "application/json"},
     )
@@ -375,7 +375,7 @@ async def test_readonly_profile_and_admin_only(
     # non-admin tokens are refused when admin-only is set
     hass_admin_user.groups = []
     resp = await client.post(
-        "/api/icloud_mcp",
+        "/api/friedafetch",
         json={"jsonrpc": "2.0", "id": 3, "method": "tools/list"},
         headers={"Accept": "application/json", "Content-Type": "application/json"},
     )

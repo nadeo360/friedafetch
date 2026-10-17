@@ -1,27 +1,27 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo.svg" alt="iCloud MCP" width="720">
+    <img src="assets/logo.svg" alt="Frieda" width="720">
   </picture>
 </p>
 
 <p align="center">
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml/badge.svg"></a>
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml/badge.svg"></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/ha-icloud-mcp"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/ha-icloud-mcp/badge"></a>
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/ha-icloud-mcp?display_name=tag"></a>
+  <a href="https://github.com/nadeo360/friedafetch/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nadeo360/friedafetch/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/friedafetch/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/friedafetch/actions/workflows/validate.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/friedafetch/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
+  <a href="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml/badge.svg"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/friedafetch"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/friedafetch/badge"></a>
+  <a href="https://github.com/nadeo360/friedafetch/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/friedafetch?display_name=tag"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>Deutsch</b></p>
 
-# iCloud MCP für Home Assistant
+# Frieda – MCP connector for iCloud
 
-Eine Home-Assistant-Integration (HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
+**Frieda** (technischer Name `friedafetch`) ist eine Home-Assistant-Integration (HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
 **Kalender, Kontakte, E-Mails und Notizen** als Werkzeuge (Tools) für LLMs bereitstellt. Die Tools werden als
-Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/icloud_mcp`, Streamable HTTP)
+Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/friedafetch`, Streamable HTTP)
 sowie optional über die **MCP-Server-Integration** von Home Assistant (Model Context Protocol) an MCP-Clients wie
 Claude, ChatGPT-Connectors oder lokale Agenten ausgeliefert. Sie stehen außerdem jedem Home-Assistant-Sprachassistenten
 (Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat.
@@ -60,19 +60,28 @@ stabile Protokolle (CalDAV, CardDAV, IMAP, SMTP) und sind vollständig nutzbar.
 ### HACS (empfohlen)
 
 1. HACS → Integrationen → ⋮ → **Benutzerdefinierte Repositories** → URL dieses Repositories, Kategorie *Integration*.
-2. „iCloud MCP“ installieren und Home Assistant neu starten.
+2. „Frieda“ installieren und Home Assistant neu starten.
 
 ### Manuell
 
-Ordner `custom_components/icloud_mcp` in das `custom_components`-Verzeichnis der Home-Assistant-Konfiguration kopieren
+Ordner `custom_components/friedafetch` in das `custom_components`-Verzeichnis der Home-Assistant-Konfiguration kopieren
 und Home Assistant neu starten.
+
+
+### Umstieg von „iCloud MCP“ (Versionen bis 1.0.x)
+
+Mit Version 1.1.0 wurde das Projekt in Frieda umbenannt; die Integrations-Domain wechselte von `icloud_mcp` zu
+`friedafetch`. Alte Integration entfernen (Einstellungen → Geräte & Dienste → iCloud MCP → Löschen), das
+benutzerdefinierte HACS-Repository auf `https://github.com/nadeo360/friedafetch` ändern, Frieda installieren und mit
+Apple-ID und App-Passwort neu hinzufügen. Regeln und Optionen werden nicht übernommen; MCP-Clients brauchen den neuen
+Endpunkt `/api/friedafetch`. Die Tool-Namen (`icloud_*`) sind unverändert.
 
 ## Einrichtung
 
-1. **Einstellungen → Geräte & Dienste → Integration hinzufügen → „iCloud MCP“**.
+1. **Einstellungen → Geräte & Dienste → Integration hinzufügen → „Frieda“**.
 2. Apple-ID und anwendungsspezifisches Passwort eingeben. Die Zugangsdaten werden gegen CalDAV geprüft (Pflicht) und
    gegen IMAP (optional – schlägt IMAP fehl, werden Mail- und Notiz-Tools zunächst deaktiviert).
-3. **MCP-Client verbinden:** Entweder den [eigenen MCP-Endpunkt](#eigener-mcp-endpunkt) `/api/icloud_mcp` verwenden
+3. **MCP-Client verbinden:** Entweder den [eigenen MCP-Endpunkt](#eigener-mcp-endpunkt) `/api/friedafetch` verwenden
    (empfohlen, keine weitere Integration nötig) – oder die Core-Integration **„Model Context Protocol Server“**
    (`mcp_server`) hinzufügen und dort unter **Konfigurieren** entweder „alle LLM-APIs“ aktivieren oder in der Liste
    **„iCloud (Kalender, Kontakte, Mail, Notizen)“** zusätzlich zu *Assist* auswählen. Danach sieht jeder verbundene
@@ -107,7 +116,7 @@ schreibenden Tools automatisch weglassen.
 
 Abgeschaltete Fähigkeiten verschwinden nicht stillschweigend: Der LLM-Prompt (und die `instructions` des eigenen
 MCP-Endpunkts) nennt, was der Administrator deaktiviert hat, damit die KI dem Nutzer erklären kann, *warum* sie nicht
-senden oder löschen kann und wo es sich einschalten lässt (Einstellungen → Geräte & Dienste → iCloud MCP →
+senden oder löschen kann und wo es sich einschalten lässt (Einstellungen → Geräte & Dienste → Frieda →
 Konfigurieren). Ebenso werden aktive Freigaben angekündigt, sodass ein `approval_required`-Ergebnis als „wartet auf
 Freigabe“ erklärt wird und nicht als Fehler.
 
@@ -120,7 +129,7 @@ iCloud-Config-Entry geladen ist; ohne geladenen Entry antwortet er mit `404`.
 
 | | |
 |---|---|
-| **URL** | `https://<home-assistant>/api/icloud_mcp` (bzw. `http://homeassistant.local:8123/api/icloud_mcp`) |
+| **URL** | `https://<home-assistant>/api/friedafetch` (bzw. `http://homeassistant.local:8123/api/friedafetch`) |
 | **Transport** | MCP Streamable HTTP, nur `POST` (kein SSE-Stream, `GET`/`DELETE` liefern `405`) |
 | **Auth** | Home-Assistant-Token als `Authorization: Bearer <token>` |
 | **Methoden** | `initialize`, `tools/list`, `tools/call` (Prompts/Ressourcen gibt es hier nicht) |
@@ -128,14 +137,14 @@ iCloud-Config-Entry geladen ist; ohne geladenen Entry antwortet er mit `404`.
 ### Token einrichten
 
 1. In Home Assistant unten links auf das **Profil** klicken → Reiter **Sicherheit**.
-2. Unter **Langlebige Zugangstoken** auf **Token erstellen**, einen Namen (z. B. `Claude iCloud MCP`) vergeben.
+2. Unter **Langlebige Zugangstoken** auf **Token erstellen**, einen Namen (z. B. `Claude Frieda`) vergeben.
 3. Den angezeigten Token **sofort kopieren** – er wird nur einmal angezeigt. Der Token gilt für den Benutzer, der
    ihn erstellt hat; es ist kein Admin-Konto nötig.
 
 ### Claude als Connector
 
 **Claude.ai / Claude Desktop (Custom Connector):** Einstellungen → Connectors → **Custom Connector hinzufügen**,
-als URL `https://<home-assistant>/api/icloud_mcp` eintragen. Claude.ai-Custom-Connectors verlangen nach aktuellem Stand
+als URL `https://<home-assistant>/api/friedafetch` eintragen. Claude.ai-Custom-Connectors verlangen nach aktuellem Stand
 OAuth oder einen Endpunkt ohne Authentifizierung; einen festen Bearer-Header kann man dort nicht hinterlegen. Dafür
 gibt es zwei Wege:
 
@@ -143,7 +152,7 @@ gibt es zwei Wege:
   Code:
 
   ```bash
-  claude mcp add --transport http icloud https://<home-assistant>/api/icloud_mcp --header "Authorization: Bearer <token>"
+  claude mcp add --transport http icloud https://<home-assistant>/api/friedafetch --header "Authorization: Bearer <token>"
   ```
 
   oder in `claude_desktop_config.json` bzw. `.mcp.json`:
@@ -153,7 +162,7 @@ gibt es zwei Wege:
     "mcpServers": {
       "icloud": {
         "type": "http",
-        "url": "https://<home-assistant>/api/icloud_mcp",
+        "url": "https://<home-assistant>/api/friedafetch",
         "headers": { "Authorization": "Bearer <token>" }
       }
     }
@@ -173,7 +182,7 @@ Jeder Client, der Streamable HTTP mit eigenem `Authorization`-Header beherrscht,
 schneller Test mit `curl`:
 
 ```bash
-curl -s -X POST https://<home-assistant>/api/icloud_mcp \
+curl -s -X POST https://<home-assistant>/api/friedafetch \
   -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -H "Accept: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
@@ -183,7 +192,7 @@ curl -s -X POST https://<home-assistant>/api/icloud_mcp \
 Die Integration wird pro Apple-ID einmal hinzugefügt. Das erste Konto behält die einfachen Tool-Namen
 (`icloud_list_events`); jedes weitere Konto bekommt ein Suffix aus seiner **Kontobezeichnung** (Option) oder dem
 lokalen Teil der Apple-ID, z. B. `icloud_list_events_arbeit`. Die LLM-APIs werden genauso registriert
-(`icloud_mcp`, `icloud_mcp_arbeit`), das Regel-Panel zeigt eine Kontoauswahl. Jedes Konto hat eigene Regeln und
+(`friedafetch`, `friedafetch_arbeit`), das Regel-Panel zeigt eine Kontoauswahl. Jedes Konto hat eigene Regeln und
 Optionen.
 
 ### Hinweise
@@ -239,7 +248,7 @@ Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusi
 ## Posteingangsregeln
 
 iCloud bietet keine Schnittstelle für seine serverseitigen Mail-Regeln. Die Integration führt deshalb **eigene
-Regeln** aus, die in Home Assistant gespeichert werden (`.storage/icloud_mcp.rules.<entry>`):
+Regeln** aus, die in Home Assistant gespeichert werden (`.storage/friedafetch.rules.<entry>`):
 
 - **Bedingungen** auf `from`, `to`, `cc`, `subject` oder `any` mit `contains`, `equals`, `starts_with`, `ends_with`,
   `domain` (Absender-Domain inkl. Subdomains) oder `regex`; Verknüpfung `all` (Standard) oder `any`.
@@ -264,14 +273,14 @@ Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Ve
 
 ### Verwaltungsoberfläche
 
-Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„iCloud Regeln“** an (nur für Admins; Deutsch
+Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„Frieda“** an (nur für Admins; Deutsch
 oder Englisch je nach HA-Sprache).
 Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
 Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Konten erscheinen als Karten mit Regelanzahl,
 Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regeln lassen sich in ein anderes Konto
 kopieren. Das Panel ist für Smartphones optimiert (gestapelte Karten statt Tabellen, große Touch-Flächen, Freigaben mit einem
 Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
-(`icloud_mcp/rules/*`, `icloud_mcp/approvals/*`, `icloud_mcp/audit/*`) mit der Integration.
+(`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der Integration.
 
 ## Sicherheit
 
@@ -286,13 +295,13 @@ Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht übe
   angeboten werden. Blockierte Aufrufe liefern `code: "blocked"`.
 - **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf wird mit Zeit, Client, HA-Benutzer, Tool,
   gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Aktivität“ des Panels protokolliert und als
-  Ereignis `icloud_mcp_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
+  Ereignis `friedafetch_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
 - **Freigaben (Human-in-the-Loop, Optionen → Freigaben):** Senden, Löschen und Mail-Massenaktionen oberhalb einer
   Schwelle können geparkt statt ausgeführt werden. Home Assistant zeigt eine Benachrichtigung (optional ein Push mit
   Freigeben/Ablehnen-Buttons auf dem Handy), die Karte „Freigaben“ im Panel listet die Anfrage; nach Freigabe führt
   Home Assistant die Aktion aus und die KI liest das Ergebnis mit `icloud_approval_status`. Anfragen verfallen nach
   einstellbarer Zeit.
-- **Endpunkt-Profile:** Neben `/api/icloud_mcp` gibt es `/api/icloud_mcp/readonly`, das nur Tools ohne jede
+- **Endpunkt-Profile:** Neben `/api/friedafetch` gibt es `/api/friedafetch/readonly`, das nur Tools ohne jede
   Schreibwirkung ausliefert – der richtige Endpunkt für Experimente oder weniger vertrauenswürdige Agenten. Die Option
   „MCP-Endpunkt nur für Admin-Tokens“ weist Nicht-Admin-Tokens ab; Anfragen sind auf 1 MiB begrenzt.
 - **Schutz vor Prompt-Injection:** Betreffzeilen, Mail-Texte, Notizen und Termintexte werden von unsichtbaren und
@@ -303,7 +312,7 @@ Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht übe
   HACS-Validierung; GitHub Actions sind auf Commit-SHAs gepinnt, der `main`-Branch ist geschützt, OpenSSF Scorecard
   bewertet das Repository laufend, Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Releases werden von GitHub
   Actions gebaut und mit signierter Build-Provenance (Sigstore) und einer CycloneDX-SBOM veröffentlicht; HACS
-  installiert genau dieses signierte Paket (`gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp`). Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
+  installiert genau dieses signierte Paket (`gh attestation verify friedafetch.zip --repo nadeo360/friedafetch`). Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
 
 Beispiel-Automation auf das Protokoll-Ereignis:
 
@@ -312,7 +321,7 @@ automation:
   - alias: Warnung bei Massenlöschung durch KI
     triggers:
       - trigger: event
-        event_type: icloud_mcp_action
+        event_type: friedafetch_action
     conditions:
       - "{{ trigger.event.data.action == 'delete' and (trigger.event.data.details.count | default(1)) > 10 }}"
     actions:
@@ -350,7 +359,7 @@ Home Assistant 2026.10 benötigt Python ≥ 3.14.2.
 ### Grafiken
 
 `assets/*.svg` sind die Quellen; `scripts/build_icons.py` rendert alle PNG-Varianten (Icon, @2x, helles/dunkles Logo)
-nach `assets/` und in den Ordner `custom_components/icloud_mcp/brand/`, aus dem Home Assistant (ab 2026.3) und HACS
+nach `assets/` und in den Ordner `custom_components/friedafetch/brand/`, aus dem Home Assistant (ab 2026.3) und HACS
 das Icon der Integration direkt laden. `--check` prüft in der CI, ob die Dateien aktuell sind.
 
 ## Hinweis zum Einsatz von KI

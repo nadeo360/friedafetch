@@ -2,7 +2,7 @@
 
 import pytest
 
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.const import (
     CONF_HIDDEN_MAILBOXES,
     CONF_LIMIT_MAIL_MODIFY,
     CONF_LIMIT_MAIL_SEND,
@@ -13,8 +13,8 @@ from custom_components.icloud_mcp.const import (
     CONF_SEND_MAX_RECIPIENTS,
     CONF_SEND_POLICY,
 )
-from custom_components.icloud_mcp.guard import QUOTA_MAIL_MODIFY, QUOTA_MAIL_SEND, Guard, PolicyError
-from custom_components.icloud_mcp.util import detect_injection, sanitize_text
+from custom_components.friedafetch.guard import QUOTA_MAIL_MODIFY, QUOTA_MAIL_SEND, Guard, PolicyError
+from custom_components.friedafetch.util import detect_injection, sanitize_text
 
 
 def test_quota_sliding_window() -> None:

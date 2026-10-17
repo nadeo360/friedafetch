@@ -9,8 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.icloud_mcp.caldav_client import CalendarError, ICloudCalDav
-from custom_components.icloud_mcp.dav import DavClient
+from custom_components.friedafetch.caldav_client import CalendarError, ICloudCalDav
+from custom_components.friedafetch.dav import DavClient
 
 TZ = ZoneInfo("Europe/Berlin")
 HOME = "https://p01-caldav.icloud.com/123/calendars/"

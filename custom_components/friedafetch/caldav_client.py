@@ -30,7 +30,7 @@ from .util import isoformat, sanitize_text, to_datetime
 _LOGGER = logging.getLogger(__name__)
 
 _CALENDAR_CACHE_TTL = 300
-PRODID = "-//Home Assistant//iCloud MCP//EN"
+PRODID = "-//Home Assistant//Frieda//EN"
 
 
 class CalendarError(Exception):

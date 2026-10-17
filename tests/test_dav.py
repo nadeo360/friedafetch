@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.icloud_mcp.dav import NS_CALDAV, DavAuthError, DavClient, DavNotFoundError, parse_multistatus
+from custom_components.friedafetch.dav import NS_CALDAV, DavAuthError, DavClient, DavNotFoundError, parse_multistatus
 
 MULTISTATUS = """<?xml version="1.0" encoding="UTF-8"?>
 <multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">

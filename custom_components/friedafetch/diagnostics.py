@@ -1,4 +1,4 @@
-"""Diagnostics support for iCloud MCP."""
+"""Diagnostics support for Frieda."""
 
 from __future__ import annotations
 

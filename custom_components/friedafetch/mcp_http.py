@@ -6,7 +6,7 @@ have been selected in its config entry, and third-party MCP servers such as
 therefore registers a dedicated endpoint that serves the tools from
 :func:`llm_api.build_tools` directly:
 
-- ``POST /api/icloud_mcp``: Streamable HTTP endpoint (stateless). Every request
+- ``POST /api/friedafetch``: Streamable HTTP endpoint (stateless). Every request
   carries exactly one JSON-RPC message; the response is returned as JSON.
   Authentication is the normal Home Assistant bearer token (a long-lived
   access token works for MCP clients).
@@ -58,7 +58,7 @@ STREAMABLE_API = f"/api/{DOMAIN}"
 READONLY_API = f"{STREAMABLE_API}/readonly"
 MAX_BODY_BYTES = 1024 * 1024  # 1 MiB is plenty for JSON-RPC tool calls
 PROFILES = ("full", "readonly")
-SERVER_NAME = "icloud-mcp"
+SERVER_NAME = "frieda"
 TIMEOUT = 120  # seconds; IMAP searches can be slow
 
 DATA_MCP_HTTP = f"{DOMAIN}_mcp_http"
@@ -291,7 +291,7 @@ async def async_handle_streamable_message(
     hass: HomeAssistant = request.app[KEY_HASS]
     data: MCPHttpData | None = hass.data.get(DATA_MCP_HTTP)
     if data is None or not _loaded_entries(hass):
-        raise HTTPNotFound(text="iCloud MCP is not configured")
+        raise HTTPNotFound(text="Frieda is not configured")
     if _admin_only(hass):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
@@ -378,4 +378,4 @@ def async_register(hass: HomeAssistant, version: str) -> None:
         hass.http.register_view(ICloudMCPStreamableView())
         hass.http.register_view(ICloudMCPReadOnlyView())
         data.registered = True
-        _LOGGER.info("iCloud MCP endpoints registered at %s and %s", STREAMABLE_API, READONLY_API)
+        _LOGGER.info("Frieda endpoints registered at %s and %s", STREAMABLE_API, READONLY_API)

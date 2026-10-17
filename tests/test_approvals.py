@@ -7,7 +7,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
 
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.const import (
     AUDIT_EVENT,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
@@ -49,7 +49,7 @@ async def test_send_is_parked_and_executed_on_approval(
     assert "icloud_approval_status" in {t.name for t in api.tools}
 
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_send",
+        "custom_components.friedafetch.mail.ICloudMail.async_send",
         new_callable=AsyncMock,
         return_value={"message_id": "<m@x>", "to": ["a@b.c"], "subject": "Hi"},
     ) as send:
@@ -70,12 +70,12 @@ async def test_send_is_parked_and_executed_on_approval(
         assert status.data["status"] == "pending" and status.data["reason"] == "send"
 
         ws = await hass_ws_client(hass)
-        await ws.send_json({"id": 1, "type": "icloud_mcp/approvals/list"})
+        await ws.send_json({"id": 1, "type": "friedafetch/approvals/list"})
         msg = await ws.receive_json()
         assert msg["result"]["enabled"] and msg["result"]["requests"][0]["id"] == request_id
 
         await ws.send_json(
-            {"id": 2, "type": "icloud_mcp/approvals/decide", "request_id": request_id, "decision": "approve"}
+            {"id": 2, "type": "friedafetch/approvals/decide", "request_id": request_id, "decision": "approve"}
         )
         msg = await ws.receive_json()
         assert msg["success"], msg
@@ -89,7 +89,7 @@ async def test_send_is_parked_and_executed_on_approval(
         assert status.data["status"] == "executed"
         # deciding twice fails
         await ws.send_json(
-            {"id": 3, "type": "icloud_mcp/approvals/decide", "request_id": request_id, "decision": "deny"}
+            {"id": 3, "type": "friedafetch/approvals/decide", "request_id": request_id, "decision": "deny"}
         )
         msg = await ws.receive_json()
         assert msg["success"] is False and msg["error"]["code"] == "not_found"
@@ -103,7 +103,7 @@ async def test_deny_and_mass_threshold(hass: HomeAssistant, mock_discover: Async
     await _setup(hass)
     api = await llm.async_get_api(hass, LLM_API_ID, _ctx())
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_move", new_callable=AsyncMock, return_value={"count": 2}
+        "custom_components.friedafetch.mail.ICloudMail.async_move", new_callable=AsyncMock, return_value={"count": 2}
     ) as move:
         # below the threshold: executes directly
         ok = await api.async_call_tool(
@@ -121,7 +121,7 @@ async def test_deny_and_mass_threshold(hass: HomeAssistant, mock_discover: Async
         await ws.send_json(
             {
                 "id": 1,
-                "type": "icloud_mcp/approvals/decide",
+                "type": "friedafetch/approvals/decide",
                 "request_id": parked.data["request_id"],
                 "decision": "deny",
             }
@@ -141,13 +141,13 @@ async def test_mobile_action_and_notify_service(hass: HomeAssistant, mock_discov
     await _setup(hass, **{CONF_APPROVAL_NOTIFY: "notify.mobile_app_test"})
     api = await llm.async_get_api(hass, LLM_API_ID, _ctx())
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_delete", new_callable=AsyncMock
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_delete", new_callable=AsyncMock
     ) as delete:
         parked = await api.async_call_tool(llm.ToolInput(tool_name="icloud_delete_contact", tool_args={"uid": "c1"}))
         await hass.async_block_till_done()
         request_id = parked.data["request_id"]
-        assert calls and calls[0]["data"]["actions"][0]["action"] == f"ICLOUD_MCP_APPROVE_{request_id}"
-        hass.bus.async_fire(MOBILE_ACTION_EVENT, {"action": f"ICLOUD_MCP_APPROVE_{request_id}"})
+        assert calls and calls[0]["data"]["actions"][0]["action"] == f"FRIEDAFETCH_APPROVE_{request_id}"
+        hass.bus.async_fire(MOBILE_ACTION_EVENT, {"action": f"FRIEDAFETCH_APPROVE_{request_id}"})
         await hass.async_block_till_done()
         delete.assert_awaited_once_with("c1")
     # clear_notification was sent to the phone

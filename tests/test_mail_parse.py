@@ -3,7 +3,7 @@
 import email
 from email import policy
 
-from custom_components.icloud_mcp.mail import (
+from custom_components.friedafetch.mail import (
     decode_utf7,
     encode_utf7,
     extract_body,

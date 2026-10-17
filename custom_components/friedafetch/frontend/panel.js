@@ -1,4 +1,4 @@
-/* iCloud MCP – Posteingangsregeln: Verwaltungspanel (ohne Build-Schritt, ohne Abhängigkeiten). */
+/* Frieda – Posteingangsregeln: Verwaltungspanel (ohne Build-Schritt, ohne Abhängigkeiten). */
 
 const ICON_URL = new URL("icon.svg", import.meta.url).href;
 
@@ -7,7 +7,7 @@ const OPS = ["contains", "equals", "starts_with", "ends_with", "domain", "regex"
 
 const I18N = {
   de: {
-    title: "iCloud Regeln",
+    title: "Frieda",
     account: "Konto",
     rules: "Regeln",
     newRule: "Neue Regel",
@@ -129,7 +129,7 @@ const I18N = {
     showMore: "Mehr anzeigen",
   },
   en: {
-    title: "iCloud rules",
+    title: "Frieda",
     account: "Account",
     rules: "Rules",
     newRule: "New rule",
@@ -392,7 +392,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
   async _init() {
     this._render();
     try {
-      const { accounts } = await this._ws({ type: "icloud_mcp/accounts" });
+      const { accounts } = await this._ws({ type: "friedafetch/accounts" });
       this._s.accounts = accounts;
       this._s.entryId = accounts[0]?.entry_id || null;
       if (this._s.entryId) await this._reload();
@@ -405,8 +405,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
 
   async _reload() {
     const [list, boxes] = await Promise.all([
-      this._ws({ type: "icloud_mcp/rules/list", entry_id: this._s.entryId }),
-      this._ws({ type: "icloud_mcp/mailboxes", entry_id: this._s.entryId }).catch(() => ({ mailboxes: [] })),
+      this._ws({ type: "friedafetch/rules/list", entry_id: this._s.entryId }),
+      this._ws({ type: "friedafetch/mailboxes", entry_id: this._s.entryId }).catch(() => ({ mailboxes: [] })),
     ]);
     this._s.rules = list.rules;
     this._s.lastRun = list.last_run;
@@ -476,9 +476,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
     await this._call(async () => {
       if (rule.id) {
         const { id, hits, created, ...changes } = rule;
-        await this._ws({ type: "icloud_mcp/rules/update", entry_id: this._s.entryId, rule_id: id, changes });
+        await this._ws({ type: "friedafetch/rules/update", entry_id: this._s.entryId, rule_id: id, changes });
       } else {
-        await this._ws({ type: "icloud_mcp/rules/create", entry_id: this._s.entryId, rule });
+        await this._ws({ type: "friedafetch/rules/create", entry_id: this._s.entryId, rule });
       }
       this._s.editing = null;
       await this._reload();
@@ -488,14 +488,14 @@ class ICloudMcpRulesPanel extends HTMLElement {
   async _delete(id) {
     if (!confirm(this.t.confirmDelete)) return;
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/rules/delete", entry_id: this._s.entryId, rule_id: id });
+      await this._ws({ type: "friedafetch/rules/delete", entry_id: this._s.entryId, rule_id: id });
       await this._reload();
     });
   }
 
   async _toggle(id, enabled) {
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/rules/update", entry_id: this._s.entryId, rule_id: id, changes: { enabled } });
+      await this._ws({ type: "friedafetch/rules/update", entry_id: this._s.entryId, rule_id: id, changes: { enabled } });
       await this._reload();
     });
   }
@@ -505,7 +505,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const position = Math.max(0, Math.min(this._s.rules.length - 1, idx + delta));
     if (position === idx) return;
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/rules/update", entry_id: this._s.entryId, rule_id: id, changes: { position } });
+      await this._ws({ type: "friedafetch/rules/update", entry_id: this._s.entryId, rule_id: id, changes: { position } });
       await this._reload();
     });
   }
@@ -516,26 +516,26 @@ class ICloudMcpRulesPanel extends HTMLElement {
     if (!rule || !target) return;
     const { id: _id, hits, created, ...data } = rule;
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/rules/create", entry_id: targetEntryId, rule: data });
+      await this._ws({ type: "friedafetch/rules/create", entry_id: targetEntryId, rule: data });
       await this._loadAccounts();
       this._s.notice = this.t.copied.replace("{0}", target.label);
     });
   }
 
   async _loadAccounts() {
-    const { accounts } = await this._ws({ type: "icloud_mcp/accounts" });
+    const { accounts } = await this._ws({ type: "friedafetch/accounts" });
     this._s.accounts = accounts;
     if (!accounts.some((a) => a.entry_id === this._s.entryId)) this._s.entryId = accounts[0]?.entry_id || null;
   }
 
   async _loadApprovals() {
-    const res = await this._ws({ type: "icloud_mcp/approvals/list", entry_id: this._s.entryId });
+    const res = await this._ws({ type: "friedafetch/approvals/list", entry_id: this._s.entryId });
     this._s.approvals = res;
   }
 
   async _decide(requestId, decision) {
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/approvals/decide", entry_id: this._s.entryId, request_id: requestId, decision });
+      await this._ws({ type: "friedafetch/approvals/decide", entry_id: this._s.entryId, request_id: requestId, decision });
       await this._loadApprovals();
       await this._loadAudit();
       await this._loadAccounts();
@@ -568,7 +568,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
   }
 
   async _loadAudit() {
-    const res = await this._ws({ type: "icloud_mcp/audit/list", entry_id: this._s.entryId, limit: this._s.auditLimit });
+    const res = await this._ws({ type: "friedafetch/audit/list", entry_id: this._s.entryId, limit: this._s.auditLimit });
     this._s.audit = res.entries || [];
     this._s.quota = res.quota || {};
   }
@@ -576,7 +576,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
   async _clearAudit() {
     if (!confirm(this.t.confirmClear)) return;
     await this._call(async () => {
-      await this._ws({ type: "icloud_mcp/audit/clear", entry_id: this._s.entryId });
+      await this._ws({ type: "friedafetch/audit/clear", entry_id: this._s.entryId });
       await this._loadAudit();
     });
   }
@@ -637,7 +637,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
   async _run(scope, dryRun) {
     if (!dryRun && scope === "all" && !confirm(this.t.confirmRun)) return;
     await this._call(async () => {
-      this._s.report = await this._ws({ type: "icloud_mcp/rules/run", entry_id: this._s.entryId, scope, dry_run: dryRun });
+      this._s.report = await this._ws({ type: "friedafetch/rules/run", entry_id: this._s.entryId, scope, dry_run: dryRun });
       await this._reload();
     });
   }
@@ -882,6 +882,6 @@ class ICloudMcpRulesPanel extends HTMLElement {
   }
 }
 
-if (!customElements.get("icloud-mcp-rules-panel")) {
-  customElements.define("icloud-mcp-rules-panel", ICloudMcpRulesPanel);
+if (!customElements.get("friedafetch-panel")) {
+  customElements.define("friedafetch-panel", ICloudMcpRulesPanel);
 }

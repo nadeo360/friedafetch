@@ -1,7 +1,7 @@
 {
-  "name": "iCloud MCP",
+  "name": "Frieda (iCloud)",
   "render_readme": true,
   "homeassistant": "2026.10.0",
   "zip_release": true,
-  "filename": "icloud_mcp.zip"
+  "filename": "friedafetch.zip"
 }

@@ -35,7 +35,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "iCloud-MCP-Optionen",
+        "title": "Frieda-Optionen",
         "description": "Wähle einen Bereich.",
         "menu_options": {
           "tools": "Tools und Konto",
@@ -65,7 +65,7 @@
       },
       "security": {
         "title": "Sicherheit und Leitplanken",
-        "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Aktivitätsprotokoll des Panels „iCloud Regeln“ und als Ereignis icloud_mcp_action.",
+        "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Aktivitätsprotokoll des Panels „Frieda“ und als Ereignis friedafetch_action.",
         "data": {
           "limit_mail_modify": "Mails verschieben/löschen/markieren pro Stunde (0 = unbegrenzt)",
           "limit_mail_send": "Gesendete Mails pro Stunde (0 = unbegrenzt)",
@@ -82,7 +82,7 @@
         "data_description": {
           "send_policy": "„Beliebig“: jede Adresse. „Kontakte“: nur Adressen aus den iCloud-Kontakten oder der Allowlist. „Allowlist“: nur die Allowlist.",
           "send_allowlist": "z. B. familie@example.com, example.org",
-          "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/icloud_mcp, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/icloud_mcp/readonly."
+          "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/friedafetch, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/friedafetch/readonly."
         }
       },
       "rules": {
@@ -94,7 +94,7 @@
       },
       "approvals": {
         "title": "Freigaben (Human-in-the-Loop)",
-        "description": "Kritische Aktionen werden nicht sofort ausgeführt, sondern als Freigabeanfrage geparkt: als Benachrichtigung in Home Assistant, optional als Push mit Freigeben/Ablehnen-Buttons auf dem Handy, und im Panel „iCloud Regeln“. Nach Freigabe führt Home Assistant die Aktion aus; die KI kann das Ergebnis mit icloud_approval_status abfragen.",
+        "description": "Kritische Aktionen werden nicht sofort ausgeführt, sondern als Freigabeanfrage geparkt: als Benachrichtigung in Home Assistant, optional als Push mit Freigeben/Ablehnen-Buttons auf dem Handy, und im Panel „Frieda“. Nach Freigabe führt Home Assistant die Aktion aus; die KI kann das Ergebnis mit icloud_approval_status abfragen.",
         "data": {
           "approval_send": "Senden von E-Mails erfordert Freigabe",
           "approval_delete": "Löschen erfordert Freigabe",

@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: |
-          python -c "import json; print('\n'.join(json.load(open('custom_components/icloud_mcp/manifest.json'))['requirements']))" > requirements_manifest.txt
+          python -c "import json; print('\n'.join(json.load(open('custom_components/friedafetch/manifest.json'))['requirements']))" > requirements_manifest.txt
           pip install -r requirements_manifest.txt
           pip check
 

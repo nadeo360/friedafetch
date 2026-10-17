@@ -235,7 +235,7 @@ class VCard:
         return cards
 
     def serialize(self) -> str:
-        lines = ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//Home Assistant//iCloud MCP//EN"]
+        lines = ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//Home Assistant//Frieda//EN"]
         lines.extend(p.serialize() for p in self.props)
         lines.append("END:VCARD")
         return "\r\n".join(lines) + "\r\n"

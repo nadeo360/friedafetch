@@ -1,4 +1,4 @@
-"""iCloud MCP: expose iCloud calendars, contacts, mail and notes as LLM/MCP tools."""
+"""Frieda: expose iCloud calendars, contacts, mail and notes as LLM/MCP tools."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bool:
-    """Set up iCloud MCP from a config entry."""
+    """Set up Frieda from a config entry."""
     clients = build_clients(hass, entry)
 
     try:
@@ -194,12 +194,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     try:
         await async_setup_frontend(hass, str((await async_get_integration(hass, DOMAIN)).version or "0"))
     except Exception as err:  # noqa: BLE001 - the panel is optional
-        _LOGGER.warning("Could not register the iCloud rules panel: %s", err)
+        _LOGGER.warning("Could not register the Frieda panel: %s", err)
 
     # Own Streamable-HTTP MCP endpoint (registered once; serves the tools of all loaded entries)
     integration = await async_get_integration(hass, DOMAIN)
     async_register_mcp_http(hass, str(integration.version or "0.0.0"))
-    _LOGGER.info("iCloud MCP ready; LLM API '%s' registered, MCP endpoint at %s", api.id, STREAMABLE_API)
+    _LOGGER.info("Frieda ready; LLM API '%s' registered, MCP endpoint at %s", api.id, STREAMABLE_API)
     return True
 
 

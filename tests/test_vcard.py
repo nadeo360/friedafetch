@@ -1,7 +1,7 @@
 """vCard parsing/serialising."""
 
-from custom_components.icloud_mcp.carddav_client import apply_contact_fields
-from custom_components.icloud_mcp.vcard import VCard
+from custom_components.friedafetch.carddav_client import apply_contact_fields
+from custom_components.friedafetch.vcard import VCard
 
 ICLOUD_VCARD = """BEGIN:VCARD
 VERSION:3.0

@@ -1,4 +1,4 @@
-"""Config flow for iCloud MCP."""
+"""Config flow for Frieda."""
 
 from __future__ import annotations
 

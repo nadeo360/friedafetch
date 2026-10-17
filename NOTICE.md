@@ -49,6 +49,11 @@ The integration depends on the following packages, each under its own license:
 in the same way Home Assistant itself does; its source is available from the linked repository. If you redistribute
 a combined work, review the GPL-3.0 obligations.
 
+## Project name
+
+“Frieda” and “friedafetch” are the names of this community project. They are not registered trademarks; a
+trademark search is advisable before any commercial use or registration.
+
 ## Copyright
 
 Copyright (c) 2026 nadeo360 and contributors. Licensed under the MIT License, see [LICENSE](LICENSE).

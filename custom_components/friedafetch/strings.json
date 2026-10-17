@@ -35,7 +35,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "iCloud MCP options",
+        "title": "Frieda options",
         "description": "Choose a section.",
         "menu_options": {
           "tools": "Tools and account",
@@ -65,7 +65,7 @@
       },
       "security": {
         "title": "Security and guard rails",
-        "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the activity log of the “iCloud Rules” panel and as the event icloud_mcp_action.",
+        "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the activity log of the “Frieda” panel and as the event friedafetch_action.",
         "data": {
           "limit_mail_modify": "Mail moves/deletions/flag changes per hour (0 = unlimited)",
           "limit_mail_send": "Sent e-mails per hour (0 = unlimited)",
@@ -82,7 +82,7 @@
         "data_description": {
           "send_policy": "“Any”: every address. “Contacts”: only addresses from the iCloud contacts or the allowlist. “Allowlist”: only the allowlist.",
           "send_allowlist": "e.g. family@example.com, example.org",
-          "endpoint_admin_only": "Applies to the whole endpoint /api/icloud_mcp as soon as one account demands it. For experiments use the read-only path /api/icloud_mcp/readonly."
+          "endpoint_admin_only": "Applies to the whole endpoint /api/friedafetch as soon as one account demands it. For experiments use the read-only path /api/friedafetch/readonly."
         }
       },
       "rules": {
@@ -94,7 +94,7 @@
       },
       "approvals": {
         "title": "Approvals (human in the loop)",
-        "description": "Critical actions are not executed immediately but parked as an approval request: as a Home Assistant notification, optionally as a push with approve/deny buttons on your phone, and in the “iCloud Rules” panel. After approval Home Assistant executes the action; the AI can query the outcome with icloud_approval_status.",
+        "description": "Critical actions are not executed immediately but parked as an approval request: as a Home Assistant notification, optionally as a push with approve/deny buttons on your phone, and in the “Frieda” panel. After approval Home Assistant executes the action; the AI can query the outcome with icloud_approval_status.",
         "data": {
           "approval_send": "Sending e-mails requires approval",
           "approval_delete": "Deleting requires approval",

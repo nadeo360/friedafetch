@@ -6,7 +6,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
 
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.const import (
     AUDIT_EVENT,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
@@ -38,7 +38,7 @@ async def test_tool_calls_are_audited_and_guarded(
     api = await llm.async_get_api(hass, LLM_API_ID, ctx)
 
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_delete",
+        "custom_components.friedafetch.mail.ICloudMail.async_delete",
         new_callable=AsyncMock,
         return_value={"uids": [1, 2], "count": 2, "action": "moved_to_trash"},
     ) as delete:
@@ -56,7 +56,7 @@ async def test_tool_calls_are_audited_and_guarded(
         assert delete.await_count == 1
     # reads are not audited
     with patch(
-        "custom_components.icloud_mcp.carddav_client.ICloudCardDav.async_search",
+        "custom_components.friedafetch.carddav_client.ICloudCardDav.async_search",
         new_callable=AsyncMock,
         return_value=[],
     ):
@@ -70,19 +70,19 @@ async def test_tool_calls_are_audited_and_guarded(
     assert events[0].data["params"]["uids"] == [1, 2]
 
     ws = await hass_ws_client(hass)
-    await ws.send_json({"id": 1, "type": "icloud_mcp/audit/list"})
+    await ws.send_json({"id": 1, "type": "friedafetch/audit/list"})
     msg = await ws.receive_json()
     assert msg["success"]
     entries = msg["result"]["entries"]
     assert len(entries) == 3 and entries[0]["result"] == "blocked"  # newest first
     assert msg["result"]["quota"]["mail_modify"] == {"used": 2, "limit": 3}
-    await ws.send_json({"id": 2, "type": "icloud_mcp/audit/list", "result": "blocked"})
+    await ws.send_json({"id": 2, "type": "friedafetch/audit/list", "result": "blocked"})
     msg = await ws.receive_json()
     assert len(msg["result"]["entries"]) == 2
-    await ws.send_json({"id": 3, "type": "icloud_mcp/audit/clear"})
+    await ws.send_json({"id": 3, "type": "friedafetch/audit/clear"})
     msg = await ws.receive_json()
     assert msg["success"]
-    await ws.send_json({"id": 4, "type": "icloud_mcp/audit/list"})
+    await ws.send_json({"id": 4, "type": "friedafetch/audit/list"})
     msg = await ws.receive_json()
     assert msg["result"]["entries"] == []
 
@@ -101,7 +101,7 @@ async def test_send_mail_policy_and_body_not_logged(hass: HomeAssistant, mock_di
     ctx = llm.LLMContext(platform="test", context=Context(), language="de", assistant=None, device_id=None)
     api = await llm.async_get_api(hass, LLM_API_ID, ctx)
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_send",
+        "custom_components.friedafetch.mail.ICloudMail.async_send",
         new_callable=AsyncMock,
         return_value={"message_id": "<1@x>", "to": ["a@example.org"], "subject": "Hi"},
     ) as send:

@@ -1025,7 +1025,7 @@ API_PROMPT = (
 
 DISABLED_HINT = (
     "Disabled by the administrator in the integration options: {items}. "
-    "Tell the user to enable it under Settings → Devices & services → iCloud MCP → Configure if they ask for it."
+    "Tell the user to enable it under Settings → Devices & services → Frieda → Configure if they ask for it."
 )
 
 APPROVAL_HINT = (

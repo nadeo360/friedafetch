@@ -1,12 +1,12 @@
-"""Constants for the iCloud MCP integration."""
+"""Constants for the Frieda integration."""
 
 from __future__ import annotations
 
-DOMAIN = "icloud_mcp"
+DOMAIN = "friedafetch"
 
 # LLM API id under which the tools are exposed (selectable in the MCP Server integration)
-LLM_API_ID = "icloud_mcp"
-LLM_API_NAME = "iCloud (Calendar, Contacts, Mail, Notes)"
+LLM_API_ID = "friedafetch"
+LLM_API_NAME = "Frieda – iCloud (Calendar, Contacts, Mail, Notes)"
 
 CONF_APPLE_ID = "apple_id"
 CONF_APP_PASSWORD = "app_password"  # noqa: S105 - option key, not a secret  # nosec B105
@@ -72,7 +72,7 @@ DEFAULT_SEND_ALLOW_BCC = True
 SEND_POLICIES = ("any", "contacts", "allowlist")
 
 # Audit log
-AUDIT_EVENT = "icloud_mcp_action"
+AUDIT_EVENT = "friedafetch_action"
 AUDIT_MAX_ENTRIES = 500
 
 # Human-in-the-loop approvals
@@ -85,7 +85,7 @@ DEFAULT_APPROVAL_SEND = False
 DEFAULT_APPROVAL_DELETE = False
 DEFAULT_APPROVAL_MASS = 0
 DEFAULT_APPROVAL_TIMEOUT = 15
-APPROVAL_ACTION_PREFIX = "ICLOUD_MCP_"
+APPROVAL_ACTION_PREFIX = "FRIEDAFETCH_"
 MOBILE_ACTION_EVENT = "mobile_app_notification_action"
 
 # MCP endpoint

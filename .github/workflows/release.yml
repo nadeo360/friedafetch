@@ -35,21 +35,21 @@ jobs:
       - name: Check that manifest version matches the tag
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          VERSION=$(python -c "import json; print(json.load(open('custom_components/icloud_mcp/manifest.json'))['version'])")
+          VERSION=$(python -c "import json; print(json.load(open('custom_components/friedafetch/manifest.json'))['version'])")
           echo "tag=$TAG manifest=$VERSION"
           test "v$VERSION" = "$TAG"
 
       - name: Build HACS zip
         run: |
-          cd custom_components/icloud_mcp
+          cd custom_components/friedafetch
           find . -name "__pycache__" -prune -exec rm -rf {} +
-          zip -r -X ../../icloud_mcp.zip . -x "*.pyc"
+          zip -r -X ../../friedafetch.zip . -x "*.pyc"
           cd ../..
-          sha256sum icloud_mcp.zip | tee icloud_mcp.zip.sha256
+          sha256sum friedafetch.zip | tee friedafetch.zip.sha256
 
       - name: SBOM of the runtime requirements (CycloneDX)
         run: |
-          python -c "import json; print('\n'.join(json.load(open('custom_components/icloud_mcp/manifest.json'))['requirements']))" > requirements_manifest.txt
+          python -c "import json; print('\n'.join(json.load(open('custom_components/friedafetch/manifest.json'))['requirements']))" > requirements_manifest.txt
           python -m venv sbom-venv
           sbom-venv/bin/pip install -q -r requirements_manifest.txt cyclonedx-bom
           sbom-venv/bin/cyclonedx-py environment sbom-venv --of JSON -o sbom.cdx.json --mc-type library
@@ -59,11 +59,11 @@ jobs:
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
-            icloud_mcp.zip
+            friedafetch.zip
             sbom.cdx.json
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: gh release upload "$TAG" icloud_mcp.zip icloud_mcp.zip.sha256 sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" friedafetch.zip friedafetch.zip.sha256 sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"

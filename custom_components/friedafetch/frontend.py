@@ -34,9 +34,9 @@ from .schema import vol
 
 _LOGGER = logging.getLogger(__name__)
 
-PANEL_URL_PATH = "icloud-mcp"
+PANEL_URL_PATH = "friedafetch"
 STATIC_URL = f"/{DOMAIN}_static"
-WEBCOMPONENT = "icloud-mcp-rules-panel"
+WEBCOMPONENT = "friedafetch-panel"
 DATA_FRONTEND: HassKey[bool] = HassKey(f"{DOMAIN}_frontend")
 
 
@@ -65,13 +65,13 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         hass,
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name=WEBCOMPONENT,
-        sidebar_title="iCloud Regeln" if (hass.config.language or "en").lower().startswith("de") else "iCloud Rules",
+        sidebar_title="Frieda" if (hass.config.language or "en").lower().startswith("de") else "Frieda",
         sidebar_icon="mdi:email-fast-outline",
         module_url=f"{STATIC_URL}/panel.js?v={version}",
         embed_iframe=False,
         require_admin=True,
     )
-    _LOGGER.debug("iCloud MCP panel registered at /%s", PANEL_URL_PATH)
+    _LOGGER.debug("Frieda panel registered at /%s", PANEL_URL_PATH)
 
 
 @callback

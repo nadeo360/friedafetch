@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.icloud_mcp.const import (
+from custom_components.friedafetch.const import (
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
     CONF_ENABLE_MAIL,
@@ -17,8 +17,8 @@ from custom_components.icloud_mcp.const import (
     CONF_READ_ONLY,
     DOMAIN,
 )
-from custom_components.icloud_mcp.dav import DavAuthError, DavError
-from custom_components.icloud_mcp.mail import MailAuthError
+from custom_components.friedafetch.dav import DavAuthError, DavError
+from custom_components.friedafetch.mail import MailAuthError
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -28,7 +28,7 @@ async def test_user_flow_success(hass: HomeAssistant, mock_discover: AsyncMock, 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {}
 
-    with patch("custom_components.icloud_mcp.async_setup_entry", return_value=True) as setup:
+    with patch("custom_components.friedafetch.async_setup_entry", return_value=True) as setup:
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_APPLE_ID: " Test@iCloud.com ", CONF_APP_PASSWORD: APP_PASSWORD}
         )
@@ -45,11 +45,11 @@ async def test_user_flow_mail_unavailable_disables_mail(hass: HomeAssistant, moc
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     with (
         patch(
-            "custom_components.icloud_mcp.mail.ICloudMail.async_test_login",
+            "custom_components.friedafetch.mail.ICloudMail.async_test_login",
             new_callable=AsyncMock,
             side_effect=MailAuthError("no"),
         ),
-        patch("custom_components.icloud_mcp.async_setup_entry", return_value=True),
+        patch("custom_components.friedafetch.async_setup_entry", return_value=True),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_APPLE_ID: APPLE_ID, CONF_APP_PASSWORD: APP_PASSWORD}
@@ -62,7 +62,7 @@ async def test_user_flow_mail_unavailable_disables_mail(hass: HomeAssistant, moc
 async def test_user_flow_errors(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     with patch(
-        "custom_components.icloud_mcp.caldav_client.ICloudCalDav.async_discover",
+        "custom_components.friedafetch.caldav_client.ICloudCalDav.async_discover",
         new_callable=AsyncMock,
         side_effect=DavAuthError("401"),
     ):
@@ -73,7 +73,7 @@ async def test_user_flow_errors(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "invalid_auth"}
 
     with patch(
-        "custom_components.icloud_mcp.caldav_client.ICloudCalDav.async_discover",
+        "custom_components.friedafetch.caldav_client.ICloudCalDav.async_discover",
         new_callable=AsyncMock,
         side_effect=DavError("boom"),
     ):
@@ -98,7 +98,7 @@ async def test_already_configured(hass: HomeAssistant, mock_discover: AsyncMock,
 async def test_reauth_flow(hass: HomeAssistant, mock_discover: AsyncMock, mock_mail_login: AsyncMock) -> None:
     entry = MockConfigEntry(domain=DOMAIN, unique_id=APPLE_ID, data={CONF_APPLE_ID: APPLE_ID, CONF_APP_PASSWORD: "old"})
     entry.add_to_hass(hass)
-    with patch("custom_components.icloud_mcp.async_setup_entry", return_value=True):
+    with patch("custom_components.friedafetch.async_setup_entry", return_value=True):
         result = await entry.start_reauth_flow(hass)
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "reauth_confirm"
@@ -145,7 +145,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
 
     # security section keeps the other options and normalises the allowlist
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_mailboxes",
+        "custom_components.friedafetch.mail.ICloudMail.async_mailboxes",
         new_callable=AsyncMock,
         return_value=[{"name": "INBOX", "special_use": None}, {"name": "Steuer", "special_use": None}],
     ):

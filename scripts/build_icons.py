@@ -9,10 +9,10 @@ Sources (edit these, then run the script):
 Outputs:
     assets/icon.png (256), assets/icon@2x.png (512)
     assets/logo.png (1040 wide), assets/logo@2x.png (2080), assets/logo-dark.png
-    custom_components/icloud_mcp/brand/{icon,icon@2x,logo,logo@2x,dark_logo,dark_logo@2x}.png
-        (Home Assistant >= 2026.3 serves these itself via /api/brands/integration/icloud_mcp/...;
+    custom_components/friedafetch/brand/{icon,icon@2x,logo,logo@2x,dark_logo,dark_logo@2x}.png
+        (Home Assistant >= 2026.3 serves these itself via /api/brands/integration/friedafetch/...;
          icon 256/512 px, logo 128/256 px high, same conventions as the former brands repository)
-    custom_components/icloud_mcp/frontend/icon.svg   copy of the icon served next to the panel
+    custom_components/friedafetch/frontend/icon.svg   copy of the icon served next to the panel
 
 Usage:
     python scripts/build_icons.py            # (re)build everything
@@ -39,8 +39,8 @@ except ImportError as err:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
-BRAND = ROOT / "custom_components" / "icloud_mcp" / "brand"
-FRONTEND_ICON = ROOT / "custom_components" / "icloud_mcp" / "frontend" / "icon.svg"
+BRAND = ROOT / "custom_components" / "friedafetch" / "brand"
+FRONTEND_ICON = ROOT / "custom_components" / "friedafetch" / "frontend" / "icon.svg"
 
 ICON_SVG = ASSETS / "icon.svg"
 LOGO_SVG = ASSETS / "logo.svg"

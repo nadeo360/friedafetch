@@ -20,15 +20,15 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Connections:** the integration only talks to Apple endpoints (`caldav.icloud.com`, `contacts.icloud.com`,
   `imap.mail.me.com`, `smtp.mail.me.com` and their partitions `pXX-*.icloud.com`), always over TLS with the
   certificate store managed by Home Assistant. There is no telemetry and no third-party service.
-- **Access to the tools:** the built-in MCP endpoint `/api/icloud_mcp` requires a Home Assistant access token
+- **Access to the tools:** the built-in MCP endpoint `/api/friedafetch` requires a Home Assistant access token
   (Bearer). The LLM API is only offered to the assistants/MCP servers an admin explicitly enables. The rules panel in
   the sidebar and its WebSocket commands are restricted to admin users.
 - **Limiting the blast radius:** options allow switching off tool groups, enabling a read-only mode and forbidding
   sending e-mails and deleting separately. Hourly quotas, a recipient policy (contacts/allowlist), protected
   calendars and mailboxes and hidden mailboxes further bound what a connected client can do; every writing call is
-  written to a per-account audit log and fired as the `icloud_mcp_action` event. Optional approvals park sending,
+  written to a per-account audit log and fired as the `friedafetch_action` event. Optional approvals park sending,
   deleting and mass actions until an admin approves them (notification, actionable push or panel); the read-only
-  endpoint profile `/api/icloud_mcp/readonly` and the admin-only switch restrict what a token can reach. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
+  endpoint profile `/api/friedafetch/readonly` and the admin-only switch restrict what a token can reach. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
   clients can recognise writing tools and ask for confirmation. Deleting means "move to trash" by default.
 - **Untrusted content:** mail, note and event texts are sanitised (invisible/bidi characters), labelled as third-party
   content and scanned for prompt-injection patterns (`suspicious`/`warnings` flags).
@@ -55,7 +55,7 @@ Every commit and pull request automatically runs:
 |--------|------------|
 | Stolen or leaked Home Assistant token used against the MCP endpoint | Tokens can be revoked in HA; optional admin-only restriction; read-only profile for less trusted clients; quotas limit damage per hour; every writing call is audited. |
 | Prompt injection via e-mail, notes or calendar content making the AI act against the user | Content is sanitised, labelled as third-party data and scanned for injection patterns (`suspicious`); the prompt forbids following embedded instructions; approvals and quotas bound the consequences. |
-| Runaway or buggy agent deleting or sending in bulk | Hourly quotas, recipient policy, protected/hidden areas, approvals for sending/deleting/mass actions, trash instead of permanent deletion, audit log and `icloud_mcp_action` events for alerting. |
+| Runaway or buggy agent deleting or sending in bulk | Hourly quotas, recipient policy, protected/hidden areas, approvals for sending/deleting/mass actions, trash instead of permanent deletion, audit log and `friedafetch_action` events for alerting. |
 | Compromised dependency or build | Pinned dependencies with pip-audit, Bandit/Ruff/CodeQL, GitHub Actions pinned to commit SHAs, OpenSSF Scorecard, SBOM and signed build provenance for release assets, Dependabot, protected `main` branch. |
 | Loss of the app-specific password from HA storage | The password is only as safe as the HA instance; keep HA updated, use strong admin passwords/2FA, revoke the app-specific password at Apple if in doubt. |
 
@@ -64,7 +64,7 @@ Every commit and pull request automatically runs:
 Release assets are built by GitHub Actions and carry a signed build provenance attestation (Sigstore). Verify:
 
 ```bash
-gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp
+gh attestation verify friedafetch.zip --repo nadeo360/friedafetch
 ```
 
 A CycloneDX SBOM (`sbom.cdx.json`) listing the runtime dependencies is attached to every release.
@@ -94,16 +94,16 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
 - **Verbindungen:** Die Integration spricht nur Apple-Endpunkte an (`caldav.icloud.com`, `contacts.icloud.com`,
   `imap.mail.me.com`, `smtp.mail.me.com` und deren Partitionen `pXX-*.icloud.com`), immer über TLS mit dem von
   Home Assistant verwalteten Zertifikatsspeicher. Es gibt keine Telemetrie und keine Dritt-Dienste.
-- **Zugriff auf die Tools:** Der eigene MCP-Endpunkt `/api/icloud_mcp` verlangt einen Home-Assistant-Zugriffstoken
+- **Zugriff auf die Tools:** Der eigene MCP-Endpunkt `/api/friedafetch` verlangt einen Home-Assistant-Zugriffstoken
   (Bearer). Die LLM-API wird nur den Assistenten/MCP-Servern angeboten, die der Admin ausdrücklich dafür freischaltet.
   Das Regel-Panel in der Seitenleiste und die zugehörigen WebSocket-Befehle sind Admin-Benutzern vorbehalten.
 - **Begrenzung des Schadenspotenzials:** Über die Optionen lassen sich Tool-Gruppen abschalten, ein
   Nur-Lesen-Modus aktivieren sowie das Senden von E-Mails und das Löschen getrennt verbieten. Stundenkontingente,
   eine Empfänger-Richtlinie (Kontakte/Allowlist), geschützte Kalender und Postfächer sowie verborgene Postfächer
   begrenzen zusätzlich, was ein verbundener Client tun kann; jeder schreibende Aufruf landet im Aktivitätsprotokoll
-  des Kontos und wird als Ereignis `icloud_mcp_action` gefeuert. Optionale Freigaben parken Senden, Löschen und
+  des Kontos und wird als Ereignis `friedafetch_action` gefeuert. Optionale Freigaben parken Senden, Löschen und
   Massenaktionen, bis ein Admin sie freigibt (Benachrichtigung, Push mit Buttons oder Panel); das Nur-Lese-Profil
-  `/api/icloud_mcp/readonly` und der Admin-only-Schalter begrenzen, was ein Token erreicht. Alle Tools tragen
+  `/api/friedafetch/readonly` und der Admin-only-Schalter begrenzen, was ein Token erreicht. Alle Tools tragen
   MCP-Annotationen (`readOnlyHint`, `destructiveHint`), sodass Clients schreibende Werkzeuge erkennen und
   Rückfragen stellen können. Löschen bedeutet standardmäßig „in den Papierkorb“.
 - **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt
@@ -129,7 +129,7 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
 |-----------|---------------|
 | Gestohlener oder geleakter Home-Assistant-Token gegen den MCP-Endpunkt | Tokens sind in HA widerrufbar; optionale Admin-only-Beschränkung; Nur-Lese-Profil für weniger vertrauenswürdige Clients; Kontingente begrenzen den Schaden pro Stunde; jeder schreibende Aufruf wird protokolliert. |
 | Prompt-Injection über Mail-, Notiz- oder Kalenderinhalte, die die KI gegen den Nutzer handeln lässt | Inhalte werden bereinigt, als Fremddaten gekennzeichnet und auf Injektionsmuster geprüft (`suspicious`); der Prompt verbietet das Befolgen eingebetteter Anweisungen; Freigaben und Kontingente begrenzen die Folgen. |
-| Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Papierkorb statt endgültigem Löschen, Aktivitätsprotokoll und Ereignisse `icloud_mcp_action` zur Alarmierung. |
+| Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Papierkorb statt endgültigem Löschen, Aktivitätsprotokoll und Ereignisse `friedafetch_action` zur Alarmierung. |
 | Kompromittierte Abhängigkeit oder Build | Gepinnte Abhängigkeiten mit pip-audit, Bandit/Ruff/CodeQL, GitHub Actions auf Commit-SHAs gepinnt, OpenSSF Scorecard, SBOM und signierte Build-Provenance für Release-Artefakte, Dependabot, geschützter `main`-Branch. |
 | Verlust des App-Passworts aus dem HA-Speicher | Das Passwort ist nur so sicher wie die HA-Instanz; HA aktuell halten, starke Admin-Passwörter/2FA nutzen, im Zweifel das App-Passwort bei Apple widerrufen. |
 
@@ -138,7 +138,7 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
 Release-Artefakte werden von GitHub Actions gebaut und tragen eine signierte Build-Provenance (Sigstore). Prüfung:
 
 ```bash
-gh attestation verify icloud_mcp.zip --repo nadeo360/ha-icloud-mcp
+gh attestation verify friedafetch.zip --repo nadeo360/friedafetch
 ```
 
 Jedem Release liegt eine CycloneDX-SBOM (`sbom.cdx.json`) der Laufzeitabhängigkeiten bei.

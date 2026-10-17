@@ -7,8 +7,8 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.icloud_mcp.const import CONF_APP_PASSWORD, CONF_APPLE_ID, DOMAIN, LLM_API_ID
-from custom_components.icloud_mcp.mail import ICloudMail, MailError
+from custom_components.friedafetch.const import CONF_APP_PASSWORD, CONF_APPLE_ID, DOMAIN, LLM_API_ID
+from custom_components.friedafetch.mail import ICloudMail, MailError
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -63,7 +63,7 @@ async def test_tools_accept_uid_lists(hass: HomeAssistant, mock_discover: AsyncM
     api = await llm.async_get_api(hass, LLM_API_ID, ctx)
 
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_delete",
+        "custom_components.friedafetch.mail.ICloudMail.async_delete",
         new_callable=AsyncMock,
         return_value={"uids": [1, 2, 3], "count": 3, "action": "moved_to_trash"},
     ) as delete:

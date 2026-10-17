@@ -23,7 +23,7 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 def mock_discover() -> Generator[AsyncMock]:
     """Make CalDAV discovery succeed without network."""
     with patch(
-        "custom_components.icloud_mcp.caldav_client.ICloudCalDav.async_discover",
+        "custom_components.friedafetch.caldav_client.ICloudCalDav.async_discover",
         new_callable=AsyncMock,
         return_value="https://p01-caldav.icloud.com/1/calendars/",
     ) as mocked:
@@ -34,7 +34,7 @@ def mock_discover() -> Generator[AsyncMock]:
 def mock_mail_login() -> Generator[AsyncMock]:
     """Make the IMAP login check succeed without network."""
     with patch(
-        "custom_components.icloud_mcp.mail.ICloudMail.async_test_login",
+        "custom_components.friedafetch.mail.ICloudMail.async_test_login",
         new_callable=AsyncMock,
     ) as mocked:
         yield mocked
