@@ -75,7 +75,10 @@ Mit Version 1.1.0 wurde das Projekt in Frieda umbenannt; die Integrations-Domain
 `friedafetch`. Alte Integration entfernen (Einstellungen → Geräte & Dienste → iCloud MCP → Löschen), das
 benutzerdefinierte HACS-Repository auf `https://github.com/nadeo360/friedafetch` ändern, Frieda installieren und mit
 Apple-ID und App-Passwort neu hinzufügen. Regeln und Optionen werden nicht übernommen; MCP-Clients brauchen den neuen
-Endpunkt `/api/friedafetch`. Die Tool-Namen (`icloud_*`) sind unverändert.
+Endpunkt `/api/friedafetch`. Die Tool-Namen (`icloud_*`) sind unverändert. Bleibt ein alter Ordner
+`custom_components/icloud_mcp` liegen, lädt Home Assistant unter Umständen weiter diesen statt der aktuellen Version
+(beide melden die Domain `friedafetch`); Frieda erkennt das beim Start und zeigt eine Reparaturmeldung – den dort
+genannten Ordner löschen und Home Assistant neu starten.
 
 ## Einrichtung
 

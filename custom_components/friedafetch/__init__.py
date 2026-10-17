@@ -13,9 +13,11 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import client_context
@@ -66,6 +68,7 @@ from .const import (
 from .dav import DavAuthError, DavClient, DavError
 from .frontend import async_remove_frontend, async_setup_frontend
 from .guard import Guard
+from .install_check import async_check_install
 from .llm_api import ICloudClients, ICloudLLMAPI
 from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
@@ -77,6 +80,17 @@ from .util import clamp
 _LOGGER = logging.getLogger(__name__)
 
 type ICloudConfigEntry = ConfigEntry[ICloudClients]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the integration (once per start): warn about stale copies under custom_components."""
+    try:
+        await async_check_install(hass)
+    except Exception as err:  # noqa: BLE001 - the check must never block the setup
+        _LOGGER.debug("Install location check failed: %s", err)
+    return True
 
 
 def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
