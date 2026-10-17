@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -14,9 +14,11 @@ from homeassistant.exceptions import (
     HomeAssistantError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
@@ -24,13 +26,13 @@ from homeassistant.util.ssl import client_context
 
 from .accounts import account_label
 from .approvals import ApprovalManager
+from .attachments import AttachmentStore
 from .audit import AuditLog
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
 from .const import (
     CALDAV_URL,
     CARDDAV_URL,
-    CONF_ALLOW_DELETE,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
     CONF_APPROVAL_DELETE,
@@ -38,27 +40,20 @@ from .const import (
     CONF_APPROVAL_NOTIFY,
     CONF_APPROVAL_SEND,
     CONF_APPROVAL_TIMEOUT,
+    CONF_ATTACHMENTS_DIR,
     CONF_ENABLE_MAIL,
     CONF_FROM_ADDRESS,
-    CONF_READ_ONLY,
-    CONF_RULES_AUTO,
-    CONF_RULES_INTERVAL,
-    DEFAULT_ALLOW_DELETE,
     DEFAULT_APPROVAL_DELETE,
     DEFAULT_APPROVAL_MASS,
     DEFAULT_APPROVAL_SEND,
     DEFAULT_APPROVAL_TIMEOUT,
+    DEFAULT_ATTACHMENTS_SUBDIR,
     DEFAULT_ENABLE_MAIL,
-    DEFAULT_READ_ONLY,
-    DEFAULT_RULES_AUTO,
-    DEFAULT_RULES_INTERVAL,
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
     LLM_API_ID,
     LLM_API_NAME,
-    MAX_RULES_INTERVAL,
-    MIN_RULES_INTERVAL,
     MOBILE_ACTION_EVENT,
     NOTES_MAILBOX,
     REQUEST_TIMEOUT,
@@ -74,8 +69,6 @@ from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
 from .mcp_http import async_register as async_register_mcp_http
 from .notes import ICloudNotes
-from .rules import RuleEngine
-from .util import clamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,13 +77,33 @@ type ICloudConfigEntry = ConfigEntry[ICloudClients]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
+# Extensions (e.g. Frieda Postfach) listen to these to attach to an account after it (re)loaded.
+SIGNAL_ACCOUNT_READY = f"{DOMAIN}_account_ready"
+SIGNAL_ACCOUNT_UNLOADED = f"{DOMAIN}_account_unloaded"
+EXTENSION_MAIL_DOMAIN = "friedafetch_mail"
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the integration (once per start): warn about stale copies under custom_components."""
+    """Set up the integration (once per start): install check."""
     try:
         await async_check_install(hass)
     except Exception as err:  # noqa: BLE001 - the check must never block the setup
         _LOGGER.debug("Install location check failed: %s", err)
     return True
+
+
+def _attachment_base(hass: HomeAssistant, configured: str | None) -> Path | None:
+    """The folder for stored attachments, if Home Assistant allows writing there (blocking)."""
+    if configured:
+        base = Path(configured)
+    else:
+        media = (hass.config.media_dirs or {}).get("local") or hass.config.path("media")
+        base = Path(media) / DEFAULT_ATTACHMENTS_SUBDIR
+    if not base.is_absolute():
+        base = Path(hass.config.path(str(base)))
+    if not hass.config.is_allowed_path(str(base)):
+        return None
+    return base
 
 
 def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
@@ -156,44 +169,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         clients.approvals = approvals
         entry.async_on_unload(hass.bus.async_listen(MOBILE_ACTION_EVENT, approvals.handle_mobile_action))
         entry.async_on_unload(approvals.shutdown)
-    rules = RuleEngine(
-        hass,
-        entry.entry_id,
-        clients.mail,
-        allow_delete=opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE),
-        guard=clients.guard,
-        audit=audit,
-    )
-    await rules.async_load()
-    clients.rules = rules
-    if (
-        opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL)
-        and opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)
-        and not opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY)
-    ):
-        minutes = clamp(opts.get(CONF_RULES_INTERVAL), DEFAULT_RULES_INTERVAL, MAX_RULES_INTERVAL)
-        minutes = max(MIN_RULES_INTERVAL, minutes)
-        interval = timedelta(minutes=minutes)
-        rules.set_automation(True, minutes, dt_util.now() + interval)
+    clients.entry_id = entry.entry_id
 
-        async def _apply_rules(now: datetime) -> None:
-            next_run = dt_util.as_local(now) + interval
-            if not rules.has_enabled_rules:
-                rules.note_check("no_enabled_rules", next_run)
-                return
-            try:
-                report = await rules.async_run(scope="new", trigger="auto")
-            except Exception as err:  # noqa: BLE001 - keep the timer alive
-                _LOGGER.warning("Automatic inbox rules failed: %s", err)
-                rules.note_check("error", next_run, str(err))
-                return
-            rules.note_check("error" if report["errors"] else "ran", next_run)
-            if report["matched"]:
-                _LOGGER.info("Inbox rules: %s messages checked, %s matched", report["checked"], report["matched"])
-
-        entry.async_on_unload(async_track_time_interval(hass, _apply_rules, interval))
-    else:
-        rules.set_automation(False, None, None)
+    # attachments (tool icloud_save_attachments; extensions may use the store too)
+    if opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL):
+        base = await hass.async_add_executor_job(_attachment_base, hass, opts.get(CONF_ATTACHMENTS_DIR))
+        if base is not None:
+            clients.attachments = AttachmentStore(hass, clients.mail, base)
+        elif opts.get(CONF_ATTACHMENTS_DIR):
+            _LOGGER.warning(
+                "Attachment folder %s is not allowed; add it to allowlist_external_dirs", opts[CONF_ATTACHMENTS_DIR]
+            )
 
     apple_id = entry.data[CONF_APPLE_ID]
     label = account_label(entry)
@@ -222,7 +208,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     integration = await async_get_integration(hass, DOMAIN)
     async_register_mcp_http(hass, str(integration.version or "0.0.0"))
     _LOGGER.info("Frieda ready; LLM API '%s' registered, MCP endpoint at %s", api.id, STREAMABLE_API)
+    async_dispatcher_send(hass, SIGNAL_ACCOUNT_READY, entry.entry_id)
+
+    async def _check_moved_rules(_hass: HomeAssistant) -> None:
+        await _async_check_moved_rules(hass, entry)
+
+    entry.async_on_unload(async_at_started(hass, _check_moved_rules))
     return True
+
+
+async def _async_check_moved_rules(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Inbox rules moved to Frieda Postfach (2.0): point users with existing rules to it."""
+    issue_id = f"rules_moved_{entry.entry_id}"
+    stored = Path(hass.config.path(".storage", f"{DOMAIN}.rules.{entry.entry_id}"))
+    has_rules = await hass.async_add_executor_job(stored.exists)
+    if has_rules and EXTENSION_MAIL_DOMAIN not in hass.config.components:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="rules_moved",
+            translation_placeholders={"account": account_label(entry)},
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -239,4 +250,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> b
     ]
     if not others:
         async_remove_frontend(hass)
+    async_dispatcher_send(hass, SIGNAL_ACCOUNT_UNLOADED, entry.entry_id)
     return True

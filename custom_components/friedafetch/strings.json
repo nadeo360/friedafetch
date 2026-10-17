@@ -40,7 +40,6 @@
         "menu_options": {
           "tools": "Tools and account",
           "security": "Security and guard rails",
-          "rules": "Inbox rules",
           "approvals": "Approvals"
         }
       },
@@ -57,7 +56,8 @@
           "allow_delete": "Allow deleting events, contacts, e-mails and notes",
           "max_results": "Default maximum number of results",
           "account_label": "Account label (for tool names with several accounts)",
-          "from_address": "Sender address for outgoing e-mails"
+          "from_address": "Sender address for outgoing e-mails",
+          "attachments_dir": "Attachment folder (empty = subfolder frieda in the media folder)"
         },
         "data_description": {
           "account_label": "Short name such as private or work. With more than one iCloud account the tools of further accounts get this as suffix, e.g. icloud_list_events_work. Default: local part of the Apple ID."
@@ -85,13 +85,6 @@
           "endpoint_admin_only": "Applies to the whole endpoint /api/friedafetch as soon as one account demands it. For experiments use the read-only path /api/friedafetch/readonly."
         }
       },
-      "rules": {
-        "title": "Inbox rules",
-        "data": {
-          "rules_auto": "Apply inbox rules automatically to new e-mails",
-          "rules_interval": "Interval for automatic rules (minutes)"
-        }
-      },
       "approvals": {
         "title": "Approvals (human in the loop)",
         "description": "Critical actions are not executed immediately but parked as an approval request: as a Home Assistant notification, optionally as a push with approve/deny buttons on your phone, and in the “Frieda” panel. After approval Home Assistant executes the action; the AI can query the outcome with icloud_approval_status.",
@@ -106,6 +99,9 @@
           "approval_notify": "e.g. mobile_app_iphone – requires the Home Assistant companion app."
         }
       }
+    },
+    "error": {
+      "path_not_allowed": "Home Assistant does not allow writing to this folder. Use a media folder or add it to allowlist_external_dirs."
     }
   },
   "selector": {
@@ -125,6 +121,10 @@
     "wrong_folder": {
       "title": "Frieda is installed in the wrong folder",
       "description": "Frieda is loaded from {paths} instead of `{expected}`. This is usually a leftover `icloud_mcp` folder from before the rename; HACS updates of Frieda go to `{expected}` and stay hidden as long as this folder exists.\n\nReinstall Frieda via HACS (repository `{repository}`), then delete the folder listed above and restart Home Assistant."
+    },
+    "rules_moved": {
+      "title": "Inbox rules now live in Frieda Postfach",
+      "description": "The account {account} has stored inbox rules. Since Frieda 2.0, rules, push and the daily overview are run by the separate integration “Frieda Postfach”. Install it via HACS (repository nadeo360/friedafetch-mail) and set it up for this account – the existing rules and their history are picked up automatically. Until then no rules run."
     }
   }
 }

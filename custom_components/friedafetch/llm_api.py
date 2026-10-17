@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.json import JsonObjectType
 
 from .approvals import ApprovalError, ApprovalManager
+from .attachments import AttachmentError, AttachmentStore
 from .audit import AuditLog
 from .caldav_client import CalendarError, CalendarNotFound, ICloudCalDav
 from .carddav_client import ContactError, ContactNotFound, ICloudCardDav
@@ -47,11 +48,12 @@ from .const import (
 )
 from .dav import DavAuthError, DavConflictError, DavError, DavNotFoundError
 from .guard import QUOTA_ITEM_DELETE, QUOTA_MAIL_MODIFY, QUOTA_MAIL_SEND, Guard, PolicyError
-from .mail import ICloudMail, MailAuthError, MailboxNotFound, MailError, MessageNotFound
+from .insights import duplicate_contacts, free_slots, mailbox_stats, upcoming_birthdays
+from .mail import ICloudMail, MailAuthError, MailboxNotFound, MailError, MessageNotFound, list_unsubscribe
 from .notes import ICloudNotes
-from .rules import FIELDS, MATCH_MODES, OPS, RuleEngine, RuleError, RuleNotFound
 from .schema import vol
-from .util import clamp, parse_datetime
+from .unsubscribe import UnsubscribeError, async_one_click, parse_mailto
+from .util import UNTRUSTED_NOTICE, clamp, parse_datetime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,24 +81,32 @@ class ICloudClients:
         mail: ICloudMail,
         notes: ICloudNotes,
         options: dict[str, Any],
-        rules: RuleEngine | None = None,
         guard: Guard | None = None,
         audit: AuditLog | None = None,
         approvals: ApprovalManager | None = None,
+        attachments: AttachmentStore | None = None,
     ) -> None:
         self.caldav = caldav
         self.carddav = carddav
         self.mail = mail
         self.notes = notes
         self.options = options
-        self.rules = rules
         self.guard = guard or Guard(options)
         self.audit = audit
         self.approvals = approvals
+        self.attachments = attachments
+        # Extensions such as Frieda Postfach register here (name -> object with optional ``tool_classes``
+        # and ``rule_matcher(mailbox)``); they are rebuilt on every reload of the account.
+        self.extensions: dict[str, Any] = {}
+        self.entry_id: str | None = None
 
     @property
     def max_results(self) -> int:
         return clamp(self.options.get(CONF_MAX_RESULTS), DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT)
+
+
+class ToolNotFoundError(Exception):
+    """Raised by tools (also of extensions) when the requested item does not exist."""
 
 
 def _result(data: dict[str, Any], error: bool = False) -> Any:
@@ -154,7 +164,7 @@ class ICloudTool(llm.Tool):
             MessageNotFound,
             MailboxNotFound,
             DavNotFoundError,
-            RuleNotFound,
+            ToolNotFoundError,
         ) as err:
             await self._audit(args, "error", llm_context, error=str(err))
             return _result({"error": str(err), "code": "not_found"}, error=True)
@@ -172,7 +182,15 @@ class ICloudTool(llm.Tool):
                 {"error": f"The item changed on the server in the meantime, please retry: {err}", "code": "conflict"},
                 error=True,
             )
-        except (CalendarError, ContactError, MailError, DavError, RuleError, ValueError) as err:
+        except (
+            CalendarError,
+            ContactError,
+            MailError,
+            DavError,
+            AttachmentError,
+            UnsubscribeError,
+            ValueError,
+        ) as err:
             await self._audit(args, "error", llm_context, error=str(err))
             return _result({"error": str(err), "code": "failed"}, error=True)
         except HomeAssistantError as err:
@@ -739,6 +757,217 @@ class DeleteMail(ICloudTool):
         return result
 
 
+# ============================================================== insights
+class FindFreeTime(ICloudTool):
+    name = "icloud_find_free_time"
+    feature = "calendar"
+    description = (
+        "Find free time slots of a given length in the user's calendars, e.g. to propose meeting times. "
+        "Only working hours (default 08:00-18:00) and weekdays are considered unless changed. "
+        "All-day and 'free' (transparent) events do not block time."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required("duration_minutes", description="Length of the wanted slot in minutes"): int,
+            vol.Optional("start", description="Search from (ISO 8601). Default: now"): str,
+            vol.Optional("end", description="Search until (ISO 8601). Default: start + 7 days"): str,
+            vol.Optional("calendar_ids", description="Only consider these calendars (default: all)"): [str],
+            vol.Optional("day_start", description="Earliest time of day, HH:MM (default 08:00)"): str,
+            vol.Optional("day_end", description="Latest time of day, HH:MM (default 18:00)"): str,
+            vol.Optional("weekdays_only", description="Skip Saturdays and Sundays (default true)"): bool,
+            vol.Optional("include_all_day", description="Treat all-day events as busy (default false)"): bool,
+            vol.Optional("limit", description="Maximum number of slots (default 10)"): int,
+        }
+    )
+
+    async def run(self, hass, args):
+        from .util import to_datetime  # noqa: PLC0415
+
+        duration = int(args["duration_minutes"])
+        if not 5 <= duration <= 24 * 60:
+            raise ValueError("duration_minutes must be between 5 and 1440")
+        start = to_datetime(self._dt(args.get("start"), dt_util.now()), self.tz)
+        start = max(start, dt_util.now())
+        end = self._dt(args.get("end"))
+        end_dt = to_datetime(end, self.tz, end=True) if end is not None else start + timedelta(days=7)
+        if end_dt <= start:
+            raise ValueError("end must be after start")
+        if end_dt - start > timedelta(days=62):
+            raise ValueError("The search range is limited to 62 days")
+        events = await self.clients.caldav.async_events(args.get("calendar_ids") or None, start, end_dt, limit=2000)
+        slots = free_slots(
+            events,
+            start=start,
+            end=end_dt,
+            duration=timedelta(minutes=duration),
+            tz=self.tz,
+            day_start=args.get("day_start"),
+            day_end=args.get("day_end"),
+            weekdays_only=args.get("weekdays_only", True),
+            include_all_day=bool(args.get("include_all_day")),
+            limit=clamp(args.get("limit"), 10, 50),
+        )
+        return {"duration_minutes": duration, "count": len(slots), "slots": slots}
+
+
+class UpcomingBirthdays(ICloudTool):
+    name = "icloud_upcoming_birthdays"
+    feature = "contacts"
+    description = "List the birthdays of the user's contacts in the coming days (with the age they turn, if known)."
+    parameters = vol.Schema({vol.Optional("days", description="Look ahead this many days (default 30, max 366)"): int})
+
+    async def run(self, hass, args):
+        days = clamp(args.get("days"), 30, 366)
+        contacts = await self.clients.carddav.async_search(None, limit=100000)
+        items = upcoming_birthdays(contacts, dt_util.now().date(), days=days)
+        return {"days": days, "count": len(items), "birthdays": items}
+
+
+class FindDuplicateContacts(ICloudTool):
+    name = "icloud_find_duplicate_contacts"
+    feature = "contacts"
+    description = (
+        "Find contacts that are probably duplicates (same e-mail address, phone number or name). "
+        "Merging is done with icloud_update_contact and icloud_delete_contact after confirming with the user."
+    )
+    parameters = vol.Schema({vol.Optional("limit", description="Maximum number of groups (default 50)"): int})
+
+    async def run(self, hass, args):
+        contacts = await self.clients.carddav.async_search(None, limit=100000)
+        groups = duplicate_contacts(contacts)
+        limit = clamp(args.get("limit"), 50, 500)
+        return {"contacts": len(contacts), "groups": len(groups), "duplicates": groups[:limit]}
+
+
+class MailboxStats(ICloudTool):
+    name = "icloud_mailbox_stats"
+    feature = "mail"
+    description = (
+        "Analyse a mailbox: messages, unread and newsletter share, top senders and domains (with the inbox rule "
+        "that already covers them) and rule suggestions for frequent, uncovered senders. Use it before proposing "
+        "new inbox rules."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Optional("mailbox", description="Default INBOX"): str,
+            vol.Optional("days", description="Only messages of the last N days (default 90, max 730)"): int,
+            vol.Optional("max_messages", description="Newest messages inspected (default 1000, max 3000)"): int,
+        }
+    )
+
+    async def run(self, hass, args):
+        box = self._mailbox(args)
+        days = clamp(args.get("days"), 90, 730)
+        cap = clamp(args.get("max_messages"), 1000, 3000)
+        since = dt_util.now() - timedelta(days=days)
+        uids = await self.clients.mail.async_search_uids(box, ["SINCE", since.strftime("%d-%b-%Y")])
+        uids = sorted(uids)[-cap:]
+        summaries: list[dict[str, Any]] = []
+        for i in range(0, len(uids), 200):
+            summaries.extend(await self.clients.mail.async_summaries(box, uids[i : i + 200]))
+        covered = None
+        for ext in self.clients.extensions.values():
+            matcher = getattr(ext, "rule_matcher", None)
+            if matcher is not None:
+                covered = matcher(box)
+                break
+        stats = mailbox_stats(summaries, covered=covered)
+        return {"mailbox": box, "days": days, "inspected": len(summaries), "content_notice": UNTRUSTED_NOTICE, **stats}
+
+
+class Unsubscribe(ICloudTool):
+    name = "icloud_unsubscribe"
+    feature = "mail"
+    writes = True
+    description = (
+        "Unsubscribe from a newsletter using the List-Unsubscribe information of one message: one-click https "
+        "(RFC 8058) is preferred, otherwise an unsubscribe e-mail is sent (needs 'Allow sending e-mails'). Links "
+        "that need a web page are returned for the user to open. Confirm with the user first."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required("uid", description="Message uid of a newsletter"): int,
+            vol.Optional("mailbox", description="Default INBOX"): str,
+        }
+    )
+
+    def approval_reason(self, args):
+        reason = super().approval_reason(args)
+        if (
+            reason is None
+            and self.clients.approvals is not None
+            and self.clients.options.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND)
+        ):
+            return "send"
+        return reason
+
+    async def run(self, hass, args):
+        from homeassistant.util.ssl import client_context  # noqa: PLC0415
+
+        box = self._mailbox(args)
+        guard = self.clients.guard
+        guard.check_quota(QUOTA_MAIL_SEND)
+        _, msg = await self.clients.mail.async_fetch_raw(box, int(args["uid"]))
+        info = list_unsubscribe(msg)
+        if not info:
+            raise UnsubscribeError("This message has no unsubscribe information (List-Unsubscribe header)")
+        if info["one_click"]:
+            result = await async_one_click(info["https"][0], ssl_context=client_context())
+        elif info["mailto"]:
+            if self.clients.options.get(CONF_READ_ONLY, DEFAULT_READ_ONLY) or not self.clients.options.get(
+                CONF_ALLOW_SEND_MAIL, DEFAULT_ALLOW_SEND_MAIL
+            ):
+                raise UnsubscribeError(
+                    "Unsubscribing needs an e-mail here, but sending e-mails is disabled in the options"
+                    + (f"; the user can open {info['https'][0]} instead" if info["https"] else "")
+                )
+            target = parse_mailto(info["mailto"][0])
+            sent = await self.clients.mail.async_send(
+                to=[target["address"]], subject=target["subject"], body=target["body"]
+            )
+            result = {"method": "mailto", "to": target["address"], "message_id": sent.get("message_id")}
+        elif info["https"]:
+            return {
+                "method": "manual",
+                "url": info["https"][0],
+                "note": "This sender only offers a web page; give the link to the user to open it themselves.",
+            }
+        else:
+            raise UnsubscribeError("No supported unsubscribe method found")
+        guard.consume(QUOTA_MAIL_SEND)
+        return {"uid": int(args["uid"]), "mailbox": box, **result}
+
+
+class SaveAttachments(ICloudTool):
+    name = "icloud_save_attachments"
+    feature = "mail"
+    writes = True
+    description = (
+        "Store the attachments of an e-mail in the Home Assistant attachment folder (e.g. receipts and invoices), "
+        "sorted into <folder>/<YYYY-MM>/. Small images (logos) are skipped unless types are given."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required("uid"): int,
+            vol.Optional("mailbox", description="Default INBOX"): str,
+            vol.Optional("folder", description="Subfolder, e.g. 'Belege' or 'Rechnungen/Strom'"): str,
+            vol.Optional("types", description="Only these file types, e.g. ['pdf']"): [str],
+        }
+    )
+
+    async def run(self, hass, args):
+        if self.clients.attachments is None:
+            raise AttachmentError("No attachment folder is configured (options → Extras)")
+        box = self._mailbox(args)
+        files = await self.clients.attachments.async_save(box, int(args["uid"]), args.get("folder"), args.get("types"))
+        return {
+            "uid": int(args["uid"]),
+            "folder": str(self.clients.attachments.base),
+            "count": sum(1 for f in files if f["status"] == "saved"),
+            "files": files,
+        }
+
+
 # ============================================================= approvals
 class ApprovalStatus(ICloudTool):
     name = "icloud_approval_status"
@@ -756,138 +985,6 @@ class ApprovalStatus(ICloudTool):
             return self.clients.approvals.status(args["request_id"])
         except ApprovalError as err:
             raise ValueError(str(err)) from err
-
-
-# ================================================================= rules
-_CONDITION = {
-    vol.Required("field", description="Which header to test: from, to, cc, subject or any"): vol.In(FIELDS),
-    vol.Required("op", description="contains, equals, starts_with, ends_with, domain (sender domain) or regex"): vol.In(
-        OPS
-    ),
-    vol.Required("value", description="Text to compare with (case-insensitive)"): str,
-}
-_ACTIONS = {
-    vol.Optional("move_to", description="Target mailbox name (see icloud_list_mailboxes)"): str,
-    vol.Optional("mark_seen", description="Mark as read (true) or unread (false)"): bool,
-    vol.Optional("flag", description="Flag (true) or unflag (false)"): bool,
-    vol.Optional("delete", description="Move to the trash"): bool,
-    vol.Optional("stop", description="Stop evaluating further rules for a matching message (default true)"): bool,
-}
-
-
-class RuleTool(ICloudTool):
-    """Base for rule tools: requires the rule engine."""
-
-    @property
-    def rules(self) -> RuleEngine:
-        if self.clients.rules is None:
-            raise ValueError("Inbox rules are not available (mail tools disabled)")
-        return self.clients.rules
-
-
-class ListRules(RuleTool):
-    name = "icloud_list_rules"
-    feature = "mail"
-    description = (
-        "List the inbox rules managed by Home Assistant (with ids, conditions, actions, hit counters) and the last run."
-    )
-    parameters = vol.Schema({})
-
-    async def run(self, hass, args):
-        return {
-            "rules": await self.rules.async_list(),
-            "last_run": self.rules.last_run,
-            "automation": self.rules.automation_status(),
-            "recent_runs": self.rules.history(10),
-        }
-
-
-class CreateRule(RuleTool):
-    name = "icloud_create_rule"
-    feature = "mail"
-    writes = True
-    description = (
-        "Create an inbox rule that Home Assistant applies to new e-mails (and on demand to the whole mailbox). "
-        "Example: move everything from newsletter@example.com to 'Archive'. Rules are evaluated in order."
-    )
-    parameters = vol.Schema(
-        {
-            vol.Required("name"): str,
-            vol.Required("conditions", description="One or more conditions"): [_CONDITION],
-            vol.Required("actions"): _ACTIONS,
-            vol.Optional("match", description="all (default) or any of the conditions"): vol.In(MATCH_MODES),
-            vol.Optional("enabled"): bool,
-            vol.Optional("mailbox", description="Mailbox the rule watches, default INBOX"): str,
-        }
-    )
-
-    async def run(self, hass, args):
-        return await self.rules.async_create(args)
-
-
-class UpdateRule(RuleTool):
-    name = "icloud_update_rule"
-    feature = "mail"
-    writes = True
-    description = "Change an inbox rule (only the provided fields change; conditions replace the list). 'position' reorders the rule."
-    parameters = vol.Schema(
-        {
-            vol.Required("rule_id"): str,
-            vol.Optional("name"): str,
-            vol.Optional("conditions"): [_CONDITION],
-            vol.Optional("actions"): _ACTIONS,
-            vol.Optional("match"): vol.In(MATCH_MODES),
-            vol.Optional("enabled"): bool,
-            vol.Optional("mailbox"): str,
-            vol.Optional("position", description="New index in the rule order (0 = first)"): int,
-        }
-    )
-
-    async def run(self, hass, args):
-        rule_id = args.pop("rule_id")
-        if not args:
-            raise ValueError("No fields to update")
-        return await self.rules.async_update(rule_id, args)
-
-
-class DeleteRule(RuleTool):
-    name = "icloud_delete_rule"
-    feature = "mail"
-    writes = True
-    description = "Delete an inbox rule."
-    parameters = vol.Schema({vol.Required("rule_id"): str})
-
-    async def run(self, hass, args):
-        await self.rules.async_delete(args["rule_id"])
-        return {"deleted": True, "rule_id": args["rule_id"]}
-
-
-class RunRules(RuleTool):
-    name = "icloud_run_rules"
-    feature = "mail"
-    writes = True
-    description = (
-        "Apply the inbox rules now. scope 'all' (default) checks the newest messages of the mailbox, "
-        "'new' only messages since the last automatic run. dry_run=true only reports what would happen."
-    )
-    parameters = vol.Schema(
-        {
-            vol.Optional("scope"): vol.In(["new", "all"]),
-            vol.Optional("dry_run"): bool,
-            vol.Optional("mailbox"): str,
-            vol.Optional("rule_ids", description="Only these rules"): [str],
-            vol.Optional("limit", description="Newest messages to inspect for scope 'all' (default 2000)"): int,
-        }
-    )
-
-    async def run(self, hass, args):
-        return await self.rules.async_run(
-            scope=args.get("scope") or "all",
-            dry_run=bool(args.get("dry_run")),
-            mailbox=args.get("mailbox"),
-            rule_ids=args.get("rule_ids"),
-            limit=clamp(args.get("limit"), 2000, 2000),
-        )
 
 
 # ================================================================= notes
@@ -972,11 +1069,12 @@ ALL_TOOLS: list[type[ICloudTool]] = [
     MarkMail,
     MoveMail,
     DeleteMail,
-    ListRules,
-    CreateRule,
-    UpdateRule,
-    DeleteRule,
-    RunRules,
+    MailboxStats,
+    Unsubscribe,
+    SaveAttachments,
+    FindFreeTime,
+    UpcomingBirthdays,
+    FindDuplicateContacts,
     ApprovalStatus,
     ListNotes,
     GetNote,
@@ -993,30 +1091,29 @@ _FEATURE_OPTION = {
 }
 
 
-def build_tools(clients: ICloudClients) -> list[llm.Tool]:
-    """Instantiate the tools allowed by the options."""
+def tool_allowed(cls: type[ICloudTool], clients: ICloudClients) -> bool:
+    """Whether the options allow this tool (also used for tools contributed by extensions)."""
     opts = clients.options
-    read_only = opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY)
-    allow_send = opts.get(CONF_ALLOW_SEND_MAIL, DEFAULT_ALLOW_SEND_MAIL)
-    allow_delete = opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)
-    tools: list[llm.Tool] = []
-    for cls in ALL_TOOLS:
-        if cls.feature == "core":
-            if cls is ApprovalStatus and clients.approvals is None:
-                continue
-            tools.append(cls(clients))
-            continue
-        key, default = _FEATURE_OPTION[cls.feature]
-        if not opts.get(key, default):
-            continue
-        if read_only and cls.writes:
-            continue
-        if cls.deletes and not allow_delete:
-            continue
-        if cls.sends_mail and not allow_send:
-            continue
-        tools.append(cls(clients))
-    return tools
+    if cls.feature == "core":
+        return not (cls is ApprovalStatus and clients.approvals is None)
+    key, default = _FEATURE_OPTION[cls.feature]
+    if not opts.get(key, default):
+        return False
+    if opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY) and cls.writes:
+        return False
+    if cls.deletes and not opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE):
+        return False
+    if cls.sends_mail and not opts.get(CONF_ALLOW_SEND_MAIL, DEFAULT_ALLOW_SEND_MAIL):
+        return False
+    return not (cls is SaveAttachments and clients.attachments is None)
+
+
+def build_tools(clients: ICloudClients) -> list[llm.Tool]:
+    """Instantiate the tools allowed by the options, including those of extensions."""
+    classes: list[type[ICloudTool]] = list(ALL_TOOLS)
+    for ext in clients.extensions.values():
+        classes.extend(getattr(ext, "tool_classes", ()) or ())
+    return [cls(clients) for cls in classes if tool_allowed(cls, clients)]
 
 
 API_PROMPT = (

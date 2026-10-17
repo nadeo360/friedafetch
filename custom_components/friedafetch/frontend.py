@@ -1,4 +1,4 @@
-"""Sidebar panel and WebSocket API for managing inbox rules."""
+"""Sidebar panel and WebSocket API: accounts, activity log and approvals."""
 
 from __future__ import annotations
 
@@ -16,20 +16,17 @@ from .accounts import account_label
 from .approvals import ApprovalError
 from .const import (
     CONF_ALLOW_DELETE,
+    CONF_ALLOW_SEND_MAIL,
     CONF_APPLE_ID,
     CONF_ENABLE_MAIL,
     CONF_READ_ONLY,
-    CONF_RULES_AUTO,
-    CONF_RULES_INTERVAL,
     DEFAULT_ALLOW_DELETE,
+    DEFAULT_ALLOW_SEND_MAIL,
     DEFAULT_ENABLE_MAIL,
     DEFAULT_READ_ONLY,
-    DEFAULT_RULES_AUTO,
-    DEFAULT_RULES_INTERVAL,
     DOMAIN,
 )
 from .mail import MailError
-from .rules import RuleEngine, RuleError, RuleNotFound
 from .schema import vol
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,17 +47,10 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
     for command in (
         ws_accounts,
         ws_mailboxes,
-        ws_rules_list,
-        ws_rules_create,
-        ws_rules_update,
-        ws_rules_delete,
-        ws_rules_run,
         ws_audit_list,
         ws_audit_clear,
         ws_approvals_list,
         ws_approvals_decide,
-        ws_rules_history,
-        ws_rules_history_clear,
     ):
         websocket_api.async_register_command(hass, command)
     await panel_custom.async_register_panel(
@@ -68,7 +58,7 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name=WEBCOMPONENT,
         sidebar_title="Frieda" if (hass.config.language or "en").lower().startswith("de") else "Frieda",
-        sidebar_icon="mdi:email-fast-outline",
+        sidebar_icon="mdi:shield-check-outline",
         module_url=f"{STATIC_URL}/panel.js?v={version}",
         embed_iframe=False,
         require_admin=True,
@@ -94,15 +84,15 @@ def _loaded_entries(hass: HomeAssistant) -> list[ConfigEntry]:
     ]
 
 
-def _engine(hass: HomeAssistant, entry_id: str | None) -> tuple[ConfigEntry, RuleEngine]:
+class FriedaWsError(Exception):
+    """Websocket request cannot be served."""
+
+
+def _account(hass: HomeAssistant, entry_id: str | None) -> ConfigEntry:
     entries = _loaded_entries(hass)
     if not entries:
-        raise RuleError("No iCloud account is set up")
-    entry = next((e for e in entries if e.entry_id == entry_id), entries[0]) if entry_id else entries[0]
-    rules = entry.runtime_data.rules
-    if rules is None:
-        raise RuleError("Rules are not available for this account")
-    return entry, rules
+        raise FriedaWsError("No iCloud account is set up")
+    return next((e for e in entries if e.entry_id == entry_id), entries[0]) if entry_id else entries[0]
 
 
 def _ws_errors(func):
@@ -111,12 +101,10 @@ def _ws_errors(func):
     async def wrapper(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
         try:
             await func(hass, connection, msg)
-        except RuleNotFound as err:
-            connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, str(err))
         except ApprovalError as err:
             connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, str(err))
-        except (RuleError, MailError, ValueError) as err:
-            connection.send_error(msg["id"], "rule_error", str(err))
+        except (FriedaWsError, MailError, ValueError) as err:
+            connection.send_error(msg["id"], "frieda_error", str(err))
 
     wrapper.__name__ = func.__name__
     wrapper.__doc__ = func.__doc__
@@ -128,12 +116,10 @@ def _ws_errors(func):
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """List configured iCloud accounts with their rule statistics."""
+    """List configured iCloud accounts with their security state."""
     accounts: list[dict[str, Any]] = []
     for entry in _loaded_entries(hass):
         clients = entry.runtime_data
-        rules = clients.rules
-        rule_list = await rules.async_list() if rules else []
         opts = entry.options
         accounts.append(
             {
@@ -144,15 +130,10 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
                 "mail_enabled": bool(opts.get(CONF_ENABLE_MAIL, DEFAULT_ENABLE_MAIL)),
                 "read_only": bool(opts.get(CONF_READ_ONLY, DEFAULT_READ_ONLY)),
                 "allow_delete": bool(opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)),
-                "rules_auto": bool(opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)),
-                "rules_interval": int(opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)),
-                "rules_total": len(rule_list),
-                "rules_enabled": sum(1 for r in rule_list if r.get("enabled")),
-                "hits": sum(int(r.get("hits") or 0) for r in rule_list),
-                "last_run": rules.last_run if rules else None,
-                "automation": rules.automation_status() if rules else None,
+                "allow_send": bool(opts.get(CONF_ALLOW_SEND_MAIL, DEFAULT_ALLOW_SEND_MAIL)),
                 "approvals_enabled": clients.approvals is not None,
                 "approvals_pending": clients.approvals.pending_count if clients.approvals else 0,
+                "extensions": sorted(clients.extensions),
             }
         )
     connection.send_result(msg["id"], {"accounts": accounts})
@@ -164,125 +145,9 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
 @_ws_errors
 async def ws_mailboxes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """List mailbox names of an account."""
-    entry, _ = _engine(hass, msg.get("entry_id"))
+    entry = _account(hass, msg.get("entry_id"))
     boxes = await entry.runtime_data.mail.async_mailboxes()
     connection.send_result(msg["id"], {"mailboxes": [b["name"] for b in boxes]})
-
-
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/rules/list", vol.Optional("entry_id"): str})
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """List rules."""
-    entry, rules = _engine(hass, msg.get("entry_id"))
-    connection.send_result(
-        msg["id"],
-        {
-            "entry_id": entry.entry_id,
-            "rules": await rules.async_list(),
-            "last_run": rules.last_run,
-            "automation": rules.automation_status(),
-        },
-    )
-
-
-@websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/rules/create", vol.Optional("entry_id"): str, vol.Required("rule"): dict}
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_create(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Create a rule."""
-    _, rules = _engine(hass, msg.get("entry_id"))
-    connection.send_result(msg["id"], {"rule": await rules.async_create(msg["rule"])})
-
-
-@websocket_api.websocket_command(
-    {
-        vol.Required("type"): f"{DOMAIN}/rules/update",
-        vol.Optional("entry_id"): str,
-        vol.Required("rule_id"): str,
-        vol.Required("changes"): dict,
-    }
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_update(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Update a rule."""
-    _, rules = _engine(hass, msg.get("entry_id"))
-    connection.send_result(msg["id"], {"rule": await rules.async_update(msg["rule_id"], msg["changes"])})
-
-
-@websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/rules/delete", vol.Optional("entry_id"): str, vol.Required("rule_id"): str}
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Delete a rule."""
-    _, rules = _engine(hass, msg.get("entry_id"))
-    await rules.async_delete(msg["rule_id"])
-    connection.send_result(msg["id"], {"deleted": True})
-
-
-@websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/rules/history", vol.Optional("entry_id"): str, vol.Optional("limit"): int}
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_history(
-    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
-) -> None:
-    """Return the latest rule runs (manual and automatic), newest first."""
-    _, rules = _engine(hass, msg.get("entry_id"))
-    await rules.async_load()
-    limit = max(1, min(int(msg.get("limit") or 50), 200))
-    connection.send_result(msg["id"], {"runs": rules.history(limit), "total": len(rules.history(200))})
-
-
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/rules/history/clear", vol.Optional("entry_id"): str})
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_history_clear(
-    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
-) -> None:
-    """Clear the run history of an account."""
-    _, rules = _engine(hass, msg.get("entry_id"))
-    await rules.async_clear_history()
-    connection.send_result(msg["id"], {"cleared": True})
-
-
-@websocket_api.websocket_command(
-    {
-        vol.Required("type"): f"{DOMAIN}/rules/run",
-        vol.Optional("entry_id"): str,
-        vol.Optional("scope"): vol.In(["new", "all"]),
-        vol.Optional("dry_run"): bool,
-        vol.Optional("mailbox"): str,
-        vol.Optional("rule_ids"): [str],
-    }
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-@_ws_errors
-async def ws_rules_run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Run rules now (read-only accounts may only dry-run)."""
-    entry, rules = _engine(hass, msg.get("entry_id"))
-    if not msg.get("dry_run") and entry.options.get(CONF_READ_ONLY, DEFAULT_READ_ONLY):
-        raise RuleError("This account is in read-only mode; only dry runs are allowed")
-    report = await rules.async_run(
-        scope=msg.get("scope") or "all",
-        dry_run=bool(msg.get("dry_run")),
-        mailbox=msg.get("mailbox"),
-        rule_ids=msg.get("rule_ids"),
-    )
-    connection.send_result(msg["id"], report)
 
 
 @websocket_api.websocket_command(
@@ -298,7 +163,7 @@ async def ws_rules_run(hass: HomeAssistant, connection: websocket_api.ActiveConn
 @_ws_errors
 async def ws_audit_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Return the latest audit entries of an account plus the quota status."""
-    entry, _ = _engine(hass, msg.get("entry_id"))
+    entry = _account(hass, msg.get("entry_id"))
     clients = entry.runtime_data
     audit = clients.audit
     if audit is None:
@@ -321,7 +186,7 @@ async def ws_audit_list(hass: HomeAssistant, connection: websocket_api.ActiveCon
 @_ws_errors
 async def ws_audit_clear(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Clear the audit log of an account."""
-    entry, _ = _engine(hass, msg.get("entry_id"))
+    entry = _account(hass, msg.get("entry_id"))
     if entry.runtime_data.audit is not None:
         await entry.runtime_data.audit.async_clear()
     connection.send_result(msg["id"], {"cleared": True})
@@ -335,7 +200,7 @@ async def ws_approvals_list(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     """List pending and recently decided approval requests."""
-    entry, _ = _engine(hass, msg.get("entry_id"))
+    entry = _account(hass, msg.get("entry_id"))
     approvals = entry.runtime_data.approvals
     connection.send_result(
         msg["id"],
@@ -362,10 +227,10 @@ async def ws_approvals_decide(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     """Approve or deny a parked action."""
-    entry, _ = _engine(hass, msg.get("entry_id"))
+    entry = _account(hass, msg.get("entry_id"))
     approvals = entry.runtime_data.approvals
     if approvals is None:
-        raise RuleError("Approvals are not enabled for this account")
+        raise FriedaWsError("Approvals are not enabled for this account")
     decided_by = connection.user.name or connection.user.id
     if msg["decision"] == "approve":
         req = await approvals.async_approve(msg["request_id"], decided_by)

@@ -31,7 +31,10 @@ _IDLE_RECONNECT_AFTER = 8 * 60
 _DEFAULT_WINDOW = 500  # messages inspected when filtering client-side
 MAX_BATCH = 500  # uids per STORE/MOVE/COPY command
 
-HEADER_FIELDS = "FROM TO CC SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE"
+HEADER_FIELDS = (
+    "FROM TO CC SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE "
+    "LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID PRECEDENCE"
+)
 
 
 class MailError(Exception):
@@ -159,6 +162,19 @@ def _addresses(msg: Message, header: str) -> list[dict[str, str]]:
         return out
 
 
+def parse_date_header(value: str | None) -> datetime | None:
+    """Parse a Date header into an aware datetime (None when missing or invalid)."""
+    if not value:
+        return None
+    try:
+        dt = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
 def _parse_date(value: str | None) -> str | None:
     if not value:
         return None
@@ -268,7 +284,46 @@ def _summary_fields(item: FetchItem, msg: Message, mailbox: str, flags: list[str
         "size": item.size,
         "message_id": header_text(msg, "Message-ID"),
         "in_reply_to": header_text(msg, "In-Reply-To"),
+        "newsletter": is_newsletter(msg),
     }
+
+
+def is_newsletter(msg: Message) -> bool:
+    """Bulk mail: has an unsubscribe link, a mailing list id or Precedence bulk/list."""
+    if msg.get("List-Unsubscribe") or msg.get("List-Id"):
+        return True
+    return (header_text(msg, "Precedence") or "").strip().lower() in ("bulk", "list", "junk")
+
+
+def list_unsubscribe(msg: Message) -> dict[str, Any] | None:
+    """Parse List-Unsubscribe / List-Unsubscribe-Post (RFC 2369, RFC 8058)."""
+    value = header_text(msg, "List-Unsubscribe")
+    if not value:
+        return None
+    entries = re.findall(r"<\s*([^>\s]+)\s*>", value)
+    mailto = [e for e in entries if e.lower().startswith("mailto:")]
+    https = [e for e in entries if e.lower().startswith("https://")]
+    post = (header_text(msg, "List-Unsubscribe-Post") or "").replace(" ", "").lower()
+    return {
+        "mailto": mailto[:3],
+        "https": https[:3],
+        "one_click": bool(https) and post == "list-unsubscribe=one-click",
+    }
+
+
+def iter_attachments(msg: Message) -> list[tuple[str, str, bytes]]:
+    """Return (filename, content_type, payload) of every attachment."""
+    found: list[tuple[str, str, bytes]] = []
+    for part in msg.walk():
+        if part.is_multipart():
+            continue
+        ctype = part.get_content_type()
+        disposition = (part.get("Content-Disposition") or "").lower()
+        filename = part.get_filename()
+        if "attachment" in disposition or (filename and ctype not in ("text/plain", "text/html")):
+            payload = part.get_payload(decode=True) or b""
+            found.append((_decode_header_value(filename) or "", ctype, payload))
+    return found
 
 
 def raw_headers(data: bytes, limit: int = 4000) -> str:
@@ -674,6 +729,7 @@ class ICloudMail:
                 "body_truncated": truncated,
                 "attachments": attachments,
                 "references": header_text(msg, "References"),
+                "unsubscribe": list_unsubscribe(msg),
             }
         )
         if include_headers:

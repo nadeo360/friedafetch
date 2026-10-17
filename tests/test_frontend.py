@@ -41,97 +41,29 @@ async def test_static_panel_served(hass: HomeAssistant, mock_discover: AsyncMock
     assert resp.status == 200
     body = await resp.text()
     assert "friedafetch-panel" in body
-    assert "friedafetch/rules/run" in body
+    assert "friedafetch/approvals/decide" in body
 
 
-async def test_websocket_rule_lifecycle(
-    hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client: WebSocketGenerator
-) -> None:
+async def test_websocket_accounts(hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client) -> None:
+    entry = await _setup(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "friedafetch/accounts"})
+    msg = await ws.receive_json()
+    account = msg["result"]["accounts"][0]
+    assert msg["success"] and account["entry_id"] == entry.entry_id
+    assert account["label"] == "test" and account["mail_enabled"] is True
+    assert account["extensions"] == [] and "rules_total" not in account
     with patch(
-        "custom_components.friedafetch.mail.ICloudMail.async_mailboxes", new_callable=AsyncMock, return_value=MAILBOXES
+        "custom_components.friedafetch.mail.ICloudMail.async_mailboxes",
+        new_callable=AsyncMock,
+        return_value=[{"name": "INBOX", "special_use": None}, {"name": "Archive", "special_use": None}],
     ):
-        entry = await _setup(hass)
-        ws = await hass_ws_client(hass)
-
-        await ws.send_json({"id": 1, "type": "friedafetch/accounts"})
-        msg = await ws.receive_json()
-        account = msg["result"]["accounts"][0]
-        assert msg["success"] and account["entry_id"] == entry.entry_id
-        assert account["label"] == "test"
-        assert account["rules_total"] == 0 and account["rules_enabled"] == 0
-        assert account["rules_auto"] is True and account["mail_enabled"] is True
-
         await ws.send_json({"id": 2, "type": "friedafetch/mailboxes"})
         msg = await ws.receive_json()
-        assert msg["result"]["mailboxes"] == ["INBOX", "Archive"]
-
-        await ws.send_json(
-            {
-                "id": 3,
-                "type": "friedafetch/rules/create",
-                "rule": {
-                    "name": "Rechnungen",
-                    "conditions": [{"field": "subject", "op": "contains", "value": "rechnung"}],
-                    "actions": {"move_to": "Archive"},
-                },
-            }
-        )
-        msg = await ws.receive_json()
-        assert msg["success"], msg
-        rule_id = msg["result"]["rule"]["id"]
-
-        await ws.send_json(
-            {"id": 4, "type": "friedafetch/rules/update", "rule_id": rule_id, "changes": {"enabled": False}}
-        )
-        msg = await ws.receive_json()
-        assert msg["success"] and msg["result"]["rule"]["enabled"] is False
-
-        await ws.send_json({"id": 5, "type": "friedafetch/rules/list"})
-        msg = await ws.receive_json()
-        assert [r["id"] for r in msg["result"]["rules"]] == [rule_id]
-        assert msg["result"]["last_run"] is None
-
-        # invalid rule -> rule_error
-        await ws.send_json(
-            {
-                "id": 6,
-                "type": "friedafetch/rules/create",
-                "rule": {
-                    "name": "x",
-                    "conditions": [{"field": "subject", "op": "contains", "value": "a"}],
-                    "actions": {},
-                },
-            }
-        )
-        msg = await ws.receive_json()
-        assert msg["success"] is False and msg["error"]["code"] == "rule_error"
-
-        # unknown rule -> not_found
-        await ws.send_json({"id": 7, "type": "friedafetch/rules/delete", "rule_id": "nope"})
-        msg = await ws.receive_json()
-        assert msg["success"] is False and msg["error"]["code"] == "not_found"
-
-        with patch(
-            "custom_components.friedafetch.rules.RuleEngine.async_run",
-            new_callable=AsyncMock,
-            return_value={
-                "scope": "all",
-                "dry_run": True,
-                "checked": 0,
-                "matched": 0,
-                "actions": [],
-                "skipped": [],
-                "errors": [],
-            },
-        ) as run:
-            await ws.send_json({"id": 8, "type": "friedafetch/rules/run", "scope": "all", "dry_run": True})
-            msg = await ws.receive_json()
-        assert msg["success"] and msg["result"]["dry_run"] is True
-        run.assert_awaited_once_with(scope="all", dry_run=True, mailbox=None, rule_ids=None)
-
-        await ws.send_json({"id": 9, "type": "friedafetch/rules/delete", "rule_id": rule_id})
-        msg = await ws.receive_json()
-        assert msg["success"] and msg["result"]["deleted"] is True
+    assert msg["result"]["mailboxes"] == ["INBOX", "Archive"]
+    await ws.send_json({"id": 3, "type": "friedafetch/rules/list"})
+    msg = await ws.receive_json()
+    assert msg["success"] is False  # moved to Frieda Postfach
 
 
 async def test_websocket_requires_admin(
@@ -140,6 +72,6 @@ async def test_websocket_requires_admin(
     await _setup(hass)
     hass_admin_user.groups = []
     ws = await hass_ws_client(hass)
-    await ws.send_json({"id": 1, "type": "friedafetch/rules/list"})
+    await ws.send_json({"id": 1, "type": "friedafetch/accounts"})
     msg = await ws.receive_json()
     assert msg["success"] is False and msg["error"]["code"] == "unauthorized"

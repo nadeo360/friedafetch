@@ -24,8 +24,9 @@
 Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/friedafetch`, Streamable HTTP)
 sowie optional über die **MCP-Server-Integration** von Home Assistant (Model Context Protocol) an MCP-Clients wie
 Claude, ChatGPT-Connectors oder lokale Agenten ausgeliefert. Sie stehen außerdem jedem Home-Assistant-Sprachassistenten
-(Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat. Benannt ist das Projekt nach Frieda, der Hündin des Maintainers, die im Logo aus der
-Wolke schaut.
+(Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat. Posteingangsregeln,
+Push und Tagesüberblick bringt die eigene Erweiterung [Frieda Postfach](https://github.com/nadeo360/friedafetch-mail)
+mit. Benannt ist das Projekt nach Frieda, der Hündin des Maintainers, die im Logo aus der Wolke schaut.
 
 ## Funktionsumfang
 
@@ -35,7 +36,8 @@ Wolke schaut.
 | Kontakte  | CardDAV            | Kontakte suchen (Name, Mail, Telefon, Firma …), lesen | Kontakt anlegen, ändern, löschen                    |
 | E-Mail    | IMAP + SMTP        | Postfächer, Suche/Filter, Mail lesen (Text, Anhänge-Liste) | Senden/Antworten, gelesen/markiert, verschieben, Papierkorb |
 | Notizen   | IMAP-Ordner `Notes`| Notizen auflisten/suchen/lesen          | Notiz anlegen, ändern, löschen                                |
-| Regeln    | HA-Storage + IMAP  | Posteingangsregeln auflisten            | Regeln anlegen/ändern/löschen, automatisch oder auf Abruf ausführen |
+| Regeln    | –                  | mit der Erweiterung [Frieda Postfach](https://github.com/nadeo360/friedafetch-mail) | Posteingangsregeln, Push, Tagesüberblick |
+| Auswertungen | alle oben       | Postfach-Statistik, freie Zeitfenster, Geburtstage, doppelte Kontakte | Newsletter abbestellen, Anhänge (Belege) ablegen |
 
 ### Wichtiger Hinweis zu Notizen
 
@@ -69,6 +71,15 @@ Ordner `custom_components/friedafetch` in das `custom_components`-Verzeichnis de
 und Home Assistant neu starten.
 
 
+### Umstieg auf 2.0
+
+Frieda 2.0 ist ein reiner Connector: Posteingangsregeln, Push, Tagesüberblick und Geburtstags-Sensor sind in die
+eigene Integration [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail) umgezogen. Über HACS
+installieren und für das Konto hinzufügen – vorhandene Regeln, Trefferzähler, Verlauf und Automatik-Einstellungen
+werden automatisch übernommen. Bis dahin zeigt Frieda für Konten mit gespeicherten Regeln eine Reparaturmeldung, und es
+laufen keine Regeln. Die Regel-Tools (`icloud_*_rule`, `icloud_run_rules`, `icloud_daily_overview`) erscheinen wieder,
+sobald Frieda Postfach eingerichtet ist.
+
 ### Umstieg von „iCloud MCP“ (Versionen bis 1.0.x)
 
 Mit Version 1.1.0 wurde das Projekt in Frieda umbenannt; die Integrations-Domain wechselte von `icloud_mcp` zu
@@ -100,7 +111,7 @@ genannten Ordner löschen und Home Assistant neu starten.
 
 ### Optionen (Konfigurieren)
 
-Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken**, **Freigaben** und **Posteingangsregeln**.
+Der Optionsdialog hat drei Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken** und **Freigaben**.
 
 | Option                       | Wirkung                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
@@ -110,8 +121,7 @@ Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitp
 | Löschen erlauben             | Versteckt alle `icloud_delete_*`-Tools, wenn deaktiviert                |
 | Standard-Maximalanzahl       | Standard-Limit für Listen (1–200)                                       |
 | Absenderadresse              | `From:` für ausgehende Mails (Standard: Apple-ID; muss ein iCloud-Alias sein) |
-| Regeln automatisch anwenden  | Posteingangsregeln periodisch auf neue Mails anwenden (Standard: an)        |
-| Intervall für Regeln         | Minuten zwischen zwei automatischen Läufen (Standard 5, 1–240)              |
+| Ordner für Anhänge           | Ablage für `icloud_save_attachments` (und Regeln von Frieda Postfach) (Standard `<media>/frieda`; muss ein erlaubter Pfad sein) |
 | Kontobezeichnung             | Kurzname, der bei mehreren Konten als Tool-Suffix dient                      |
 | Bereich Sicherheit           | Kontingente, Empfänger-Richtlinie, geschützte Kalender/Postfächer, verborgene Postfächer (siehe Sicherheit) |
 
@@ -196,8 +206,7 @@ curl -s -X POST https://<home-assistant>/api/friedafetch \
 Die Integration wird pro Apple-ID einmal hinzugefügt. Das erste Konto behält die einfachen Tool-Namen
 (`icloud_list_events`); jedes weitere Konto bekommt ein Suffix aus seiner **Kontobezeichnung** (Option) oder dem
 lokalen Teil der Apple-ID, z. B. `icloud_list_events_arbeit`. Die LLM-APIs werden genauso registriert
-(`friedafetch`, `friedafetch_arbeit`), das Regel-Panel zeigt eine Kontoauswahl. Jedes Konto hat eigene Regeln und
-Optionen.
+(`friedafetch`, `friedafetch_arbeit`), das Panel zeigt eine Kontoauswahl. Jedes Konto hat eigene Optionen.
 
 ### Hinweise
 
@@ -230,17 +239,18 @@ Optionen.
 | `icloud_mark_mail`       | gelesen/ungelesen, markiert/unmarkiert – eine oder viele UIDs (`uids`) auf einmal |
 | `icloud_move_mail`       | In anderen Ordner verschieben – eine oder viele UIDs mit einem IMAP-Befehl   |
 | `icloud_delete_mail`     | In den Papierkorb (bzw. endgültig, wenn schon im Papierkorb) – eine oder viele UIDs |
-| `icloud_list_rules`      | Posteingangsregeln inkl. Trefferzähler und letztem Lauf                      |
-| `icloud_create_rule`     | Regel anlegen (Bedingungen + Aktionen)                                        |
-| `icloud_update_rule`     | Regel ändern, aktivieren/deaktivieren, umsortieren                            |
-| `icloud_delete_rule`     | Regel löschen                                                                |
-| `icloud_run_rules`       | Regeln jetzt anwenden (`scope` all/new, `dry_run` zeigt nur an)              |
 | `icloud_approval_status` | Ergebnis einer Aktion, die eine Freigabe erforderte                          |
 | `icloud_list_notes`      | Notizen auflisten/suchen                                                     |
 | `icloud_get_note`        | Notiz lesen                                                                  |
 | `icloud_create_note`     | Notiz anlegen                                                                |
 | `icloud_update_note`     | Notiz ersetzen (erhält eine neue UID)                                        |
 | `icloud_delete_note`     | Notiz löschen                                                                |
+| `icloud_mailbox_stats`   | häufigste Absender/Domains, Ungelesen- und Newsletter-Anteil, Abdeckung durch Regeln, Regelvorschläge |
+| `icloud_unsubscribe`     | Newsletter abbestellen (Ein-Klick per https oder Abmelde-Mail)              |
+| `icloud_save_attachments`| Anhänge einer Mail in `<Ordner>/<Unterordner>/<JJJJ-MM>/` ablegen           |
+| `icloud_find_free_time`  | freie Zeitfenster einer bestimmten Länge innerhalb der Arbeitszeit          |
+| `icloud_upcoming_birthdays` | Geburtstage der Kontakte in den nächsten Tagen (mit Alter, falls bekannt) |
+| `icloud_find_duplicate_contacts` | wahrscheinlich doppelte Kontakte (gleiche Mail, Nummer oder Name)   |
 
 Die Mail-Tools `icloud_mark_mail`, `icloud_move_mail` und `icloud_delete_mail` akzeptieren neben `uid` auch eine Liste
 `uids` (bis zu 500) und verarbeiten sie mit einem einzigen IMAP-Befehl – beim Aufräumen von Spam also ein Aufruf statt
@@ -249,46 +259,31 @@ einer pro Mail.
 Zeitangaben sind ISO 8601; Zeiten ohne Zeitzone werden in der Home-Assistant-Zeitzone interpretiert. Ganztägige
 Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusiv**.
 
-## Posteingangsregeln
-
-iCloud bietet keine Schnittstelle für seine serverseitigen Mail-Regeln. Die Integration führt deshalb **eigene
-Regeln** aus, die in Home Assistant gespeichert werden (`.storage/friedafetch.rules.<entry>`):
-
-- **Bedingungen** auf `from`, `to`, `cc`, `subject` oder `any` mit `contains`, `equals`, `starts_with`, `ends_with`,
-  `domain` (Absender-Domain inkl. Subdomains) oder `regex`; Verknüpfung `all` (Standard) oder `any`.
-- **Aktionen:** `move_to` (Ordner), `mark_seen`, `flag`, `delete` (Papierkorb) und `stop` (Standard: weitere Regeln
-  für diese Mail überspringen). Löschen über Regeln ist nur erlaubt, wenn die Option „Löschen erlauben“ aktiv ist.
-- **Automatik:** Standardmäßig alle 5 Minuten, nur für **neue** Mails seit dem letzten Lauf. Beim allerersten Lauf wird
-  nur die Ausgangsbasis gesetzt; Bestandsmails werden nicht angefasst. Dafür gibt es `icloud_run_rules` mit
-  `scope: "all"` (prüft die neuesten bis zu 2000 Mails) und `dry_run: true` zum Vorschauen.
-- **Ausführung:** Treffer werden pro Aktion gesammelt und mit den Batch-Befehlen in wenigen IMAP-Kommandos erledigt.
-
-Beispiel-Regel (als Tool-Aufruf):
-
-```json
-{
-  "name": "Newsletter archivieren",
-  "conditions": [{"field": "from", "op": "domain", "value": "newsletter.example.com"}],
-  "actions": {"move_to": "Archive", "mark_seen": true}
-}
-```
-
-Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Verbindung passiert nichts.
-
-### Verwaltungsoberfläche
+## Panel
 
 Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„Frieda“** an (nur für Admins; Deutsch
-oder Englisch je nach HA-Sprache).
-Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
-Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Regeln erscheinen kompakt und
-klappen per Klick auf (oder alle auf einmal); eine neue Regel öffnet ihren Editor direkt an Ort und Stelle und
-springt dorthin. Die Karte „Ausführungen“ zeigt jeden manuellen und automatischen Lauf (aufeinanderfolgende
-automatische Läufe ohne Treffer werden zusammengefasst); die Tabellen „Ausführungen“ und „Aktivität“ lassen sich pro
-Spalte filtern (Text, Auswahl oder Zahlen wie `>0`). Konten erscheinen als Karten mit Regelanzahl,
-Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regeln lassen sich in ein anderes Konto
-kopieren. Das Panel ist für Smartphones optimiert (gestapelte Karten statt Tabellen, große Touch-Flächen, Freigaben mit einem
-Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
-(`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der Integration.
+oder Englisch je nach HA-Sprache): Konten mit ihrem Sicherheitsstatus, offene und entschiedene **Freigaben**
+(freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App) und das **Aktivitätsprotokoll** mit Kontingenten
+und Filtern pro Spalte. Das Panel kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
+(`friedafetch/accounts`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der Integration.
+
+## Anhänge und Abmelden
+
+- **Anhänge:** `icloud_save_attachments` legt die Anhänge einer Mail unterhalb des Anhang-Ordners ab, nach Monat
+  sortiert und als `<Datum>_<Absender>_<Datei>` benannt. Identische Dateien werden nicht doppelt gespeichert, kleine
+  Bilder (Logos, Signaturen) übersprungen. Home Assistant muss den Ordner erlauben (Medienordner sind standardmäßig
+  erlaubt, andere gehören in `allowlist_external_dirs`).
+- **Abmelden:** `icloud_unsubscribe` nutzt den Header `List-Unsubscribe`: zuerst Ein-Klick per https (RFC 8058), sonst
+  eine Abmelde-Mail (nur wenn Senden erlaubt ist; zählt zum Sende-Kontingent und braucht eine Freigabe, wenn Senden
+  eine braucht). Links, die eine Webseite erfordern, bekommst du zum selbst Öffnen zurück.
+
+## Erweiterungen
+
+Frieda handelt nur, wenn ein KI-Client oder du sie aufrufst. Alles, was selbstständig läuft, steckt in Erweiterungen,
+die sich an ein Frieda-Konto hängen, dessen Verbindung und Leitplanken nutzen und ihm ihre Tools hinzufügen:
+
+- [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail) (`friedafetch_mail`): Posteingangsregeln mit
+  Push (IMAP IDLE), Belege per Regel, Tagesüberblick, Geburtstags-Sensor und die Regel-Tools.
 
 ## Sicherheit
 
