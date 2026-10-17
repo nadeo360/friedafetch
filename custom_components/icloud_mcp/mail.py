@@ -7,6 +7,7 @@ import base64
 import email
 import logging
 import re
+import ssl
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -278,6 +279,7 @@ class ICloudMail:
         smtp_host: str,
         smtp_port: int,
         timeout: int = 30,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         self._username = username
         self._password = password
@@ -287,6 +289,7 @@ class ICloudMail:
         self._smtp_host = smtp_host
         self._smtp_port = smtp_port
         self._timeout = timeout
+        self._ssl_context = ssl_context
         self._client: aioimaplib.IMAP4_SSL | None = None
         self._selected: str | None = None
         self._last_used = 0.0
@@ -295,7 +298,9 @@ class ICloudMail:
 
     # ---------------------------------------------------------- connection
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
-        client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port, timeout=self._timeout)
+        client = aioimaplib.IMAP4_SSL(
+            host=self._imap_host, port=self._imap_port, timeout=self._timeout, ssl_context=self._ssl_context
+        )
         try:
             await client.wait_hello_from_server()
             response = await client.login(self._username, self._password)
@@ -700,6 +705,7 @@ class ICloudMail:
                 password=self._password,
                 recipients=recipients,
                 timeout=self._timeout,
+                tls_context=self._ssl_context,
             )
         except aiosmtplib.SMTPAuthenticationError as err:
             raise MailAuthError(f"SMTP authentication failed: {err}") from err
