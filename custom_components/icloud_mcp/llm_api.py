@@ -520,25 +520,38 @@ class SendMail(ICloudTool):
         )
 
 
+_UID_PARAMS = {
+    vol.Optional("uid", description="A single message uid"): int,
+    vol.Optional("uids", description="Several message uids; processed in one IMAP command"): [int],
+    vol.Optional("mailbox", description="Default INBOX"): str,
+}
+
+
+def _uids(args: dict[str, Any]) -> list[int]:
+    values: list[int] = []
+    if args.get("uid") is not None:
+        values.append(int(args["uid"]))
+    values.extend(int(u) for u in (args.get("uids") or []))
+    if not values:
+        raise ValueError("Provide uid or uids")
+    return values
+
+
 class MarkMail(ICloudTool):
     name = "icloud_mark_mail"
     feature = "mail"
     writes = True
-    description = "Mark an e-mail as read/unread and/or flagged/unflagged."
-    parameters = vol.Schema(
-        {
-            vol.Required("uid"): int,
-            vol.Optional("mailbox"): str,
-            vol.Optional("seen"): bool,
-            vol.Optional("flagged"): bool,
-        }
+    description = (
+        "Mark one or many e-mails as read/unread and/or flagged/unflagged. "
+        "Pass all affected uids in 'uids' at once instead of calling the tool per message."
     )
+    parameters = vol.Schema({**_UID_PARAMS, vol.Optional("seen"): bool, vol.Optional("flagged"): bool})
 
     async def run(self, hass, args):
         if args.get("seen") is None and args.get("flagged") is None:
             raise ValueError("Provide seen and/or flagged")
         return await self.clients.mail.async_set_flags(
-            args.get("mailbox") or "INBOX", int(args["uid"]), seen=args.get("seen"), flagged=args.get("flagged")
+            args.get("mailbox") or "INBOX", _uids(args), seen=args.get("seen"), flagged=args.get("flagged")
         )
 
 
@@ -546,15 +559,14 @@ class MoveMail(ICloudTool):
     name = "icloud_move_mail"
     feature = "mail"
     writes = True
-    description = "Move an e-mail to another mailbox (e.g. Archive)."
-    parameters = vol.Schema(
-        {vol.Required("uid"): int, vol.Optional("mailbox"): str, vol.Required("target_mailbox"): str}
+    description = (
+        "Move one or many e-mails to another mailbox (e.g. Archive or Junk). "
+        "Pass all affected uids in 'uids' at once; they are moved with a single IMAP command."
     )
+    parameters = vol.Schema({**_UID_PARAMS, vol.Required("target_mailbox"): str})
 
     async def run(self, hass, args):
-        return await self.clients.mail.async_move(
-            args.get("mailbox") or "INBOX", int(args["uid"]), args["target_mailbox"]
-        )
+        return await self.clients.mail.async_move(args.get("mailbox") or "INBOX", _uids(args), args["target_mailbox"])
 
 
 class DeleteMail(ICloudTool):
@@ -562,11 +574,14 @@ class DeleteMail(ICloudTool):
     feature = "mail"
     writes = True
     deletes = True
-    description = "Move an e-mail to the trash (or delete permanently when it is already in the trash). Confirm with the user first."
-    parameters = vol.Schema({vol.Required("uid"): int, vol.Optional("mailbox"): str})
+    description = (
+        "Move one or many e-mails to the trash (or delete permanently when already in the trash). "
+        "Pass all affected uids in 'uids' at once; they are deleted with a single IMAP command. Confirm with the user first."
+    )
+    parameters = vol.Schema(dict(_UID_PARAMS))
 
     async def run(self, hass, args):
-        return await self.clients.mail.async_delete(args.get("mailbox") or "INBOX", int(args["uid"]))
+        return await self.clients.mail.async_delete(args.get("mailbox") or "INBOX", _uids(args))
 
 
 # ================================================================= notes

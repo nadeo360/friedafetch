@@ -29,6 +29,7 @@ _LITERAL_RE = re.compile(rb"\{(\d+)\}\s*$")
 _LIST_RE = re.compile(rb'^\((?P<flags>[^)]*)\)\s+(?P<delim>"[^"]*"|NIL)\s+(?P<name>.+)$')
 _IDLE_RECONNECT_AFTER = 8 * 60
 _DEFAULT_WINDOW = 500  # messages inspected when filtering client-side
+MAX_BATCH = 500  # uids per STORE/MOVE/COPY command
 
 HEADER_FIELDS = "FROM TO CC SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE"
 
@@ -633,57 +634,74 @@ class ICloudMail:
             result["raw_headers"] = raw_headers(item.literal())
         return result
 
+    @staticmethod
+    def _uid_set(uids: int | list[int]) -> tuple[list[int], str]:
+        """Normalise a uid or list of uids into a sorted list and an IMAP uid set."""
+        values = sorted({int(u) for u in ([uids] if isinstance(uids, int) else uids)})
+        if not values:
+            raise MailError("No message uids given")
+        if len(values) > MAX_BATCH:
+            raise MailError(f"Too many messages in one call (max {MAX_BATCH})")
+        return values, ",".join(str(u) for u in values)
+
     async def async_set_flags(
-        self, mailbox: str, uid: int, *, seen: bool | None = None, flagged: bool | None = None
+        self, mailbox: str, uids: int | list[int], *, seen: bool | None = None, flagged: bool | None = None
     ) -> dict[str, Any]:
+        """Set/clear flags on one or many messages with a single STORE per flag."""
+        values, uid_set = self._uid_set(uids)
+
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, Any]:
             await self._select(client, mailbox)
             for flag, value in (("\\Seen", seen), ("\\Flagged", flagged)):
                 if value is None:
                     continue
                 response = await client.uid(
-                    "store", str(uid), "+FLAGS.SILENT" if value else "-FLAGS.SILENT", f"({flag})"
+                    "store", uid_set, "+FLAGS.SILENT" if value else "-FLAGS.SILENT", f"({flag})"
                 )
                 if response.result != "OK":
                     raise MailError(f"STORE failed: {response.lines}")
-            return {"uid": uid, "mailbox": mailbox, "seen": seen, "flagged": flagged}
+            return {"uids": values, "count": len(values), "mailbox": mailbox, "seen": seen, "flagged": flagged}
 
         return await self._run(op)
 
-    async def async_move(self, mailbox: str, uid: int, target: str) -> dict[str, Any]:
+    async def async_move(self, mailbox: str, uids: int | list[int], target: str) -> dict[str, Any]:
+        """Move one or many messages with a single MOVE (or COPY+STORE+EXPUNGE)."""
         if not await self.async_mailbox_exists(target):
             raise MailboxNotFound(f"Target mailbox '{target}' not found")
+        values, uid_set = self._uid_set(uids)
 
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, Any]:
             await self._select(client, mailbox)
             if client.has_capability("MOVE"):
-                response = await client.uid("move", str(uid), quote_mailbox(target))
+                response = await client.uid("move", uid_set, quote_mailbox(target))
                 if response.result != "OK":
                     raise MailError(f"MOVE failed: {response.lines}")
             else:
-                response = await client.uid("copy", str(uid), quote_mailbox(target))
+                response = await client.uid("copy", uid_set, quote_mailbox(target))
                 if response.result != "OK":
                     raise MailError(f"COPY failed: {response.lines}")
-                await client.uid("store", str(uid), "+FLAGS.SILENT", "(\\Deleted)")
+                await client.uid("store", uid_set, "+FLAGS.SILENT", "(\\Deleted)")
                 await client.expunge()
-            return {"uid": uid, "from_mailbox": mailbox, "to_mailbox": target}
+            return {"uids": values, "count": len(values), "from_mailbox": mailbox, "to_mailbox": target}
 
         return await self._run(op)
 
-    async def async_delete(self, mailbox: str, uid: int, permanent: bool = False) -> dict[str, Any]:
+    async def async_delete(self, mailbox: str, uids: int | list[int], permanent: bool = False) -> dict[str, Any]:
+        """Move messages to the trash (or expunge them) in one round trip."""
         trash = await self.async_special_mailbox("trash")
         if not permanent and trash and trash != mailbox:
-            result = await self.async_move(mailbox, uid, trash)
+            result = await self.async_move(mailbox, uids, trash)
             result["action"] = "moved_to_trash"
             return result
+        values, uid_set = self._uid_set(uids)
 
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, Any]:
             await self._select(client, mailbox)
-            response = await client.uid("store", str(uid), "+FLAGS.SILENT", "(\\Deleted)")
+            response = await client.uid("store", uid_set, "+FLAGS.SILENT", "(\\Deleted)")
             if response.result != "OK":
                 raise MailError(f"STORE failed: {response.lines}")
             await client.expunge()
-            return {"uid": uid, "mailbox": mailbox, "action": "deleted"}
+            return {"uids": values, "count": len(values), "mailbox": mailbox, "action": "deleted"}
 
         return await self._run(op)
 
