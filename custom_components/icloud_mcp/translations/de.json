@@ -1,0 +1,53 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "iCloud verbinden",
+        "description": "Melde dich mit deiner Apple-ID und einem anwendungsspezifischen Passwort an (erstellen unter appleid.apple.com → Anmeldung und Sicherheit → App-spezifische Passwörter). Die Zwei-Faktor-Authentifizierung muss für die Apple-ID aktiv sein.",
+        "data": {
+          "apple_id": "Apple-ID (E-Mail-Adresse)",
+          "app_password": "Anwendungsspezifisches Passwort"
+        },
+        "data_description": {
+          "apple_id": "Dein iCloud-Login, z. B. name@icloud.com, name@me.com oder name@mac.com.",
+          "app_password": "Format xxxx-xxxx-xxxx-xxxx. Niemals das normale Apple-ID-Passwort verwenden."
+        }
+      },
+      "reauth_confirm": {
+        "title": "iCloud erneut authentifizieren",
+        "description": "iCloud hat das gespeicherte anwendungsspezifische Passwort für {apple_id} abgelehnt. Bitte ein neues eingeben.",
+        "data": {
+          "app_password": "Anwendungsspezifisches Passwort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "iCloud ist nicht erreichbar. Internetverbindung prüfen und erneut versuchen.",
+      "invalid_auth": "Apple hat die Zugangsdaten abgelehnt. Apple-ID und anwendungsspezifisches Passwort prüfen.",
+      "unknown": "Unerwarteter Fehler, siehe Home-Assistant-Protokoll."
+    },
+    "abort": {
+      "already_configured": "Diese Apple-ID ist bereits eingerichtet.",
+      "reauth_successful": "Die erneute Authentifizierung war erfolgreich."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "iCloud-MCP-Optionen",
+        "description": "Lege fest, welche Tool-Gruppen der MCP-Server bereitstellt und welche schreibenden Aktionen erlaubt sind.",
+        "data": {
+          "enable_calendar": "Kalender-Tools",
+          "enable_contacts": "Kontakt-Tools",
+          "enable_mail": "E-Mail-Tools",
+          "enable_notes": "Notiz-Tools (IMAP-Ordner „Notes“)",
+          "read_only": "Nur-Lesen-Modus (alle Erstellen/Ändern/Löschen/Senden-Tools ausblenden)",
+          "allow_send_mail": "Senden von E-Mails erlauben",
+          "allow_delete": "Löschen von Terminen, Kontakten, E-Mails und Notizen erlauben",
+          "max_results": "Standard-Maximalanzahl an Ergebnissen",
+          "from_address": "Absenderadresse für ausgehende E-Mails"
+        }
+      }
+    }
+  }
+}
