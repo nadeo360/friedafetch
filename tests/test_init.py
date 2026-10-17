@@ -12,11 +12,14 @@ from custom_components.icloud_mcp.const import (
     CONF_ALLOW_SEND_MAIL,
     CONF_APP_PASSWORD,
     CONF_APPLE_ID,
+    CONF_APPROVAL_MASS,
+    CONF_APPROVAL_SEND,
     CONF_ENABLE_NOTES,
     CONF_READ_ONLY,
     DOMAIN,
     LLM_API_ID,
 )
+from custom_components.icloud_mcp.llm_api import disabled_capabilities
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -49,6 +52,9 @@ async def test_setup_registers_llm_api(hass: HomeAssistant, mock_discover: Async
     assert "icloud_delete_contact" in names
     assert "icloud_create_note" in names
     assert "iCloud" in api.api_prompt
+    # with the default options nothing is disabled and nothing needs approval
+    assert "Disabled by the administrator" not in api.api_prompt
+    assert "approval" not in api.api_prompt.lower()
     # every tool is tagged with the integration and has annotations
     for tool in api.tools:
         assert tool.integration == DOMAIN
@@ -79,6 +85,11 @@ async def test_options_restrict_tools(hass: HomeAssistant, mock_discover: AsyncM
         "icloud_list_rules",
     }
     assert all(t.annotations.read_only for t in api.tools)
+    # the prompt explains why the write tools and the notes tools are missing
+    assert "Disabled by the administrator in the integration options:" in api.api_prompt
+    assert "all write actions (read-only mode)" in api.api_prompt
+    assert "notes tools" in api.api_prompt
+    assert "Settings → Devices & services → iCloud MCP → Configure" in api.api_prompt
 
 
 async def test_no_send_no_delete(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
@@ -92,6 +103,34 @@ async def test_no_send_no_delete(hass: HomeAssistant, mock_discover: AsyncMock) 
     # deleting data is blocked; deleting a rule (configuration) stays available
     assert not any(n.startswith("icloud_delete_") and n != "icloud_delete_rule" for n in names)
     assert "icloud_create_event" in names
+    assert "sending e-mail (option 'Allow sending e-mails' is off)" in api.api_prompt
+    assert "(option 'Allow deleting' is off)" in api.api_prompt
+    assert "read-only mode" not in api.api_prompt
+
+
+async def test_prompt_mentions_approvals(hass: HomeAssistant, mock_discover: AsyncMock) -> None:
+    entry = _entry(**{CONF_APPROVAL_SEND: True, CONF_APPROVAL_MASS: 5})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    api = await llm.async_get_api(hass, LLM_API_ID, _context(hass))
+    assert "Disabled by the administrator" not in api.api_prompt
+    assert "require human approval in Home Assistant: sending e-mails, mail actions touching more than 5 messages" in (
+        api.api_prompt
+    )
+    assert "'approval_required' is not an error" in api.api_prompt
+
+
+def test_disabled_capabilities() -> None:
+    assert disabled_capabilities({}) == []
+    assert disabled_capabilities({CONF_READ_ONLY: True, CONF_ALLOW_SEND_MAIL: False}) == [
+        "all write actions (read-only mode)"
+    ]
+    assert disabled_capabilities({CONF_ALLOW_SEND_MAIL: False, CONF_ALLOW_DELETE: False, CONF_ENABLE_NOTES: False}) == [
+        "sending e-mail (option 'Allow sending e-mails' is off)",
+        "deleting events, contacts, e-mails and notes (option 'Allow deleting' is off)",
+        "notes tools",
+    ]
 
 
 async def test_tool_call_and_error_mapping(hass: HomeAssistant, mock_discover: AsyncMock) -> None:

@@ -102,6 +102,12 @@ Der Optionsdialog hat vier Bereiche: **Tools und Konto**, **Sicherheit und Leitp
 Alle Tools tragen MCP-Annotations (`readOnlyHint`, `destructiveHint`), sodass Clients im „nur lesen“-Modus die
 schreibenden Tools automatisch weglassen.
 
+Abgeschaltete Fähigkeiten verschwinden nicht stillschweigend: Der LLM-Prompt (und die `instructions` des eigenen
+MCP-Endpunkts) nennt, was der Administrator deaktiviert hat, damit die KI dem Nutzer erklären kann, *warum* sie nicht
+senden oder löschen kann und wo es sich einschalten lässt (Einstellungen → Geräte & Dienste → iCloud MCP →
+Konfigurieren). Ebenso werden aktive Freigaben angekündigt, sodass ein `approval_required`-Ergebnis als „wartet auf
+Freigabe“ erklärt wird und nicht als Fehler.
+
 ## Eigener MCP-Endpunkt
 
 Die Integration registriert einen eigenen **MCP-Endpunkt (Streamable HTTP)**, der die `icloud_*`-Tools direkt

@@ -96,6 +96,11 @@ The options dialog has four sections: **Tools and account**, **Security and guar
 All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so that clients in read-only mode can drop the
 writing tools automatically.
 
+Capabilities you switch off are not hidden silently: the LLM prompt (and the `instructions` of the built-in MCP
+endpoint) lists what the administrator disabled, so the assistant can tell the user *why* it cannot send or delete
+and where to enable it (Settings → Devices & services → iCloud MCP → Configure). Likewise, active approvals are
+announced so that an `approval_required` result is explained as "waiting for approval", not as an error.
+
 ## Built-in MCP endpoint
 
 The integration serves its tools directly at **`POST /api/icloud_mcp`** (MCP Streamable HTTP, stateless) and

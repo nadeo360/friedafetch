@@ -14,7 +14,14 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.icloud_mcp.carddav_client import ContactNotFound
-from custom_components.icloud_mcp.const import CONF_APP_PASSWORD, CONF_APPLE_ID, CONF_READ_ONLY, DOMAIN
+from custom_components.icloud_mcp.const import (
+    CONF_ALLOW_SEND_MAIL,
+    CONF_APP_PASSWORD,
+    CONF_APPLE_ID,
+    CONF_APPROVAL_DELETE,
+    CONF_READ_ONLY,
+    DOMAIN,
+)
 from custom_components.icloud_mcp.mcp_http import STREAMABLE_API
 
 from .conftest import APP_PASSWORD, APPLE_ID
@@ -81,6 +88,7 @@ async def test_initialize(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
     assert result["serverInfo"]["version"] == manifest["version"]
     assert "tools" in result["capabilities"]
     assert "iCloud" in result["instructions"]
+    assert "Disabled by the administrator" not in result["instructions"]
     assert result["protocolVersion"]
 
     # the client's "initialized" notification is acknowledged only
@@ -126,6 +134,37 @@ async def test_tools_list_respects_options(hass: HomeAssistant, mock_discover: A
     assert "icloud_delete_contact" not in names
     assert "icloud_send_mail" not in names
     assert all(tool["annotations"]["readOnlyHint"] for tool in data["result"]["tools"])
+
+
+async def _initialize(client) -> dict[str, Any]:
+    data = await _rpc(
+        client,
+        "initialize",
+        {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}},
+    )
+    return data["result"]
+
+
+async def test_initialize_explains_disabled_options(hass: HomeAssistant, mock_discover: AsyncMock, hass_client) -> None:
+    await _setup(hass, _entry(**{CONF_ALLOW_SEND_MAIL: False, CONF_APPROVAL_DELETE: True}))
+    client = await hass_client()
+    instructions = (await _initialize(client))["instructions"]
+    assert "Disabled by the administrator in the integration options: sending e-mail" in instructions
+    assert "Settings → Devices & services → iCloud MCP → Configure" in instructions
+    assert "require human approval in Home Assistant: deleting" in instructions
+    assert "'approval_required' is not an error" in instructions
+    # one account: no label prefix
+    assert "[" not in instructions
+
+
+async def test_initialize_labels_accounts(hass: HomeAssistant, mock_discover: AsyncMock, hass_client) -> None:
+    await _setup(hass, _entry())
+    await _setup(hass, _entry("other@icloud.com", **{CONF_READ_ONLY: True}))
+    client = await hass_client()
+    instructions = (await _initialize(client))["instructions"]
+    assert "[other] Disabled by the administrator in the integration options: all write actions (read-only mode)" in (
+        instructions
+    )
 
 
 async def test_tools_call(hass: HomeAssistant, entry: MockConfigEntry, hass_client: ClientSessionGenerator) -> None:

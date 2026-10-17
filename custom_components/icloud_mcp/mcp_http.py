@@ -49,7 +49,7 @@ from mcp.shared.message import SessionMessage
 
 from .accounts import account_label
 from .const import CONF_APPLE_ID, CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY, DOMAIN
-from .llm_api import API_PROMPT, ICloudClients, build_tools
+from .llm_api import API_PROMPT, ICloudClients, build_tools, capability_hints
 from .schema import vol
 
 _LOGGER = logging.getLogger(__name__)
@@ -209,7 +209,12 @@ def _instructions(hass: HomeAssistant, profile: str = "full") -> str:
         tz=now.tzname() or str(now.tzinfo), now=now.isoformat(timespec="minutes"), account=accounts
     )
     if profile == "readonly":
-        prompt += " This endpoint is read-only: no tool here can change anything."
+        return prompt + " This endpoint is read-only: no tool here can change anything."
+    entries = _loaded_entries(hass)
+    for entry in entries:
+        hints = capability_hints(entry.runtime_data.options, account_label(entry) if len(entries) > 1 else "")
+        if hints:
+            prompt += " " + hints
     return prompt
 
 
