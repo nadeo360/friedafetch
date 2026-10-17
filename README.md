@@ -24,6 +24,7 @@
 **LLM API**, so they are available to every conversation agent that enables the API (Assist, Google Generative AI,
 OpenAI, Ollama …) and to any **MCP client** (Claude, ChatGPT connectors, local agents) through Home Assistant's
 MCP Server integration or the integration's own MCP endpoint. Inbox rules can be managed in a sidebar panel.
+The project is named after the maintainer's dog Frieda, who looks out of the cloud in the logo.
 
 ## Features
 

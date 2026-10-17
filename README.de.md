@@ -24,7 +24,8 @@
 Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/friedafetch`, Streamable HTTP)
 sowie optional über die **MCP-Server-Integration** von Home Assistant (Model Context Protocol) an MCP-Clients wie
 Claude, ChatGPT-Connectors oder lokale Agenten ausgeliefert. Sie stehen außerdem jedem Home-Assistant-Sprachassistenten
-(Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat.
+(Assist, Google Generative AI, OpenAI, Ollama …) zur Verfügung, der diese LLM-API aktiviert hat. Benannt ist das Projekt nach Frieda, der Hündin des Maintainers, die im Logo aus der
+Wolke schaut.
 
 ## Funktionsumfang
 
