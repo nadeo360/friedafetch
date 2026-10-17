@@ -138,6 +138,35 @@ const I18N = {
     quotaItemDelete: "Termine/Kontakte/Notizen löschen",
     unlimited: "unbegrenzt",
     showMore: "Mehr anzeigen",
+    expandAll: "Alle aufklappen",
+    collapseAll: "Alle zuklappen",
+    nConditions: "{0} Bedingungen",
+    oneCondition: "1 Bedingung",
+    matchAnyShort: "eine muss zutreffen",
+    matchAllShort: "alle müssen zutreffen",
+    continueRules: "danach weitere Regeln prüfen",
+    noActions: "keine Aktion",
+    history: "Ausführungen",
+    historyHint: "Manuelle und automatische Regelläufe, neueste zuerst. Aufeinanderfolgende automatische Läufe ohne Treffer werden zusammengefasst.",
+    noHistory: "Noch keine Ausführungen aufgezeichnet.",
+    clearHistory: "Verlauf leeren",
+    confirmClearHistory: "Verlauf der Ausführungen wirklich leeren?",
+    colTrigger: "Auslöser",
+    colScope: "Umfang",
+    colChecked: "Geprüft",
+    colMatched: "Treffer",
+    colRules: "Regeln",
+    scopeNew: "neue Mails",
+    scopeAll: "gesamtes Postfach",
+    runsMerged: "{0} Läufe",
+    resIdle: "keine Treffer",
+    filter: "Filter",
+    filterReset: "Filter zurücksetzen",
+    filterCount: "{0} von {1} Einträgen",
+    filterAll: "alle",
+    filterPh: "filtern …",
+    numPh: "z. B. >0",
+    whoRules: "Regeln",
   },
   en: {
     title: "Frieda",
@@ -271,7 +300,48 @@ const I18N = {
     quotaItemDelete: "delete events/contacts/notes",
     unlimited: "unlimited",
     showMore: "Show more",
+    expandAll: "Expand all",
+    collapseAll: "Collapse all",
+    nConditions: "{0} conditions",
+    oneCondition: "1 condition",
+    matchAnyShort: "any may match",
+    matchAllShort: "all must match",
+    continueRules: "then continue with further rules",
+    noActions: "no action",
+    history: "Runs",
+    historyHint: "Manual and automatic rule runs, newest first. Consecutive automatic runs without hits are merged.",
+    noHistory: "No runs recorded yet.",
+    clearHistory: "Clear history",
+    confirmClearHistory: "Really clear the run history?",
+    colTrigger: "Trigger",
+    colScope: "Scope",
+    colChecked: "Checked",
+    colMatched: "Hits",
+    colRules: "Rules",
+    scopeNew: "new mail",
+    scopeAll: "whole mailbox",
+    runsMerged: "{0} runs",
+    resIdle: "no hits",
+    filter: "Filter",
+    filterReset: "Reset filters",
+    filterCount: "{0} of {1} entries",
+    filterAll: "all",
+    filterPh: "filter …",
+    numPh: "e.g. >0",
+    whoRules: "Rules",
   },
+};
+
+const fmt = (str, ...args) => String(str).replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
+
+// Numeric column filter: "5", "=5", ">0", ">=2", "<10", "<=3".
+const numMatch = (value, query) => {
+  const m = String(query).trim().match(/^(>=|<=|>|<|=)?\s*(-?\d+(?:[.,]\d+)?)$/);
+  if (!m) return String(value).includes(String(query).trim());
+  const v = Number(value);
+  const q = Number(m[2].replace(",", "."));
+  if (isNaN(v)) return false;
+  return { ">": v > q, "<": v < q, ">=": v >= q, "<=": v <= q, "=": v === q }[m[1] || "="];
 };
 
 const esc = (s) =>
@@ -344,13 +414,50 @@ const STYLE = `
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   .toolbar img { width: 28px; height: 28px; border-radius: 7px; }
   table.stack { width: 100%; }
+  .rules { display: grid; gap: 8px; }
+  .rule { border: 1px solid var(--divider-color, #e0e0e0); border-radius: 10px; background: var(--card-background-color, #fff); scroll-margin-top: 16px; transition: box-shadow .4s; }
+  .rule.open { border-color: color-mix(in srgb, var(--primary-color) 45%, var(--divider-color, #e0e0e0)); }
+  .rule.flash { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 35%, transparent); }
+  .rule.disabled .rule-head .rule-title, .rule.disabled .rule-head .rule-side { opacity: .55; }
+  .rule-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 4px; }
+  .rule-head .chev { transition: transform .15s; }
+  .rule.open .rule-head .chev { transform: rotate(90deg); }
+  .rule-title { flex: 1; min-width: 0; cursor: pointer; display: grid; gap: 1px; }
+  .rule-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rule-side { display: flex; align-items: center; gap: 6px; max-width: 50%; }
+  .rule-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+  .rule-side .badge { white-space: nowrap; }
+  .rule-body { padding: 4px 14px 12px 44px; display: grid; gap: 10px; border-top: 1px dashed var(--divider-color, #e0e0e0); }
+  .rule-body .lbl { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 2px; }
+  .rule-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .editor { padding: 12px 14px; scroll-margin-top: 16px; }
+  .editor h3.title { margin: 0 0 12px; font-size: 16px; font-weight: 500; }
+  .fbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .fbar .grow { flex: 1; }
+  button.link { background: none; color: var(--primary-color); padding: 2px 4px; min-height: 0; }
+  button.ftoggle { display: none; }
+  thead tr.filters th { padding: 4px 6px 8px; font-weight: 400; }
+  thead tr.filters input, thead tr.filters select { width: 100%; min-width: 0; box-sizing: border-box; padding: 4px 6px; font-size: 12.5px; }
+  thead tr.filters .active { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color); }
+  tr.fhide { display: none !important; }
   @media (max-width: 760px) {
     .toolbar { height: 52px; padding: 0 10px; font-size: 18px; }
     .content { padding: 10px; gap: 10px; }
     .card { padding: 12px; }
     .card h2 { font-size: 17px; }
     .card h2 button { flex: 1 1 auto; }
-    table.stack thead { display: none; }
+    table.stack thead { display: block; }
+    table.stack thead tr.head { display: none; }
+    table.stack thead tr.filters { display: none; }
+    .ftable.fopen table.stack thead tr.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: none; padding: 0; margin-bottom: 10px; background: none; }
+    table.stack thead tr.filters th { display: block; padding: 0; border: none; }
+    button.ftoggle { display: inline-block; }
+    .rule-head { flex-wrap: wrap; padding: 4px 8px 4px 2px; }
+    .rule-side { max-width: none; flex-basis: 100%; padding-left: 92px; box-sizing: border-box; }
+    .rule-acts { flex: 1; justify-content: flex-start; }
+    .rule-body { padding: 6px 10px 10px; }
+    .rule-tools select.copy { width: auto; flex: 1 1 140px; }
+    .editor { padding: 10px; }
     table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; box-sizing: border-box; }
     table.stack tr { border: 1px solid var(--divider-color, #e0e0e0); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; background: var(--card-background-color, #fff); }
     table.stack td { border: none; padding: 4px 0; white-space: normal !important; }
@@ -391,6 +498,14 @@ class ICloudMcpRulesPanel extends HTMLElement {
       quota: {},
       approvals: null,
       auditLimit: 25,
+      history: [],
+      historyTotal: 0,
+      historyLimit: 50,
+      expanded: new Set(),
+      filters: {},
+      filterOpen: {},
+      focusEditor: false,
+      scrollTo: null,
       busy: false,
       loaded: false,
     };
@@ -474,9 +589,10 @@ class ICloudMcpRulesPanel extends HTMLElement {
     try {
       await this._loadAccounts();
       await this._loadAudit();
+      await this._loadHistory();
       await this._loadApprovals();
     } catch (err) {
-      /* account stats, audit and approvals are optional */
+      /* account stats, history, audit and approvals are optional */
     }
   }
 
@@ -534,11 +650,17 @@ class ICloudMcpRulesPanel extends HTMLElement {
   async _save() {
     const rule = this._readForm();
     await this._call(async () => {
+      let saved;
       if (rule.id) {
         const { id, hits, created, ...changes } = rule;
-        await this._ws({ type: "friedafetch/rules/update", entry_id: this._s.entryId, rule_id: id, changes });
+        saved = await this._ws({ type: "friedafetch/rules/update", entry_id: this._s.entryId, rule_id: id, changes });
       } else {
-        await this._ws({ type: "friedafetch/rules/create", entry_id: this._s.entryId, rule });
+        saved = await this._ws({ type: "friedafetch/rules/create", entry_id: this._s.entryId, rule });
+      }
+      const savedId = saved?.rule?.id || rule.id;
+      if (savedId) {
+        this._s.expanded.add(savedId);
+        this._s.scrollTo = savedId;
       }
       this._s.editing = null;
       await this._reload();
@@ -633,6 +755,133 @@ class ICloudMcpRulesPanel extends HTMLElement {
     this._s.quota = res.quota || {};
   }
 
+  async _loadHistory() {
+    const res = await this._ws({ type: "friedafetch/rules/history", entry_id: this._s.entryId, limit: this._s.historyLimit });
+    this._s.history = res.runs || [];
+    this._s.historyTotal = res.total || 0;
+  }
+
+  async _clearHistory() {
+    if (!confirm(this.t.confirmClearHistory)) return;
+    await this._call(async () => {
+      await this._ws({ type: "friedafetch/rules/history/clear", entry_id: this._s.entryId });
+      await this._loadHistory();
+    });
+  }
+
+  // ------------------------------------------------------- filter tables
+  // cols: [{ label, filter: "text" | "select" | "num" }]; rows: [[{ html, v }, ...]]
+  _filterTable(key, cols, rows, emptyText) {
+    const t = this.t;
+    if (!rows.length) return `<p class="muted">${esc(emptyText)}</p>`;
+    const f = this._s.filters[key] || {};
+    const active = Object.values(f).some((v) => v);
+    const filterCell = (c, i) => {
+      const val = f[i] || "";
+      const cls = val ? "active" : "";
+      const aria = `aria-label="${esc(t.filter + ": " + c.label)}"`;
+      if (c.filter === "select") {
+        const values = [...new Set(rows.map((r) => r[i].v).filter((v) => v !== ""))].sort((a, b) => a.localeCompare(b));
+        return `<th><select class="${cls}" data-ftable="${key}" data-col="${i}" ${aria}><option value="">${esc(c.label)}: ${esc(t.filterAll)}</option>${values
+          .map((v) => `<option value="${esc(v)}" ${v === val ? "selected" : ""}>${esc(c.label)}: ${esc(v)}</option>`)
+          .join("")}</select></th>`;
+      }
+      const ph = c.filter === "num" ? `${c.label} (${t.numPh})` : `${c.label} ${t.filterPh}`;
+      return `<th><input type="text" class="${cls}" data-ftable="${key}" data-col="${i}" data-kind="${c.filter || "text"}" value="${esc(val)}" placeholder="${esc(ph)}" ${aria}></th>`;
+    };
+    const body = rows
+      .map((r) => `<tr>${r.map((c, i) => `<td data-label="${esc(cols[i].label)}" data-v="${esc(c.v)}"${c.cls ? ` class="${c.cls}"` : ""}>${c.html}</td>`).join("")}</tr>`)
+      .join("");
+    return `<div class="ftable ${this._s.filterOpen[key] || active ? "fopen" : ""}" data-ftable-wrap="${key}">
+      <div class="fbar"><span class="muted fcount"></span><span class="grow"></span>
+        <button class="link ftoggle" data-action="filter-toggle" data-table="${key}">${esc(t.filter)}${active ? " •" : ""}</button>
+        <button class="link" data-action="filter-reset" data-table="${key}" ${active ? "" : "hidden"}>${esc(t.filterReset)}</button></div>
+      <div class="scroll"><table class="stack"><thead><tr class="head">${cols.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>
+        <tr class="filters">${cols.map(filterCell).join("")}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+  }
+
+  _applyFilters(key) {
+    const wrap = this.shadowRoot.querySelector(`[data-ftable-wrap="${key}"]`);
+    if (!wrap) return;
+    const f = this._s.filters[key] || {};
+    const kinds = {};
+    wrap.querySelectorAll("[data-ftable]").forEach((el) => (kinds[el.dataset.col] = el.tagName === "SELECT" ? "select" : el.dataset.kind));
+    const rows = [...wrap.querySelectorAll("tbody tr")];
+    let shown = 0;
+    rows.forEach((tr) => {
+      const ok = Object.entries(f).every(([col, q]) => {
+        if (!q) return true;
+        const v = tr.cells[Number(col)]?.dataset.v ?? "";
+        if (kinds[col] === "select") return v === q;
+        if (kinds[col] === "num") return numMatch(v, q);
+        return v.toLowerCase().includes(String(q).toLowerCase().trim());
+      });
+      tr.classList.toggle("fhide", !ok);
+      if (ok) shown++;
+    });
+    const active = Object.values(f).some((v) => v);
+    const count = wrap.querySelector(".fcount");
+    if (count) count.textContent = active ? fmt(this.t.filterCount, shown, rows.length) : "";
+    const reset = wrap.querySelector('[data-action="filter-reset"]');
+    if (reset) reset.hidden = !active;
+    const toggle = wrap.querySelector('[data-action="filter-toggle"]');
+    if (toggle) toggle.textContent = this.t.filter + (active ? " •" : "");
+    wrap.querySelectorAll("[data-ftable]").forEach((el) => el.classList.toggle("active", !!f[el.dataset.col]));
+  }
+
+  _renderHistory() {
+    const t = this.t;
+    const s = this._s;
+    const time = (h) => {
+      if ((h.runs || 1) > 1) {
+        const a = parseTime(h.started);
+        const b = parseTime(h.finished);
+        const sameDay = a && b && a.toDateString() === b.toDateString();
+        return `${fmtDateTime(h.started)} – ${sameDay ? fmtClock(h.finished) : fmtDateTime(h.finished)}`;
+      }
+      return fmtDateTime(h.finished || h.started);
+    };
+    const rows = s.history.map((h) => {
+      const trig = h.trigger === "auto" ? t.triggerAuto : t.triggerManual;
+      const scope = h.scope === "all" ? t.scopeAll : t.scopeNew;
+      const ruleText = Object.entries(h.rules || {})
+        .map(([name, n]) => `${name} (${n})`)
+        .join(", ");
+      const errors = (h.errors || []).length;
+      const res = errors ? t.resError : h.matched ? t.resOk : t.resIdle;
+      const timeText = time(h);
+      return [
+        { html: `<span style="white-space:nowrap">${esc(timeText)}</span>${(h.runs || 1) > 1 ? `<div class="muted">${esc(fmt(t.runsMerged, h.runs))}</div>` : ""}`, v: timeText },
+        { html: esc(trig), v: trig },
+        { html: esc(scope) + (h.mailboxes?.length ? `<div class="muted">${esc(h.mailboxes.join(", "))}</div>` : ""), v: scope },
+        { html: esc(h.checked ?? 0), v: String(h.checked ?? 0) },
+        { html: h.matched ? `<strong>${esc(h.matched)}</strong>` : "0", v: String(h.matched ?? 0) },
+        { html: ruleText ? Object.entries(h.rules).map(([n, c]) => `<span class="chip">${esc(n)} · ${esc(c)}</span>`).join("") : "–", v: ruleText },
+        {
+          html: `<span class="badge ${errors ? "warn" : ""}">${esc(res)}</span>${errors ? `<div class="muted">${esc(h.errors.join("; "))}</div>` : ""}`,
+          v: res,
+        },
+      ];
+    });
+    const cols = [
+      { label: t.colTime, filter: "text" },
+      { label: t.colTrigger, filter: "select" },
+      { label: t.colScope, filter: "select" },
+      { label: t.colChecked, filter: "num" },
+      { label: t.colMatched, filter: "num" },
+      { label: t.colRules, filter: "text" },
+      { label: t.colResult, filter: "select" },
+    ];
+    const more = s.historyTotal > s.history.length;
+    return `<div class="card">
+      <h2><span class="grow">${esc(t.history)}</span>
+        ${more ? `<button class="secondary" data-action="history-more" ${s.busy ? "disabled" : ""}>${esc(t.showMore)}</button>` : ""}
+        <button class="secondary" data-action="history-clear" ${s.busy || !s.history.length ? "disabled" : ""}>${esc(t.clearHistory)}</button></h2>
+      <p class="muted" style="margin:0 0 10px">${esc(t.historyHint)}</p>
+      ${this._filterTable("runs", cols, rows, t.noHistory)}
+    </div>`;
+  }
+
   async _clearAudit() {
     if (!confirm(this.t.confirmClear)) return;
     await this._call(async () => {
@@ -652,7 +901,13 @@ class ICloudMcpRulesPanel extends HTMLElement {
       const warn = v.limit && v.used >= v.limit * 0.8;
       return `<span class="badge ${warn ? "warn" : ""}">${esc(label)}: ${esc(lim)}</span>`;
     };
-    const who = (e) => [e.client, e.user].filter(Boolean).map(esc).join(" · ") || "–";
+    const who = (e) => {
+      if (e.tool === "icloud_run_rules" || e.client === "rules" || e.client === "rules (auto)") {
+        const trig = e.details?.trigger || e.params?.trigger || (e.client === "rules (auto)" ? "auto" : null);
+        return [t.whoRules, trig ? (trig === "auto" ? t.triggerAuto : t.triggerManual) : null, e.user].filter(Boolean).join(" · ");
+      }
+      return [e.client, e.user].filter(Boolean).join(" · ") || "–";
+    };
     const details = (e) => {
       const d = e.details || {};
       const p = e.params || {};
@@ -669,12 +924,27 @@ class ICloudMcpRulesPanel extends HTMLElement {
       if (e.error) parts.push(`<span class="muted">${esc(e.error)}</span>`);
       return parts.join(" ");
     };
-    const resBadge = (r) => `<span class="badge ${r === "ok" ? "" : "warn"}">${esc(r === "ok" ? t.resOk : r === "blocked" ? t.resBlocked : t.resError)}</span>`;
-    const rows = s.audit
-      .map(
-        (e) => `<tr><td style="white-space:nowrap">${esc(fmtDateTime(e.time))}</td><td>${who(e)}</td><td><code>${esc(e.tool)}</code></td><td>${details(e)}</td><td>${resBadge(e.result)}</td></tr>`
-      )
-      .join("");
+    const resText = (r) => (r === "ok" ? t.resOk : r === "blocked" ? t.resBlocked : t.resError);
+    const rows = s.audit.map((e) => {
+      const timeText = fmtDateTime(e.time);
+      const whoText = who(e);
+      const det = details(e);
+      const res = resText(e.result);
+      return [
+        { html: `<span style="white-space:nowrap">${esc(timeText)}</span>`, v: timeText },
+        { html: esc(whoText), v: whoText },
+        { html: `<code>${esc(e.tool)}</code>`, v: e.tool || "" },
+        { html: det, v: det.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'") },
+        { html: `<span class="badge ${e.result === "ok" ? "" : "warn"}">${esc(res)}</span>`, v: res },
+      ];
+    });
+    const cols = [
+      { label: t.colTime, filter: "text" },
+      { label: t.colWho, filter: "select" },
+      { label: t.colTool, filter: "select" },
+      { label: t.colDetails, filter: "text" },
+      { label: t.colResult, filter: "select" },
+    ];
     return `<div class="card">
       <h2><span class="grow">${esc(t.activity)}</span>
         <button class="secondary" data-action="audit-more" ${s.busy ? "disabled" : ""}>${esc(t.showMore)}</button>
@@ -682,7 +952,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       <p class="muted" style="margin:0 0 10px">${esc(t.activityHint)}</p>
       <div class="badges" style="margin-bottom:10px"><span class="muted" style="margin-right:6px">${esc(t.quota)}:</span>
         ${quotaRow("mail_modify", t.quotaMailModify)} ${quotaRow("mail_send", t.quotaMailSend)} ${quotaRow("item_delete", t.quotaItemDelete)}</div>
-      ${rows ? `<div class="scroll"><table class="stack"><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th></tr></thead><tbody>${withLabels(rows, [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult])}</tbody></table></div>` : `<p class="muted">${esc(t.noActivity)}</p>`}
+      ${this._filterTable("audit", cols, rows, t.noActivity)}
     </div>`;
   }
 
@@ -727,7 +997,6 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const t = this.t;
     const s = this._s;
     if (!s.accounts.length) return "";
-    const fmt = (str, ...args) => str.replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
     const tabs = s.accounts
       .map((a) => {
         const active = a.entry_id === s.entryId;
@@ -759,27 +1028,51 @@ class ICloudMcpRulesPanel extends HTMLElement {
 
   _renderRules() {
     const t = this.t;
-    if (!this._s.rules.length) return `<p class="muted">${esc(t.noRules)}</p>`;
-    const rows = this._s.rules
+    const s = this._s;
+    const newEditor = s.editing && !s.editing.id ? `<div class="rule open" data-rule-id="">${this._renderEditor()}</div>` : "";
+    if (!s.rules.length) return newEditor || `<p class="muted">${esc(t.noRules)}</p>`;
+    const items = s.rules
       .map((r, i) => {
         const { conds, acts } = this._summary(r);
-        return `<tr class="${r.enabled ? "" : "disabled"}">
-          <td><input type="checkbox" data-action="toggle" data-id="${r.id}" ${r.enabled ? "checked" : ""} title="${esc(t.enabled)}"></td>
-          <td><strong>${esc(r.name)}</strong><div class="muted">${esc(r.mailbox)}</div></td>
-          <td>${conds}</td>
-          <td>${acts}${r.actions.stop === false ? `<div class="muted">↓</div>` : ""}</td>
-          <td>${r.hits ?? 0}</td>
-          <td class="actions" style="white-space:nowrap">
-            <button class="icon" data-action="up" data-id="${r.id}" ${i === 0 ? "disabled" : ""} title="${esc(t.up)}">▲</button>
-            <button class="icon" data-action="down" data-id="${r.id}" ${i === this._s.rules.length - 1 ? "disabled" : ""} title="${esc(t.down)}">▼</button>
-            <button class="icon" data-action="edit" data-id="${r.id}" title="${esc(t.edit)}">✎</button>
-            <button class="icon" data-action="delete" data-id="${r.id}" title="${esc(t.remove)}">🗑</button>
-            ${this._s.accounts.length > 1 ? `<select class="copy" data-action="copy" data-id="${r.id}" title="${esc(t.copyTo)}"><option value="">${esc(t.copyTo)}</option>${this._s.accounts.filter((a) => a.entry_id !== this._s.entryId).map((a) => `<option value="${esc(a.entry_id)}">${esc(a.label)}</option>`).join("")}</select>` : ""}
-          </td></tr>`;
+        const editingThis = s.editing && s.editing.id === r.id;
+        const open = editingThis || s.expanded.has(r.id);
+        const n = r.conditions.length;
+        const meta = [r.mailbox, n === 1 ? t.oneCondition : fmt(t.nConditions, n)];
+        if (n > 1) meta.push(r.match === "any" ? t.matchAnyShort : t.matchAllShort);
+        const copy =
+          s.accounts.length > 1
+            ? `<select class="copy" data-action="copy" data-id="${esc(r.id)}" title="${esc(t.copyTo)}"><option value="">${esc(t.copyTo)}</option>${s.accounts
+                .filter((a) => a.entry_id !== s.entryId)
+                .map((a) => `<option value="${esc(a.entry_id)}">${esc(a.label)}</option>`)
+                .join("")}</select>`
+            : "";
+        const body = editingThis
+          ? this._renderEditor()
+          : open
+            ? `<div class="rule-body">
+                <div><div class="lbl">${esc(t.conditions)}</div>${conds}</div>
+                <div><div class="lbl">${esc(t.actions)}</div>${acts || `<span class="muted">${esc(t.noActions)}</span>`}${r.actions.stop === false ? `<div class="muted">↓ ${esc(t.continueRules)}</div>` : ""}</div>
+                <div class="rule-tools">
+                  <button class="secondary" data-action="edit" data-id="${esc(r.id)}" ${s.editing ? "disabled" : ""}>✎ ${esc(t.edit)}</button>
+                  <button class="icon" data-action="up" data-id="${esc(r.id)}" ${i === 0 ? "disabled" : ""} title="${esc(t.up)}" aria-label="${esc(t.up)}">▲</button>
+                  <button class="icon" data-action="down" data-id="${esc(r.id)}" ${i === s.rules.length - 1 ? "disabled" : ""} title="${esc(t.down)}" aria-label="${esc(t.down)}">▼</button>
+                  <button class="icon" data-action="delete" data-id="${esc(r.id)}" title="${esc(t.remove)}" aria-label="${esc(t.remove)}">🗑</button>
+                  ${copy}
+                </div>
+              </div>`
+            : "";
+        return `<div class="rule ${open ? "open" : ""} ${r.enabled ? "" : "disabled"}" data-rule-id="${esc(r.id)}">
+          <div class="rule-head">
+            <button class="icon chev" data-action="expand" data-id="${esc(r.id)}" aria-expanded="${open}" aria-label="${esc(r.name)}" ${editingThis ? "disabled" : ""}>▸</button>
+            <input type="checkbox" data-action="toggle" data-id="${esc(r.id)}" ${r.enabled ? "checked" : ""} title="${esc(t.enabled)}" aria-label="${esc(t.enabled)}">
+            <div class="rule-title" data-action="expand" data-id="${esc(r.id)}"><strong>${esc(r.name)}</strong><span class="muted">${esc(meta.join(" · "))}</span></div>
+            <span class="rule-side"><span class="rule-acts">${acts}</span><span class="badge" title="${esc(t.hits)}">${esc(r.hits ?? 0)} ${esc(t.hits)}</span></span>
+          </div>
+          ${body}
+        </div>`;
       })
       .join("");
-    const labelled = withLabels(rows, [t.enabled, t.name, t.conditions, t.actions, t.hits, ""]);
-    return `<div class="scroll"><table class="stack"><thead><tr><th></th><th>${esc(t.name)}</th><th>${esc(t.conditions)}</th><th>${esc(t.actions)}</th><th>${esc(t.hits)}</th><th></th></tr></thead><tbody>${labelled}</tbody></table></div>`;
+    return `<div class="rules">${newEditor}${items}</div>`;
   }
 
   _renderEditor() {
@@ -800,8 +1093,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
       .join("");
     const a = e.actions;
     const tri = (val) => (val === null || val === undefined ? "" : String(val));
-    return `<div class="card">
-      <h2>${esc(e.id ? t.edit : t.newRule)}</h2>
+    return `<div class="editor" id="editor">
+      <h3 class="title">${esc(e.id ? t.edit : t.newRule)}</h3>
       <div class="row"><label for="f-name">${esc(t.name)}</label><input type="text" id="f-name" class="grow" value="${esc(e.name)}"></div>
       <div class="row"><label for="f-mailbox">${esc(t.mailbox)}</label><select id="f-mailbox">${boxes.map((b) => opt(b, b, e.mailbox)).join("")}</select></div>
       <div class="row"><label for="f-match">${esc(t.match)}</label><select id="f-match">${opt("all", t.all, e.match)}${opt("any", t.any, e.match)}</select></div>
@@ -860,7 +1153,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       ? `${esc(t.lastRun)}: ${esc(fmtDateTime(s.lastRun.finished || s.lastRun.started))} (${esc(trig)}) · ${s.lastRun.checked} ${esc(t.checked)} · ${s.lastRun.matched} ${esc(t.matched)}`
       : `${esc(t.lastRun)}: ${esc(t.never)}`;
     const au = s.automation;
-    const fmt = (str, ...args) => str.replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
+    const allOpen = s.rules.length > 0 && s.rules.every((r) => s.expanded.has(r.id));
     let autoHtml = "";
     if (au && au.enabled) {
       const parts = [fmt(t.autoEvery, au.interval)];
@@ -880,10 +1173,11 @@ class ICloudMcpRulesPanel extends HTMLElement {
       ${s.notice ? `<div class="ok">${esc(s.notice)}</div>` : ""}
       ${this._renderAccounts()}
       <div class="card">
-        <h2><span class="grow">${esc(t.rules)}${this._account() ? ` <span class="chip">${esc(this._account().label)}</span>` : ""}</span><button data-action="new" ${s.editing ? "disabled" : ""}>+ ${esc(t.newRule)}</button></h2>
+        <h2><span class="grow">${esc(t.rules)}${this._account() ? ` <span class="chip">${esc(this._account().label)}</span>` : ""}</span>
+          ${s.rules.length > 1 ? `<button class="secondary" data-action="expand-all" data-open="${allOpen ? "0" : "1"}">${esc(allOpen ? t.collapseAll : t.expandAll)}</button>` : ""}
+          <button data-action="new" ${s.editing ? "disabled" : ""}>+ ${esc(t.newRule)}</button></h2>
         ${this._renderRules()}
       </div>
-      ${this._renderEditor()}
       <div class="card">
         <h2><span class="grow">${esc(t.run)}</span><span class="muted">${last}</span></h2>
         ${autoHtml}
@@ -894,6 +1188,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
         </div>
       </div>
       ${this._renderReport()}
+      ${this._renderHistory()}
       ${this._renderApprovals()}
       ${this._renderActivity()}`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style>
@@ -905,6 +1200,35 @@ class ICloudMcpRulesPanel extends HTMLElement {
       menu.narrow = this._narrow;
     }
     this._bind();
+    ["runs", "audit"].forEach((key) => this._applyFilters(key));
+    this._afterRender();
+  }
+
+  // Brings a freshly opened editor or a just-saved rule into view.
+  _afterRender() {
+    const root = this.shadowRoot;
+    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (this._s.focusEditor) {
+      this._s.focusEditor = false;
+      const ed = root.querySelector("#editor");
+      if (ed) {
+        requestAnimationFrame(() => {
+          ed.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+          root.querySelector("#f-name")?.focus({ preventScroll: true });
+        });
+      }
+    } else if (this._s.scrollTo) {
+      const id = this._s.scrollTo;
+      this._s.scrollTo = null;
+      const el = [...root.querySelectorAll(".rule[data-rule-id]")].find((n) => n.dataset.ruleId === id);
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "nearest" });
+          el.classList.add("flash");
+          setTimeout(() => el.classList.remove("flash"), 1600);
+        });
+      }
+    }
   }
 
   _bind() {
@@ -914,13 +1238,42 @@ class ICloudMcpRulesPanel extends HTMLElement {
       const handler = {
         new: () => {
           this._s.editing = this._blankRule();
+          this._s.focusEditor = true;
           this._render();
         },
         edit: () => {
           const rule = this._s.rules.find((r) => r.id === el.dataset.id);
           this._s.editing = JSON.parse(JSON.stringify(rule));
+          this._s.focusEditor = true;
           this._render();
         },
+        expand: () => {
+          const id = el.dataset.id;
+          if (this._s.editing && this._s.editing.id === id) return;
+          if (this._s.expanded.has(id)) this._s.expanded.delete(id);
+          else this._s.expanded.add(id);
+          this._render();
+        },
+        "expand-all": () => {
+          this._s.expanded = el.dataset.open === "1" ? new Set(this._s.rules.map((r) => r.id)) : new Set();
+          this._render();
+        },
+        "filter-toggle": () => {
+          const key = el.dataset.table;
+          this._s.filterOpen[key] = !this._s.filterOpen[key];
+          this.shadowRoot.querySelector(`[data-ftable-wrap="${key}"]`)?.classList.toggle("fopen", this._s.filterOpen[key]);
+        },
+        "filter-reset": () => {
+          const key = el.dataset.table;
+          this._s.filters[key] = {};
+          this.shadowRoot.querySelectorAll(`[data-ftable="${key}"]`).forEach((f) => (f.value = ""));
+          this._applyFilters(key);
+        },
+        "history-more": () => {
+          this._s.historyLimit = Math.min(200, this._s.historyLimit + 50);
+          this._call(() => this._loadHistory());
+        },
+        "history-clear": () => this._clearHistory(),
         delete: () => this._delete(el.dataset.id),
         up: () => this._move(el.dataset.id, -1),
         down: () => this._move(el.dataset.id, 1),
@@ -936,7 +1289,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
         },
         save: () => this._save(),
         cancel: () => {
+          const id = this._s.editing?.id;
           this._s.editing = null;
+          if (id) this._s.scrollTo = id;
           this._render();
         },
         run: () => this._run(el.dataset.scope, el.dataset.dry === "1"),
@@ -957,6 +1312,14 @@ class ICloudMcpRulesPanel extends HTMLElement {
       } else if (handler) {
         el.addEventListener("click", handler);
       }
+    });
+    root.querySelectorAll("[data-ftable]").forEach((el) => {
+      const update = () => {
+        const key = el.dataset.ftable;
+        this._s.filters[key] = { ...(this._s.filters[key] || {}), [el.dataset.col]: el.value };
+        this._applyFilters(key);
+      };
+      el.addEventListener(el.tagName === "SELECT" ? "change" : "input", update);
     });
   }
 }

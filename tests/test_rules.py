@@ -343,3 +343,97 @@ async def test_timer_ticks_are_visible(hass: HomeAssistant, mock_discover: Async
     automation = msg["result"]["automation"]
     assert automation["enabled"] and automation["interval"] == 5 and automation["next_run"]
     assert automation["last_check"]["result"] == "ran" and automation["idle_reason"] is None
+
+
+async def test_run_history_merges_idle_auto_runs(hass: HomeAssistant) -> None:
+    mail = _mail([11, 12], [NEWSLETTER, BOSS])
+    audit = MagicMock()
+    audit.async_record = AsyncMock()
+    engine = RuleEngine(hass, "entry-history", mail, audit=audit)
+    await engine.async_create(
+        {
+            "name": "News",
+            "conditions": [{"field": "from", "op": "domain", "value": "shop.example.com"}],
+            "actions": {"mark_seen": True},
+        }
+    )
+    await engine.async_run(scope="new", trigger="auto")  # baseline
+    await engine.async_run(scope="new", trigger="auto")  # idle
+    await engine.async_run(scope="new", trigger="auto")  # idle, merged
+    await engine.async_run(scope="all", dry_run=True)  # previews are not recorded
+    history = engine.history()
+    assert len(history) == 1 and history[0]["idle"] and history[0]["runs"] == 3
+
+    # a run with hits starts a new entry and is written to the activity log with its trigger
+    mail.async_search_uids.return_value = [11, 12, 13]
+    mail.async_summaries.side_effect = lambda box, wanted: [
+        s for s in [NEWSLETTER, BOSS, dict(NEWSLETTER, uid=13)] if s["uid"] in wanted
+    ]
+    await engine.async_run(scope="new", trigger="auto")
+    await engine.async_run(scope="new", trigger="auto")  # idle again: new merged entry
+    history = engine.history()
+    assert [h["runs"] for h in history] == [1, 1, 3]
+    assert history[1]["matched"] == 1 and history[1]["rules"] == {"News": 1} and history[1]["trigger"] == "auto"
+    audit.async_record.assert_awaited_once()
+    kwargs = audit.async_record.await_args.kwargs
+    assert kwargs["client"] == "rules (auto)" and kwargs["details"]["trigger"] == "auto"
+
+    # manual runs are never merged and the history survives a reload
+    await engine.async_run(scope="new")
+    await engine.async_run(scope="new")
+    assert [h["trigger"] for h in engine.history()][:2] == ["manual", "manual"]
+    await hass.async_block_till_done()
+    reloaded = RuleEngine(hass, "entry-history", mail)
+    await reloaded.async_load()
+    assert len(reloaded.history(200)) == 5
+    await reloaded.async_clear_history()
+    assert reloaded.history() == []
+
+
+async def test_run_history_records_errors(hass: HomeAssistant) -> None:
+    from custom_components.friedafetch.mail import MailError
+
+    mail = _mail([11], [NEWSLETTER])
+    mail.async_search_uids.side_effect = MailError("IMAP timeout")
+    audit = MagicMock()
+    audit.async_record = AsyncMock()
+    engine = RuleEngine(hass, "entry-history-err", mail, audit=audit)
+    await engine.async_create(
+        {
+            "name": "News",
+            "conditions": [{"field": "from", "op": "domain", "value": "shop.example.com"}],
+            "actions": {"mark_seen": True},
+        }
+    )
+    await engine.async_run(scope="new", trigger="auto")
+    await engine.async_run(scope="new", trigger="auto")
+    history = engine.history()
+    assert len(history) == 2 and history[0]["errors"] == ["IMAP timeout"] and not history[0]["idle"]
+    # failed automatic runs show up in the activity log even without hits
+    assert audit.async_record.await_count == 2
+    assert audit.async_record.await_args.kwargs["result"] == "error"
+
+
+async def test_history_websocket(hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=APPLE_ID,
+        data={CONF_APPLE_ID: APPLE_ID, CONF_APP_PASSWORD: APP_PASSWORD},
+        options={"rules_auto": False},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    rules = entry.runtime_data.rules
+    rules._history = [
+        {"id": 1, "trigger": "auto", "matched": 0, "idle": True, "runs": 4},
+        {"id": 2, "trigger": "manual", "matched": 2, "idle": False, "runs": 1},
+    ]
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "friedafetch/rules/history", "entry_id": entry.entry_id, "limit": 1})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["total"] == 2
+    assert [r["id"] for r in msg["result"]["runs"]] == [2]
+    await ws.send_json({"id": 2, "type": "friedafetch/rules/history/clear", "entry_id": entry.entry_id})
+    msg = await ws.receive_json()
+    assert msg["success"] and rules.history() == []

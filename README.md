@@ -216,7 +216,10 @@ Rules only run while Home Assistant is running; nothing happens on the phone wit
 
 The integration adds **"Frieda"** to the Home Assistant sidebar (admins only, German/English following the HA
 language). Rules can be created, edited, reordered, enabled/disabled and deleted; dry runs and real runs show a
-per-message report. Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel is optimised for phones (stacked cards instead of tables, large touch targets, approvals with one tap in
+per-message report. Rules are listed compactly and expand on click (or all at once); a new rule opens its editor
+in place and scrolls it into view. The "Runs" card lists every manual and automatic run (consecutive automatic runs
+without hits are merged), and the "Runs" and "Activity" tables can be filtered per column (text, selection, or
+numbers such as `>0`). Accounts are shown as cards with rule counts, hit totals, automation state and last run; one click switches between them, and rules can be copied to another account. The panel is optimised for phones (stacked cards instead of tables, large touch targets, approvals with one tap in
 the Home Assistant companion app), has no external dependencies and talks to the integration via WebSocket commands
 (`friedafetch/rules/*`, `friedafetch/approvals/*`, `friedafetch/audit/*`).
 
@@ -230,7 +233,7 @@ the Home Assistant companion app), has no external dependencies and talks to the
   and deleted events/contacts/notes; a recipient policy for sending (any address, known contacts, or an allowlist of
   addresses/domains) with a recipient cap and optional BCC ban; protected calendars and mailboxes that AI clients may
   only read, and hidden mailboxes that are not exposed at all. Blocked calls return `code: "blocked"`.
-- **Activity log:** every writing tool call and every rule run is recorded (time, client, Home Assistant user, tool,
+- **Activity log:** every writing tool call and every rule run with hits or errors (marked manual or automatic) is recorded (time, client, Home Assistant user, tool,
   shortened parameters without message bodies, result) in the "Activity" card of the panel and fired as the event
   `friedafetch_action`, so an automation can notify you, e.g. when more than ten mails are deleted at once.
 - **Approvals (human in the loop, options → Approvals):** sending, deleting and mass mail actions above a threshold

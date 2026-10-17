@@ -59,6 +59,8 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         ws_audit_clear,
         ws_approvals_list,
         ws_approvals_decide,
+        ws_rules_history,
+        ws_rules_history_clear,
     ):
         websocket_api.async_register_command(hass, command)
     await panel_custom.async_register_panel(
@@ -225,6 +227,35 @@ async def ws_rules_delete(hass: HomeAssistant, connection: websocket_api.ActiveC
     _, rules = _engine(hass, msg.get("entry_id"))
     await rules.async_delete(msg["rule_id"])
     connection.send_result(msg["id"], {"deleted": True})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/rules/history", vol.Optional("entry_id"): str, vol.Optional("limit"): int}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_rules_history(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Return the latest rule runs (manual and automatic), newest first."""
+    _, rules = _engine(hass, msg.get("entry_id"))
+    await rules.async_load()
+    limit = max(1, min(int(msg.get("limit") or 50), 200))
+    connection.send_result(msg["id"], {"runs": rules.history(limit), "total": len(rules.history(200))})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/rules/history/clear", vol.Optional("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_rules_history_clear(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Clear the run history of an account."""
+    _, rules = _engine(hass, msg.get("entry_id"))
+    await rules.async_clear_history()
+    connection.send_result(msg["id"], {"cleared": True})
 
 
 @websocket_api.websocket_command(

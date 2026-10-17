@@ -30,6 +30,7 @@ MATCH_MODES = ("all", "any")
 MAX_RULES = 100
 MAX_SCAN_ALL = 2000  # newest messages inspected for scope="all"
 _SUMMARY_CHUNK = 200
+HISTORY_MAX = 200  # stored runs per account
 
 
 class RuleError(Exception):
@@ -196,6 +197,9 @@ class RuleEngine:
         self.auto_interval: int | None = None
         self.next_run: str | None = None
         self.last_check: dict[str, Any] | None = None
+        # run history (newest last); consecutive empty automatic runs are merged into one entry
+        self._history: list[dict[str, Any]] = []
+        self._history_seq = 0
 
     # ------------------------------------------------------------ storage
     async def async_load(self) -> None:
@@ -206,6 +210,8 @@ class RuleEngine:
         self._last_uid = {k: int(v) for k, v in (data.get("last_uid") or {}).items()}
         self.last_run = data.get("last_run")
         self.last_check = data.get("last_check")
+        self._history = list(data.get("history") or [])[-HISTORY_MAX:]
+        self._history_seq = int(data.get("history_seq") or len(self._history))
         self._loaded = True
 
     def _data(self) -> dict[str, Any]:
@@ -214,6 +220,8 @@ class RuleEngine:
             "last_uid": self._last_uid,
             "last_run": self.last_run,
             "last_check": self.last_check,
+            "history": self._history,
+            "history_seq": self._history_seq,
         }
 
     async def _save(self) -> None:
@@ -362,25 +370,71 @@ class RuleEngine:
                 self.last_run = {k: v for k, v in report.items() if k != "actions"} | {
                     "actions": len(report["actions"])
                 }
+                self._add_history(report, mailboxes)
                 await self._save()
-            if self._audit is not None and not dry_run and report["matched"]:
+            if self._audit is not None and not dry_run and (report["matched"] or report["errors"]):
                 try:
                     await self._audit.async_record(
                         tool="icloud_run_rules",
                         action="rules",
-                        params={"scope": scope, "mailboxes": mailboxes},
+                        params={"scope": scope, "mailboxes": mailboxes, "trigger": trigger},
                         result="ok" if not report["errors"] else "error",
-                        client="rules",
+                        client="rules (auto)" if trigger == "auto" else "rules",
                         error="; ".join(e.get("error", "") for e in report["errors"]) or None,
                         details={
                             "checked": report["checked"],
                             "matched": report["matched"],
                             "actions": len(report["actions"]),
+                            "trigger": trigger,
                         },
                     )
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Audit logging of rule run failed: %s", err)
             return report
+
+    def _add_history(self, report: dict[str, Any], mailboxes: list[str]) -> None:
+        """Append a finished run to the history; idle automatic runs are merged."""
+        uids_per_rule: dict[str, set[Any]] = {}
+        for act in report["actions"]:
+            uids_per_rule.setdefault(act["rule"], set()).add((act.get("mailbox"), act["uid"]))
+        per_rule = {name: len(uids) for name, uids in uids_per_rule.items()}
+        idle = report["trigger"] == "auto" and not report["matched"] and not report["errors"]
+        last = self._history[-1] if self._history else None
+        if idle and last is not None and last.get("idle") and last.get("scope") == report["scope"]:
+            last["runs"] = int(last.get("runs") or 1) + 1
+            last["finished"] = report["finished"]
+            last["checked"] = int(last.get("checked") or 0) + report["checked"]
+            return
+        self._history_seq += 1
+        self._history.append(
+            {
+                "id": self._history_seq,
+                "started": report["started"],
+                "finished": report["finished"],
+                "trigger": report["trigger"],
+                "scope": report["scope"],
+                "mailboxes": mailboxes,
+                "checked": report["checked"],
+                "matched": report["matched"],
+                "actions": len(report["actions"]),
+                "rules": per_rule,
+                "errors": [e.get("error", "") for e in report["errors"]][:5],
+                "skipped": len(report["skipped"]),
+                "idle": idle,
+                "runs": 1,
+            }
+        )
+        if len(self._history) > HISTORY_MAX:
+            del self._history[: len(self._history) - HISTORY_MAX]
+
+    def history(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return the newest runs first."""
+        return list(reversed(self._history[-max(1, limit) :]))
+
+    async def async_clear_history(self) -> None:
+        await self.async_load()
+        self._history = []
+        await self._save()
 
     async def _run_mailbox(
         self,

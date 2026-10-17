@@ -798,6 +798,7 @@ class ListRules(RuleTool):
             "rules": await self.rules.async_list(),
             "last_run": self.rules.last_run,
             "automation": self.rules.automation_status(),
+            "recent_runs": self.rules.history(10),
         }
 
 

@@ -277,7 +277,11 @@ Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Ve
 Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„Frieda“** an (nur für Admins; Deutsch
 oder Englisch je nach HA-Sprache).
 Dort lassen sich Regeln anlegen, bearbeiten, sortieren, ein- und ausschalten und löschen, außerdem Probelauf und
-Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Konten erscheinen als Karten mit Regelanzahl,
+Ausführung starten; der Bericht zeigt pro Mail, welche Regel greift und was passiert. Regeln erscheinen kompakt und
+klappen per Klick auf (oder alle auf einmal); eine neue Regel öffnet ihren Editor direkt an Ort und Stelle und
+springt dorthin. Die Karte „Ausführungen“ zeigt jeden manuellen und automatischen Lauf (aufeinanderfolgende
+automatische Läufe ohne Treffer werden zusammengefasst); die Tabellen „Ausführungen“ und „Aktivität“ lassen sich pro
+Spalte filtern (Text, Auswahl oder Zahlen wie `>0`). Konten erscheinen als Karten mit Regelanzahl,
 Treffern, Automatik-Status und letztem Lauf; ein Klick wechselt das Konto, Regeln lassen sich in ein anderes Konto
 kopieren. Das Panel ist für Smartphones optimiert (gestapelte Karten statt Tabellen, große Touch-Flächen, Freigaben mit einem
 Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle
@@ -294,7 +298,8 @@ Tipp in der Companion-App), kommt ohne externe Bibliotheken aus und spricht übe
   bekannte Kontakte oder eine Allowlist aus Adressen/Domains) mit Empfänger-Obergrenze und optionalem BCC-Verbot;
   geschützte Kalender und Postfächer, die KI-Clients nur lesen dürfen, sowie verborgene Postfächer, die gar nicht
   angeboten werden. Blockierte Aufrufe liefern `code: "blocked"`.
-- **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf wird mit Zeit, Client, HA-Benutzer, Tool,
+- **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf mit Treffern oder Fehlern (markiert als
+  manuell oder automatisch) wird mit Zeit, Client, HA-Benutzer, Tool,
   gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Aktivität“ des Panels protokolliert und als
   Ereignis `friedafetch_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
 - **Freigaben (Human-in-the-Loop, Optionen → Freigaben):** Senden, Löschen und Mail-Massenaktionen oberhalb einer
