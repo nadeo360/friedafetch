@@ -15,6 +15,7 @@ Claude, ChatGPT-Connectors oder lokale Agenten ausgeliefert. Sie stehen außerde
 | Kontakte  | CardDAV            | Kontakte suchen (Name, Mail, Telefon, Firma …), lesen | Kontakt anlegen, ändern, löschen                    |
 | E-Mail    | IMAP + SMTP        | Postfächer, Suche/Filter, Mail lesen (Text, Anhänge-Liste) | Senden/Antworten, gelesen/markiert, verschieben, Papierkorb |
 | Notizen   | IMAP-Ordner `Notes`| Notizen auflisten/suchen/lesen          | Notiz anlegen, ändern, löschen                                |
+| Regeln    | HA-Storage + IMAP  | Posteingangsregeln auflisten            | Regeln anlegen/ändern/löschen, automatisch oder auf Abruf ausführen |
 
 ### Wichtiger Hinweis zu Notizen
 
@@ -75,6 +76,8 @@ und Home Assistant neu starten.
 | Löschen erlauben             | Versteckt alle `icloud_delete_*`-Tools, wenn deaktiviert                |
 | Standard-Maximalanzahl       | Standard-Limit für Listen (1–200)                                       |
 | Absenderadresse              | `From:` für ausgehende Mails (Standard: Apple-ID; muss ein iCloud-Alias sein) |
+| Regeln automatisch anwenden  | Posteingangsregeln periodisch auf neue Mails anwenden (Standard: an)        |
+| Intervall für Regeln         | Minuten zwischen zwei automatischen Läufen (Standard 5, 1–240)              |
 
 Alle Tools tragen MCP-Annotations (`readOnlyHint`, `destructiveHint`), sodass Clients im „nur lesen“-Modus die
 schreibenden Tools automatisch weglassen.
@@ -183,6 +186,11 @@ aus seiner Entry-ID (`icloud_list_events_1a2b3c4d`); die Tool-Beschreibung nennt
 | `icloud_mark_mail`       | gelesen/ungelesen, markiert/unmarkiert – eine oder viele UIDs (`uids`) auf einmal |
 | `icloud_move_mail`       | In anderen Ordner verschieben – eine oder viele UIDs mit einem IMAP-Befehl   |
 | `icloud_delete_mail`     | In den Papierkorb (bzw. endgültig, wenn schon im Papierkorb) – eine oder viele UIDs |
+| `icloud_list_rules`      | Posteingangsregeln inkl. Trefferzähler und letztem Lauf                      |
+| `icloud_create_rule`     | Regel anlegen (Bedingungen + Aktionen)                                        |
+| `icloud_update_rule`     | Regel ändern, aktivieren/deaktivieren, umsortieren                            |
+| `icloud_delete_rule`     | Regel löschen                                                                |
+| `icloud_run_rules`       | Regeln jetzt anwenden (`scope` all/new, `dry_run` zeigt nur an)              |
 | `icloud_list_notes`      | Notizen auflisten/suchen                                                     |
 | `icloud_get_note`        | Notiz lesen                                                                  |
 | `icloud_create_note`     | Notiz anlegen                                                                |
@@ -195,6 +203,32 @@ einer pro Mail.
 
 Zeitangaben sind ISO 8601; Zeiten ohne Zeitzone werden in der Home-Assistant-Zeitzone interpretiert. Ganztägige
 Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusiv**.
+
+## Posteingangsregeln
+
+iCloud bietet keine Schnittstelle für seine serverseitigen Mail-Regeln. Die Integration führt deshalb **eigene
+Regeln** aus, die in Home Assistant gespeichert werden (`.storage/icloud_mcp.rules.<entry>`):
+
+- **Bedingungen** auf `from`, `to`, `cc`, `subject` oder `any` mit `contains`, `equals`, `starts_with`, `ends_with`,
+  `domain` (Absender-Domain inkl. Subdomains) oder `regex`; Verknüpfung `all` (Standard) oder `any`.
+- **Aktionen:** `move_to` (Ordner), `mark_seen`, `flag`, `delete` (Papierkorb) und `stop` (Standard: weitere Regeln
+  für diese Mail überspringen). Löschen über Regeln ist nur erlaubt, wenn die Option „Löschen erlauben“ aktiv ist.
+- **Automatik:** Standardmäßig alle 5 Minuten, nur für **neue** Mails seit dem letzten Lauf. Beim allerersten Lauf wird
+  nur die Ausgangsbasis gesetzt; Bestandsmails werden nicht angefasst. Dafür gibt es `icloud_run_rules` mit
+  `scope: "all"` (prüft die neuesten bis zu 2000 Mails) und `dry_run: true` zum Vorschauen.
+- **Ausführung:** Treffer werden pro Aktion gesammelt und mit den Batch-Befehlen in wenigen IMAP-Kommandos erledigt.
+
+Beispiel-Regel (als Tool-Aufruf):
+
+```json
+{
+  "name": "Newsletter archivieren",
+  "conditions": [{"field": "from", "op": "domain", "value": "newsletter.example.com"}],
+  "actions": {"move_to": "Archive", "mark_seen": true}
+}
+```
+
+Die Regeln greifen nur, solange Home Assistant läuft; auf dem iPhone ohne HA-Verbindung passiert nichts.
 
 ## Technik
 

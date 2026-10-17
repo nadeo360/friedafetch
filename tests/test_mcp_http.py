@@ -94,7 +94,7 @@ async def test_tools_list(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
     client = await hass_client()
     data = await _rpc(client, "tools/list")
     tools = {tool["name"]: tool for tool in data["result"]["tools"]}
-    assert len(tools) == 23
+    assert len(tools) == 28
     assert "icloud_list_calendars" in tools
     assert "icloud_delete_mail" in tools
 
@@ -239,7 +239,7 @@ async def test_unload_disables_endpoint(hass: HomeAssistant, entry: MockConfigEn
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     data = await _rpc(client, "tools/list")
-    assert len(data["result"]["tools"]) == 23
+    assert len(data["result"]["tools"]) == 28
 
 
 async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: AsyncMock, hass_client) -> None:
@@ -248,7 +248,7 @@ async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: Asyn
     client = await hass_client()
     data = await _rpc(client, "tools/list")
     tools = {tool["name"]: tool for tool in data["result"]["tools"]}
-    assert len(tools) == 46
+    assert len(tools) == 56
     suffix = f"_{second.entry_id[:8]}"
     assert "icloud_list_calendars" in tools
     assert f"icloud_list_calendars{suffix}" in tools
