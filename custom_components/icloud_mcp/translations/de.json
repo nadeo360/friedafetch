@@ -36,7 +36,16 @@
     "step": {
       "init": {
         "title": "iCloud-MCP-Optionen",
-        "description": "Lege fest, welche Tool-Gruppen der MCP-Server bereitstellt und welche schreibenden Aktionen erlaubt sind.",
+        "description": "Wähle einen Bereich.",
+        "menu_options": {
+          "tools": "Tools und Konto",
+          "security": "Sicherheit und Leitplanken",
+          "rules": "Posteingangsregeln"
+        }
+      },
+      "tools": {
+        "title": "Tools und Konto",
+        "description": "Lege fest, welche Tool-Gruppen bereitstehen und welche schreibenden Aktionen erlaubt sind.",
         "data": {
           "enable_calendar": "Kalender-Tools",
           "enable_contacts": "Kontakt-Tools",
@@ -46,14 +55,48 @@
           "allow_send_mail": "Senden von E-Mails erlauben",
           "allow_delete": "Löschen von Terminen, Kontakten, E-Mails und Notizen erlauben",
           "max_results": "Standard-Maximalanzahl an Ergebnissen",
-          "from_address": "Absenderadresse für ausgehende E-Mails",
-          "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
-          "rules_interval": "Intervall für automatische Regeln (Minuten)",
-          "account_label": "Kontobezeichnung (für Tool-Namen bei mehreren Konten)"
+          "account_label": "Kontobezeichnung (für Tool-Namen bei mehreren Konten)",
+          "from_address": "Absenderadresse für ausgehende E-Mails"
         },
         "data_description": {
           "account_label": "Kurzname wie privat oder arbeit. Bei mehr als einem iCloud-Konto erhalten die Tools weiterer Konten dieses Suffix, z. B. icloud_list_events_arbeit. Standard: lokaler Teil der Apple-ID."
         }
+      },
+      "security": {
+        "title": "Sicherheit und Leitplanken",
+        "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Aktivitätsprotokoll des Panels „iCloud Regeln“ und als Ereignis icloud_mcp_action.",
+        "data": {
+          "limit_mail_modify": "Mails verschieben/löschen/markieren pro Stunde (0 = unbegrenzt)",
+          "limit_mail_send": "Gesendete Mails pro Stunde (0 = unbegrenzt)",
+          "limit_item_delete": "Gelöschte Termine/Kontakte/Notizen pro Stunde (0 = unbegrenzt)",
+          "send_policy": "Empfänger-Richtlinie beim Senden",
+          "send_allowlist": "Erlaubte Adressen oder Domains (kommagetrennt)",
+          "send_max_recipients": "Maximale Empfänger pro Mail (0 = unbegrenzt)",
+          "send_allow_bcc": "BCC erlauben",
+          "protected_calendars": "Geschützte Kalender (nur lesen)",
+          "protected_mailboxes": "Geschützte Postfächer (nur lesen, keine Regeln)",
+          "hidden_mailboxes": "Verborgene Postfächer (für die KI unsichtbar)"
+        },
+        "data_description": {
+          "send_policy": "„Beliebig“: jede Adresse. „Kontakte“: nur Adressen aus den iCloud-Kontakten oder der Allowlist. „Allowlist“: nur die Allowlist.",
+          "send_allowlist": "z. B. familie@example.com, example.org"
+        }
+      },
+      "rules": {
+        "title": "Posteingangsregeln",
+        "data": {
+          "rules_auto": "Posteingangsregeln automatisch auf neue E-Mails anwenden",
+          "rules_interval": "Intervall für automatische Regeln (Minuten)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "send_policy": {
+      "options": {
+        "any": "Beliebig",
+        "contacts": "Kontakte oder Allowlist",
+        "allowlist": "Nur Allowlist"
       }
     }
   }

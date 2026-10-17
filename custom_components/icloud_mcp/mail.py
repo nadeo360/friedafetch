@@ -20,7 +20,7 @@ from typing import Any
 import aioimaplib
 import aiosmtplib
 
-from .util import html_to_text, text_to_html
+from .util import UNTRUSTED_NOTICE, detect_injection, html_to_text, sanitize_text, text_to_html
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -245,10 +245,19 @@ def parse_fetch(lines: list[Any]) -> list[FetchItem]:
 
 def _message_summary(item: FetchItem, msg: Message, mailbox: str) -> dict[str, Any]:
     flags = item.flags or []
+    summary = _summary_fields(item, msg, mailbox, flags)
+    warnings = detect_injection(summary["subject"], *(a.get("name") for a in summary["from"]))
+    if warnings:
+        summary["suspicious"] = True
+        summary["warnings"] = warnings
+    return summary
+
+
+def _summary_fields(item: FetchItem, msg: Message, mailbox: str, flags: list[str]) -> dict[str, Any]:
     return {
         "uid": item.uid,
         "mailbox": mailbox,
-        "subject": header_text(msg, "Subject") or "",
+        "subject": sanitize_text(header_text(msg, "Subject")),
         "from": _addresses(msg, "From"),
         "to": _addresses(msg, "To"),
         "cc": _addresses(msg, "Cc"),
@@ -650,7 +659,14 @@ class ICloudMail:
         item, msg = await self.async_fetch_raw(mailbox, uid)
         result = _message_summary(item, msg, mailbox)
         body, ctype, attachments = extract_body(msg, prefer_html=prefer_html)
+        body = sanitize_text(body)
         truncated = len(body) > max_chars
+        warnings = list(result.get("warnings") or [])
+        warnings += [w for w in detect_injection(body[: max(max_chars, 20000)]) if w not in warnings]
+        if warnings:
+            result["suspicious"] = True
+            result["warnings"] = warnings
+        result["content_notice"] = UNTRUSTED_NOTICE
         result.update(
             {
                 "body": body[:max_chars],

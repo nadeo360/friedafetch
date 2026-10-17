@@ -21,6 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import client_context
 
 from .accounts import account_label
+from .audit import AuditLog
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
 from .const import (
@@ -53,6 +54,7 @@ from .const import (
 )
 from .dav import DavAuthError, DavClient, DavError
 from .frontend import async_remove_frontend, async_setup_frontend
+from .guard import Guard
 from .llm_api import ICloudClients, ICloudLLMAPI
 from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
@@ -108,8 +110,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
 
     # inbox rules (stored in HA, applied by this integration)
     opts = entry.options
+    clients.guard = Guard(dict(opts))
+    audit = AuditLog(hass, entry.entry_id, entry.data[CONF_APPLE_ID])
+    await audit.async_load()
+    clients.audit = audit
     rules = RuleEngine(
-        hass, entry.entry_id, clients.mail, allow_delete=opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE)
+        hass,
+        entry.entry_id,
+        clients.mail,
+        allow_delete=opts.get(CONF_ALLOW_DELETE, DEFAULT_ALLOW_DELETE),
+        guard=clients.guard,
+        audit=audit,
     )
     await rules.async_load()
     clients.rules = rules

@@ -28,7 +28,7 @@ from .mail import (
     parse_fetch,
     parse_message,
 )
-from .util import text_to_html
+from .util import UNTRUSTED_NOTICE, detect_injection, sanitize_text, text_to_html
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class ICloudNotes:
         return {
             "uid": item.uid,
             "note_id": note_uid,
-            "title": header_text(msg, "Subject") or "(untitled)",
+            "title": sanitize_text(header_text(msg, "Subject")) or "(untitled)",
             "created": created,
             "modified": _parse_date(header_text(msg, "Date")) or created,
         }
@@ -117,7 +117,11 @@ class ICloudNotes:
         item, msg = await self._mail.async_fetch_raw(self._mailbox, uid)
         result = self._summary(item, msg)
         body, ctype, _ = extract_body(msg)
-        result["body"] = body
+        result["body"] = sanitize_text(body)
+        if warnings := detect_injection(result["title"], result["body"]):
+            result["suspicious"] = True
+            result["warnings"] = warnings
+        result["content_notice"] = UNTRUSTED_NOTICE
         return result
 
     def _build(self, title: str, body: str, note_id: str | None = None, created: datetime | None = None) -> bytes:

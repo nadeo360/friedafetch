@@ -170,9 +170,20 @@ class Rule:
 class RuleEngine:
     """Stores rules in HA storage and applies them to mailboxes."""
 
-    def __init__(self, hass: HomeAssistant, entry_id: str, mail: ICloudMail, *, allow_delete: bool = True) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry_id: str,
+        mail: ICloudMail,
+        *,
+        allow_delete: bool = True,
+        guard: Any | None = None,
+        audit: Any | None = None,
+    ) -> None:
         self._hass = hass
         self._mail = mail
+        self._guard = guard
+        self._audit = audit
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.rules.{entry_id}")
         self._rules: list[Rule] = []
         self._last_uid: dict[str, int] = {}
@@ -250,6 +261,13 @@ class RuleEngine:
             return
         if rule.mailbox not in boxes:
             raise RuleError(f"Mailbox '{rule.mailbox}' does not exist")
+        if self._guard is not None:
+            try:
+                self._guard.check_mailbox_writable(rule.mailbox)
+                if rule.actions.move_to:
+                    self._guard.check_mailbox_visible(rule.actions.move_to)
+            except Exception as err:  # noqa: BLE001 - PolicyError lives in guard.py
+                raise RuleError(str(err)) from err
         if rule.actions.move_to and rule.actions.move_to not in boxes:
             raise RuleError(f"Target mailbox '{rule.actions.move_to}' does not exist (see icloud_list_mailboxes)")
 
@@ -286,6 +304,12 @@ class RuleEngine:
             }
             for box in mailboxes:
                 box_rules = [r for r in rules if r.mailbox == box]
+                if self._guard is not None:
+                    try:
+                        self._guard.check_mailbox_writable(box)
+                    except Exception as err:  # noqa: BLE001
+                        report["skipped"].append({"mailbox": box, "code": "protected", "reason": str(err)})
+                        continue
                 try:
                     await self._run_mailbox(box, box_rules, scope, dry_run, limit, report)
                 except (MailError, MailboxNotFound) as err:
@@ -294,6 +318,23 @@ class RuleEngine:
                 await self._save()
             report["finished"] = _now_iso()
             self.last_run = {k: v for k, v in report.items() if k != "actions"} | {"actions": len(report["actions"])}
+            if self._audit is not None and not dry_run and report["matched"]:
+                try:
+                    await self._audit.async_record(
+                        tool="icloud_run_rules",
+                        action="rules",
+                        params={"scope": scope, "mailboxes": mailboxes},
+                        result="ok" if not report["errors"] else "error",
+                        client="rules",
+                        error="; ".join(e.get("error", "") for e in report["errors"]) or None,
+                        details={
+                            "checked": report["checked"],
+                            "matched": report["matched"],
+                            "actions": len(report["actions"]),
+                        },
+                    )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Audit logging of rule run failed: %s", err)
             return report
 
     async def _run_mailbox(

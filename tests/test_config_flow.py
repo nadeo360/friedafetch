@@ -116,8 +116,11 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
     await hass.async_block_till_done()
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
+    assert result["type"] is FlowResultType.MENU
+    assert set(result["menu_options"]) == {"tools", "security", "rules"}
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "tools"})
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "tools"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -129,6 +132,7 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
             "allow_send_mail": True,
             "allow_delete": False,
             CONF_MAX_RESULTS: 20.0,
+            "account_label": "Privat Konto",
             CONF_FROM_ADDRESS: "",
         },
     )
@@ -136,4 +140,45 @@ async def test_options_flow(hass: HomeAssistant, mock_discover: AsyncMock) -> No
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_READ_ONLY] is True
     assert entry.options[CONF_MAX_RESULTS] == 20
+    assert entry.options["account_label"] == "privat_konto"
     assert entry.options[CONF_FROM_ADDRESS] == APPLE_ID
+
+    # security section keeps the other options and normalises the allowlist
+    with patch(
+        "custom_components.icloud_mcp.mail.ICloudMail.async_mailboxes",
+        new_callable=AsyncMock,
+        return_value=[{"name": "INBOX", "special_use": None}, {"name": "Steuer", "special_use": None}],
+    ):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "security"})
+        assert result["type"] is FlowResultType.FORM and result["step_id"] == "security"
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                "limit_mail_modify": 100.0,
+                "limit_mail_send": 5.0,
+                "limit_item_delete": 10.0,
+                "send_policy": "allowlist",
+                "send_allowlist": "Family@Example.com; example.org",
+                "send_max_recipients": 3.0,
+                "send_allow_bcc": False,
+                "protected_calendars": ["work"],
+                "protected_mailboxes": ["Steuer"],
+                "hidden_mailboxes": [],
+            },
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["send_allowlist"] == ["family@example.com", "example.org"]
+    assert entry.options["limit_mail_send"] == 5
+    assert entry.options["protected_mailboxes"] == ["Steuer"]
+    assert entry.options[CONF_READ_ONLY] is True  # kept from the tools section
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "rules"})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"rules_auto": False, "rules_interval": 15.0}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["rules_interval"] == 15 and entry.options["rules_auto"] is False

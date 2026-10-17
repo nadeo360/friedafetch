@@ -36,7 +36,16 @@
     "step": {
       "init": {
         "title": "iCloud MCP options",
-        "description": "Choose which tool groups the MCP server exposes and which write actions are allowed.",
+        "description": "Choose a section.",
+        "menu_options": {
+          "tools": "Tools and account",
+          "security": "Security and guard rails",
+          "rules": "Inbox rules"
+        }
+      },
+      "tools": {
+        "title": "Tools and account",
+        "description": "Choose which tool groups are exposed and which write actions are allowed.",
         "data": {
           "enable_calendar": "Calendar tools",
           "enable_contacts": "Contact tools",
@@ -46,14 +55,48 @@
           "allow_send_mail": "Allow sending e-mails",
           "allow_delete": "Allow deleting events, contacts, e-mails and notes",
           "max_results": "Default maximum number of results",
-          "from_address": "Sender address for outgoing e-mails",
-          "rules_auto": "Apply inbox rules automatically to new e-mails",
-          "rules_interval": "Interval for automatic rules (minutes)",
-          "account_label": "Account label (for tool names with several accounts)"
+          "account_label": "Account label (for tool names with several accounts)",
+          "from_address": "Sender address for outgoing e-mails"
         },
         "data_description": {
           "account_label": "Short name such as private or work. With more than one iCloud account the tools of further accounts get this as suffix, e.g. icloud_list_events_work. Default: local part of the Apple ID."
         }
+      },
+      "security": {
+        "title": "Security and guard rails",
+        "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the activity log of the “iCloud Rules” panel and as the event icloud_mcp_action.",
+        "data": {
+          "limit_mail_modify": "Mail moves/deletions/flag changes per hour (0 = unlimited)",
+          "limit_mail_send": "Sent e-mails per hour (0 = unlimited)",
+          "limit_item_delete": "Deleted events/contacts/notes per hour (0 = unlimited)",
+          "send_policy": "Recipient policy for sending",
+          "send_allowlist": "Allowed addresses or domains (comma-separated)",
+          "send_max_recipients": "Maximum recipients per e-mail (0 = unlimited)",
+          "send_allow_bcc": "Allow BCC",
+          "protected_calendars": "Protected calendars (read-only)",
+          "protected_mailboxes": "Protected mailboxes (read-only, no rules)",
+          "hidden_mailboxes": "Hidden mailboxes (invisible to the AI)"
+        },
+        "data_description": {
+          "send_policy": "“Any”: every address. “Contacts”: only addresses from the iCloud contacts or the allowlist. “Allowlist”: only the allowlist.",
+          "send_allowlist": "e.g. family@example.com, example.org"
+        }
+      },
+      "rules": {
+        "title": "Inbox rules",
+        "data": {
+          "rules_auto": "Apply inbox rules automatically to new e-mails",
+          "rules_interval": "Interval for automatic rules (minutes)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "send_policy": {
+      "options": {
+        "any": "Any",
+        "contacts": "Contacts or allowlist",
+        "allowlist": "Allowlist only"
       }
     }
   }

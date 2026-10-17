@@ -83,6 +83,8 @@ und Home Assistant neu starten.
 
 ### Optionen (Konfigurieren)
 
+Der Optionsdialog hat drei Bereiche: **Tools und Konto**, **Sicherheit und Leitplanken** und **Posteingangsregeln**.
+
 | Option                       | Wirkung                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
 | Kalender-/Kontakt-/E-Mail-/Notiz-Tools | Tool-Gruppen einzeln ein- oder ausblenden                      |
@@ -94,6 +96,7 @@ und Home Assistant neu starten.
 | Regeln automatisch anwenden  | Posteingangsregeln periodisch auf neue Mails anwenden (Standard: an)        |
 | Intervall für Regeln         | Minuten zwischen zwei automatischen Läufen (Standard 5, 1–240)              |
 | Kontobezeichnung             | Kurzname, der bei mehreren Konten als Tool-Suffix dient                      |
+| Bereich Sicherheit           | Kontingente, Empfänger-Richtlinie, geschützte Kalender/Postfächer, verborgene Postfächer (siehe Sicherheit) |
 
 Alle Tools tragen MCP-Annotations (`readOnlyHint`, `destructiveHint`), sodass Clients im „nur lesen“-Modus die
 schreibenden Tools automatisch weglassen.
@@ -264,8 +267,36 @@ WebSocket-Befehle (`icloud_mcp/rules/*`) mit der Integration.
   Diagnosedaten geschwärzt. Verbindungen gehen ausschließlich per TLS an Apple-Endpunkte, es gibt keine Telemetrie.
 - MCP-Endpunkt und Panel sind durch Home-Assistant-Tokens bzw. Admin-Rechte geschützt; Tool-Gruppen, Nur-Lesen,
   Senden und Löschen sind einzeln abschaltbar.
+- **Leitplanken (Optionen → Sicherheit):** Stundenkontingente je Konto für Mail verschieben/löschen/markieren,
+  gesendete Mails und gelöschte Termine/Kontakte/Notizen; eine Empfänger-Richtlinie beim Senden (beliebig, nur
+  bekannte Kontakte oder eine Allowlist aus Adressen/Domains) mit Empfänger-Obergrenze und optionalem BCC-Verbot;
+  geschützte Kalender und Postfächer, die KI-Clients nur lesen dürfen, sowie verborgene Postfächer, die gar nicht
+  angeboten werden. Blockierte Aufrufe liefern `code: "blocked"`.
+- **Aktivitätsprotokoll:** Jeder schreibende Tool-Aufruf und jeder Regellauf wird mit Zeit, Client, HA-Benutzer, Tool,
+  gekürzten Parametern (ohne Mail-Inhalte) und Ergebnis in der Karte „Aktivität“ des Panels protokolliert und als
+  Ereignis `icloud_mcp_action` gefeuert; eine Automation kann dich so z. B. bei Massenlöschungen benachrichtigen.
+- **Schutz vor Prompt-Injection:** Betreffzeilen, Mail-Texte, Notizen und Termintexte werden von unsichtbaren und
+  Bidi-Steuerzeichen befreit, in den Tool-Antworten als Fremdinhalt gekennzeichnet und auf typische Injektionsmuster
+  geprüft; Treffer werden mit `suspicious: true` und `warnings` markiert. Der LLM-Prompt weist das Modell an,
+  Anweisungen aus solchen Inhalten nie zu befolgen.
 - Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und HACS-Validierung;
   Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Details und Meldeweg für Sicherheitslücken: [SECURITY.md](SECURITY.md).
+
+Beispiel-Automation auf das Protokoll-Ereignis:
+
+```yaml
+automation:
+  - alias: Warnung bei Massenlöschung durch KI
+    triggers:
+      - trigger: event
+        event_type: icloud_mcp_action
+    conditions:
+      - "{{ trigger.event.data.action == 'delete' and (trigger.event.data.details.count | default(1)) > 10 }}"
+    actions:
+      - action: notify.mobile_app_iphone
+        data:
+          message: "{{ trigger.event.data.client }} hat {{ trigger.event.data.details.count }} Mails gelöscht"
+```
 
 ## Technik
 

@@ -25,7 +25,7 @@ from .dav import (
     DavResponse,
     tag,
 )
-from .util import isoformat, to_datetime
+from .util import isoformat, sanitize_text, to_datetime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -486,9 +486,9 @@ class ICloudCalDav:
             "uid": str(ev.get("UID", "")),
             "calendar_id": cal.id,
             "calendar_name": cal.name,
-            "summary": str(ev.get("SUMMARY", "")) or None,
-            "description": str(ev["DESCRIPTION"]) if ev.get("DESCRIPTION") else None,
-            "location": str(ev["LOCATION"]) if ev.get("LOCATION") else None,
+            "summary": sanitize_text(str(ev.get("SUMMARY", ""))) or None,
+            "description": sanitize_text(str(ev["DESCRIPTION"])) if ev.get("DESCRIPTION") else None,
+            "location": sanitize_text(str(ev["LOCATION"])) if ev.get("LOCATION") else None,
             "start": isoformat(start, self._tz),
             "end": isoformat(end_out, self._tz),
             "all_day": all_day,

@@ -24,8 +24,12 @@ Only the latest release is supported. Older versions do not receive fixes.
   (Bearer). The LLM API is only offered to the assistants/MCP servers an admin explicitly enables. The rules panel in
   the sidebar and its WebSocket commands are restricted to admin users.
 - **Limiting the blast radius:** options allow switching off tool groups, enabling a read-only mode and forbidding
-  sending e-mails and deleting separately. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
+  sending e-mails and deleting separately. Hourly quotas, a recipient policy (contacts/allowlist), protected
+  calendars and mailboxes and hidden mailboxes further bound what a connected client can do; every writing call is
+  written to a per-account audit log and fired as the `icloud_mcp_action` event. All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so
   clients can recognise writing tools and ask for confirmation. Deleting means "move to trash" by default.
+- **Untrusted content:** mail, note and event texts are sanitised (invisible/bidi characters), labelled as third-party
+  content and scanned for prompt-injection patterns (`suspicious`/`warnings` flags).
 - **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited and
   compiled before saving. Server responses (XML, vCard, e-mail) are parsed with the Python standard library; mail
   content is passed to the AI as text only.
@@ -72,7 +76,10 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
   (Bearer). Die LLM-API wird nur den Assistenten/MCP-Servern angeboten, die der Admin ausdrücklich dafür freischaltet.
   Das Regel-Panel in der Seitenleiste und die zugehörigen WebSocket-Befehle sind Admin-Benutzern vorbehalten.
 - **Begrenzung des Schadenspotenzials:** Über die Optionen lassen sich Tool-Gruppen abschalten, ein
-  Nur-Lesen-Modus aktivieren sowie das Senden von E-Mails und das Löschen getrennt verbieten. Alle Tools tragen
+  Nur-Lesen-Modus aktivieren sowie das Senden von E-Mails und das Löschen getrennt verbieten. Stundenkontingente,
+  eine Empfänger-Richtlinie (Kontakte/Allowlist), geschützte Kalender und Postfächer sowie verborgene Postfächer
+  begrenzen zusätzlich, was ein verbundener Client tun kann; jeder schreibende Aufruf landet im Aktivitätsprotokoll
+  des Kontos und wird als Ereignis `icloud_mcp_action` gefeuert. Alle Tools tragen
   MCP-Annotationen (`readOnlyHint`, `destructiveHint`), sodass Clients schreibende Werkzeuge erkennen und
   Rückfragen stellen können. Löschen bedeutet standardmäßig „in den Papierkorb“.
 - **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt

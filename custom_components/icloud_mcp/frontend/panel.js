@@ -89,6 +89,25 @@ const I18N = {
     copied: "Regel nach „{0}“ kopiert.",
     allAccounts: "Alle Konten",
     switchHint: "Regeln, Läufe und Berichte gelten je Konto. Wähle oben das Konto.",
+    activity: "Aktivität",
+    activityHint: "Schreibende Aktionen der KI-Clients und Regelläufe, neueste zuerst.",
+    noActivity: "Noch keine Aktionen protokolliert.",
+    clearLog: "Protokoll leeren",
+    confirmClear: "Aktivitätsprotokoll wirklich leeren?",
+    colTime: "Zeit",
+    colWho: "Client / Benutzer",
+    colTool: "Tool",
+    colDetails: "Details",
+    colResult: "Ergebnis",
+    resOk: "ok",
+    resError: "Fehler",
+    resBlocked: "blockiert",
+    quota: "Kontingente (letzte Stunde)",
+    quotaMailModify: "Mail verschieben/löschen/markieren",
+    quotaMailSend: "Mails senden",
+    quotaItemDelete: "Termine/Kontakte/Notizen löschen",
+    unlimited: "unbegrenzt",
+    showMore: "Mehr anzeigen",
   },
   en: {
     title: "iCloud rules",
@@ -175,6 +194,25 @@ const I18N = {
     copied: "Rule copied to “{0}”.",
     allAccounts: "All accounts",
     switchHint: "Rules, runs and reports are per account. Pick the account above.",
+    activity: "Activity",
+    activityHint: "Writing actions of AI clients and rule runs, newest first.",
+    noActivity: "No actions logged yet.",
+    clearLog: "Clear log",
+    confirmClear: "Really clear the activity log?",
+    colTime: "Time",
+    colWho: "Client / user",
+    colTool: "Tool",
+    colDetails: "Details",
+    colResult: "Result",
+    resOk: "ok",
+    resError: "error",
+    resBlocked: "blocked",
+    quota: "Quotas (last hour)",
+    quotaMailModify: "move/delete/flag mail",
+    quotaMailSend: "send mail",
+    quotaItemDelete: "delete events/contacts/notes",
+    unlimited: "unlimited",
+    showMore: "Show more",
   },
 };
 
@@ -188,7 +226,7 @@ const STYLE = `
   .toolbar select { background: rgba(255,255,255,.15); color: inherit; border: 1px solid rgba(255,255,255,.4); border-radius: 6px; padding: 4px 8px; font-size: 14px; }
   .content { padding: 16px; max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
   .card { background: var(--card-background-color, #fff); border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0 2px 2px rgba(0,0,0,.14)); border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0)); padding: 16px; }
-  .card h2 { margin: 0 0 12px; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 12px; }
+  .card h2 { margin: 0 0 12px; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .card h2 .grow { flex: 1; }
   button { font: inherit; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; background: var(--primary-color); color: var(--text-primary-color, #fff); }
   button.secondary { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
@@ -221,6 +259,7 @@ const STYLE = `
   .badge.warn { background: color-mix(in srgb, var(--warning-color, #ffa600) 20%, transparent); color: var(--primary-text-color); }
   select.copy { min-width: 0; max-width: 120px; padding: 3px 6px; font-size: 12px; }
   .scroll { overflow-x: auto; }
+  code { font-size: 12px; background: var(--secondary-background-color, #f0f0f0); padding: 1px 5px; border-radius: 4px; }
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   @media (max-width: 700px) { .cond { grid-template-columns: 1fr 1fr; } .row label { min-width: 100%; } }
 `;
@@ -239,6 +278,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
       report: null,
       error: null,
       notice: null,
+      audit: [],
+      quota: {},
+      auditLimit: 25,
       busy: false,
       loaded: false,
     };
@@ -294,8 +336,9 @@ class ICloudMcpRulesPanel extends HTMLElement {
     this._s.mailboxes = boxes.mailboxes;
     try {
       await this._loadAccounts();
+      await this._loadAudit();
     } catch (err) {
-      /* account stats are optional */
+      /* account stats and audit are optional */
     }
   }
 
@@ -405,6 +448,65 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const { accounts } = await this._ws({ type: "icloud_mcp/accounts" });
     this._s.accounts = accounts;
     if (!accounts.some((a) => a.entry_id === this._s.entryId)) this._s.entryId = accounts[0]?.entry_id || null;
+  }
+
+  async _loadAudit() {
+    const res = await this._ws({ type: "icloud_mcp/audit/list", entry_id: this._s.entryId, limit: this._s.auditLimit });
+    this._s.audit = res.entries || [];
+    this._s.quota = res.quota || {};
+  }
+
+  async _clearAudit() {
+    if (!confirm(this.t.confirmClear)) return;
+    await this._call(async () => {
+      await this._ws({ type: "icloud_mcp/audit/clear", entry_id: this._s.entryId });
+      await this._loadAudit();
+    });
+  }
+
+  _renderActivity() {
+    const t = this.t;
+    const s = this._s;
+    const q = s.quota || {};
+    const quotaRow = (key, label) => {
+      const v = q[key];
+      if (!v) return "";
+      const lim = v.limit ? `${v.used} / ${v.limit}` : `${v.used} / ${t.unlimited}`;
+      const warn = v.limit && v.used >= v.limit * 0.8;
+      return `<span class="badge ${warn ? "warn" : ""}">${esc(label)}: ${esc(lim)}</span>`;
+    };
+    const who = (e) => [e.client, e.user].filter(Boolean).map(esc).join(" · ") || "–";
+    const details = (e) => {
+      const d = e.details || {};
+      const p = e.params || {};
+      const parts = [];
+      if (p.subject) parts.push(`„${esc(p.subject)}“`);
+      if (p.to) parts.push(`→ ${esc([].concat(p.to).join(", "))}`);
+      if (p.target_mailbox) parts.push(`→ ${esc(p.target_mailbox)}`);
+      if (p.summary) parts.push(`„${esc(p.summary)}“`);
+      if (p.name) parts.push(`„${esc(p.name)}“`);
+      if (d.count) parts.push(`${d.count}×`);
+      else if (p.uids) parts.push(`${[].concat(p.uids).length}×`);
+      else if (p.uid) parts.push(`UID ${esc(p.uid)}`);
+      if (d.matched !== undefined) parts.push(`${d.checked} ${esc(t.checked)}, ${d.matched} ${esc(t.matched)}`);
+      if (e.error) parts.push(`<span class="muted">${esc(e.error)}</span>`);
+      return parts.join(" ");
+    };
+    const resBadge = (r) => `<span class="badge ${r === "ok" ? "" : "warn"}">${esc(r === "ok" ? t.resOk : r === "blocked" ? t.resBlocked : t.resError)}</span>`;
+    const rows = s.audit
+      .map(
+        (e) => `<tr><td style="white-space:nowrap">${esc(new Date(e.time).toLocaleString())}</td><td>${who(e)}</td><td><code>${esc(e.tool)}</code></td><td>${details(e)}</td><td>${resBadge(e.result)}</td></tr>`
+      )
+      .join("");
+    return `<div class="card">
+      <h2><span class="grow">${esc(t.activity)}</span>
+        <button class="secondary" data-action="audit-more" ${s.busy ? "disabled" : ""}>${esc(t.showMore)}</button>
+        <button class="secondary" data-action="audit-clear" ${s.busy || !s.audit.length ? "disabled" : ""}>${esc(t.clearLog)}</button></h2>
+      <p class="muted" style="margin:0 0 10px">${esc(t.activityHint)}</p>
+      <div class="badges" style="margin-bottom:10px"><span class="muted" style="margin-right:6px">${esc(t.quota)}:</span>
+        ${quotaRow("mail_modify", t.quotaMailModify)} ${quotaRow("mail_send", t.quotaMailSend)} ${quotaRow("item_delete", t.quotaItemDelete)}</div>
+      ${rows ? `<div class="scroll"><table><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted">${esc(t.noActivity)}</p>`}
+    </div>`;
   }
 
   async _switchAccount(entryId) {
@@ -593,7 +695,8 @@ class ICloudMcpRulesPanel extends HTMLElement {
           <button class="secondary" data-action="run" data-scope="new" data-dry="0" ${s.busy || this._account()?.read_only ? "disabled" : ""}>${esc(t.runNew)}</button>
         </div>
       </div>
-      ${this._renderReport()}`;
+      ${this._renderReport()}
+      ${this._renderActivity()}`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style>
       <div class="toolbar"><ha-menu-button></ha-menu-button><span>${esc(t.title)}</span><span class="grow"></span>${accountSel}</div>
       <div class="content">${body}</div>`;
@@ -638,6 +741,11 @@ class ICloudMcpRulesPanel extends HTMLElement {
           this._render();
         },
         run: () => this._run(el.dataset.scope, el.dataset.dry === "1"),
+        "audit-clear": () => this._clearAudit(),
+        "audit-more": () => {
+          this._s.auditLimit = Math.min(500, this._s.auditLimit + 50);
+          this._call(() => this._loadAudit());
+        },
       }[action];
       if (action === "toggle") {
         el.addEventListener("change", () => this._toggle(el.dataset.id, el.checked));

@@ -54,6 +54,8 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
         ws_rules_update,
         ws_rules_delete,
         ws_rules_run,
+        ws_audit_list,
+        ws_audit_clear,
     ):
         websocket_api.async_register_command(hass, command)
     await panel_custom.async_register_panel(
@@ -237,3 +239,45 @@ async def ws_rules_run(hass: HomeAssistant, connection: websocket_api.ActiveConn
         rule_ids=msg.get("rule_ids"),
     )
     connection.send_result(msg["id"], report)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/audit/list",
+        vol.Optional("entry_id"): str,
+        vol.Optional("limit"): int,
+        vol.Optional("result"): vol.In(["ok", "error", "blocked"]),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_audit_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Return the latest audit entries of an account plus the quota status."""
+    entry, _ = _engine(hass, msg.get("entry_id"))
+    clients = entry.runtime_data
+    audit = clients.audit
+    if audit is None:
+        connection.send_result(msg["id"], {"entries": [], "quota": {}})
+        return
+    await audit.async_load()
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry.entry_id,
+            "entries": audit.entries(limit=max(1, min(int(msg.get("limit") or 100), 500)), result=msg.get("result")),
+            "quota": clients.guard.quota_status(),
+        },
+    )
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/audit/clear", vol.Optional("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+@_ws_errors
+async def ws_audit_clear(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Clear the audit log of an account."""
+    entry, _ = _engine(hass, msg.get("entry_id"))
+    if entry.runtime_data.audit is not None:
+        await entry.runtime_data.audit.async_clear()
+    connection.send_result(msg["id"], {"cleared": True})

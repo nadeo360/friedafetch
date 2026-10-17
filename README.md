@@ -77,6 +77,8 @@ restart Home Assistant.
 
 ### Options (Configure)
 
+The options dialog has three sections: **Tools and account**, **Security and guard rails** and **Inbox rules**.
+
 | Option                                   | Effect                                                                   |
 |------------------------------------------|--------------------------------------------------------------------------|
 | Calendar / Contact / E-mail / Note tools | show or hide tool groups                                                 |
@@ -88,6 +90,7 @@ restart Home Assistant.
 | Apply inbox rules automatically          | run rules periodically on new mail (default: on)                         |
 | Interval for automatic rules             | minutes between automatic runs (default 5, 1–240)                        |
 | Account label                            | short name used as tool suffix when several accounts are configured      |
+| Security section                         | quotas, recipient policy, protected calendars/mailboxes, hidden mailboxes (see Security) |
 
 All tools carry MCP annotations (`readOnlyHint`, `destructiveHint`) so that clients in read-only mode can drop the
 writing tools automatically.
@@ -202,8 +205,35 @@ talks to the integration via WebSocket commands (`icloud_mcp/rules/*`).
   Connections go exclusively over TLS to Apple endpoints; there is no telemetry.
 - The MCP endpoint and the panel are protected by Home Assistant tokens and admin rights; tool groups, read-only
   mode, sending and deleting can be switched off individually.
+- **Guard rails (options → Security):** hourly quotas per account for mail moves/deletions/flag changes, sent mails
+  and deleted events/contacts/notes; a recipient policy for sending (any address, known contacts, or an allowlist of
+  addresses/domains) with a recipient cap and optional BCC ban; protected calendars and mailboxes that AI clients may
+  only read, and hidden mailboxes that are not exposed at all. Blocked calls return `code: "blocked"`.
+- **Activity log:** every writing tool call and every rule run is recorded (time, client, Home Assistant user, tool,
+  shortened parameters without message bodies, result) in the "Activity" card of the panel and fired as the event
+  `icloud_mcp_action`, so an automation can notify you, e.g. when more than ten mails are deleted at once.
+- **Prompt-injection defence:** subjects, bodies, notes and event texts are stripped of invisible/bidi characters,
+  marked as third-party content in the tool results, and scanned for typical injection patterns; hits are flagged
+  with `suspicious: true` and `warnings`. The LLM prompt instructs the model never to follow instructions found in
+  such content.
 - Every commit runs tests, Ruff with the Bandit rule set, Bandit, CodeQL, pip-audit, hassfest and HACS validation;
   Dependabot and GitHub security alerts are enabled. Details and the disclosure process: [SECURITY.md](SECURITY.md).
+
+Example automation on the audit event:
+
+```yaml
+automation:
+  - alias: Warn on mass deletion by AI
+    triggers:
+      - trigger: event
+        event_type: icloud_mcp_action
+    conditions:
+      - "{{ trigger.event.data.action == 'delete' and (trigger.event.data.details.count | default(1)) > 10 }}"
+    actions:
+      - action: notify.mobile_app_iphone
+        data:
+          message: "{{ trigger.event.data.client }} deleted {{ trigger.event.data.details.count }} mails"
+```
 
 ## Technical notes
 

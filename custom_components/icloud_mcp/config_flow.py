@@ -19,6 +19,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -40,20 +43,36 @@ from .const import (
     CONF_ENABLE_MAIL,
     CONF_ENABLE_NOTES,
     CONF_FROM_ADDRESS,
+    CONF_HIDDEN_MAILBOXES,
+    CONF_LIMIT_ITEM_DELETE,
+    CONF_LIMIT_MAIL_MODIFY,
+    CONF_LIMIT_MAIL_SEND,
     CONF_MAX_RESULTS,
+    CONF_PROTECTED_CALENDARS,
+    CONF_PROTECTED_MAILBOXES,
     CONF_READ_ONLY,
     CONF_RULES_AUTO,
     CONF_RULES_INTERVAL,
+    CONF_SEND_ALLOW_BCC,
+    CONF_SEND_ALLOWLIST,
+    CONF_SEND_MAX_RECIPIENTS,
+    CONF_SEND_POLICY,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
     DEFAULT_ENABLE_CALENDAR,
     DEFAULT_ENABLE_CONTACTS,
     DEFAULT_ENABLE_MAIL,
     DEFAULT_ENABLE_NOTES,
+    DEFAULT_LIMIT_ITEM_DELETE,
+    DEFAULT_LIMIT_MAIL_MODIFY,
+    DEFAULT_LIMIT_MAIL_SEND,
     DEFAULT_MAX_RESULTS,
     DEFAULT_READ_ONLY,
     DEFAULT_RULES_AUTO,
     DEFAULT_RULES_INTERVAL,
+    DEFAULT_SEND_ALLOW_BCC,
+    DEFAULT_SEND_MAX_RECIPIENTS,
+    DEFAULT_SEND_POLICY,
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
@@ -61,6 +80,7 @@ from .const import (
     MAX_RULES_INTERVAL,
     MIN_RULES_INTERVAL,
     REQUEST_TIMEOUT,
+    SEND_POLICIES,
     SMTP_HOST,
     SMTP_PORT,
 )
@@ -217,17 +237,22 @@ class ICloudMcpConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ICloudMcpOptionsFlow(OptionsFlow):
-    """Options: which tool groups are exposed and safety switches."""
+    """Options in three groups: tools, security guard rails, rules."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_show_menu(step_id="init", menu_options=["tools", "security", "rules"])
+
+    def _save(self, changes: dict[str, Any]) -> ConfigFlowResult:
+        return self.async_create_entry(title="", data={**self.config_entry.options, **changes})
+
+    # ----------------------------------------------------------------- tools
+    async def async_step_tools(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_MAX_RESULTS] = int(user_input.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS))
-            user_input[CONF_RULES_INTERVAL] = int(user_input.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL))
             user_input[CONF_ACCOUNT_LABEL] = slugify(str(user_input.get(CONF_ACCOUNT_LABEL) or ""), separator="_")
             if not user_input.get(CONF_FROM_ADDRESS):
                 user_input[CONF_FROM_ADDRESS] = self.config_entry.data[CONF_APPLE_ID]
-            return self.async_create_entry(title="", data=user_input)
-
+            return self._save(user_input)
         opts = self.config_entry.options
         data = self.config_entry.data
         schema = vol.Schema(
@@ -254,14 +279,6 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 vol.Required(CONF_MAX_RESULTS, default=opts.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS)): NumberSelector(
                     NumberSelectorConfig(min=1, max=MAX_RESULTS_LIMIT, step=1, mode=NumberSelectorMode.BOX)
                 ),
-                vol.Required(CONF_RULES_AUTO, default=opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)): BooleanSelector(),
-                vol.Required(
-                    CONF_RULES_INTERVAL, default=opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=MIN_RULES_INTERVAL, max=MAX_RULES_INTERVAL, step=1, mode=NumberSelectorMode.BOX
-                    )
-                ),
                 vol.Optional(CONF_ACCOUNT_LABEL, default=opts.get(CONF_ACCOUNT_LABEL, "")): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),
@@ -271,4 +288,107 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL)),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="tools", data_schema=schema)
+
+    # -------------------------------------------------------------- security
+    def _runtime(self):
+        return getattr(self.config_entry, "runtime_data", None)
+
+    async def _mailbox_options(self) -> list[str]:
+        clients = self._runtime()
+        if clients is None:
+            return []
+        try:
+            return [b["name"] for b in await clients.mail.async_mailboxes()]
+        except Exception:  # noqa: BLE001 - selector then accepts custom values only
+            return []
+
+    async def _calendar_options(self) -> list[dict[str, str]]:
+        clients = self._runtime()
+        if clients is None:
+            return []
+        try:
+            return [{"value": c.id, "label": c.name} for c in await clients.caldav.async_calendars()]
+        except Exception:  # noqa: BLE001
+            return []
+
+    async def async_step_security(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            for key in (CONF_LIMIT_MAIL_MODIFY, CONF_LIMIT_MAIL_SEND, CONF_LIMIT_ITEM_DELETE, CONF_SEND_MAX_RECIPIENTS):
+                user_input[key] = int(user_input.get(key, 0) or 0)
+            raw_allow = user_input.get(CONF_SEND_ALLOWLIST) or ""
+            user_input[CONF_SEND_ALLOWLIST] = [
+                a.strip().lower() for a in str(raw_allow).replace(";", ",").replace("\n", ",").split(",") if a.strip()
+            ]
+            return self._save(user_input)
+        opts = self.config_entry.options
+        mailboxes = await self._mailbox_options()
+        calendars = await self._calendar_options()
+
+        def multi(options: list, current: list) -> SelectSelector:
+            known = {o["value"] if isinstance(o, dict) else o for o in options}
+            extra = [{"value": v, "label": v} for v in current if v not in known]
+            return SelectSelector(
+                SelectSelectorConfig(
+                    options=[*options, *extra], multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN
+                )
+            )
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_LIMIT_MAIL_MODIFY, default=opts.get(CONF_LIMIT_MAIL_MODIFY, DEFAULT_LIMIT_MAIL_MODIFY)
+                ): NumberSelector(NumberSelectorConfig(min=0, max=100000, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Required(
+                    CONF_LIMIT_MAIL_SEND, default=opts.get(CONF_LIMIT_MAIL_SEND, DEFAULT_LIMIT_MAIL_SEND)
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Required(
+                    CONF_LIMIT_ITEM_DELETE, default=opts.get(CONF_LIMIT_ITEM_DELETE, DEFAULT_LIMIT_ITEM_DELETE)
+                ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Required(CONF_SEND_POLICY, default=opts.get(CONF_SEND_POLICY, DEFAULT_SEND_POLICY)): SelectSelector(
+                    SelectSelectorConfig(
+                        options=list(SEND_POLICIES), translation_key="send_policy", mode=SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Optional(CONF_SEND_ALLOWLIST, default=", ".join(opts.get(CONF_SEND_ALLOWLIST) or [])): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.TEXT)
+                ),
+                vol.Required(
+                    CONF_SEND_MAX_RECIPIENTS,
+                    default=opts.get(CONF_SEND_MAX_RECIPIENTS, DEFAULT_SEND_MAX_RECIPIENTS),
+                ): NumberSelector(NumberSelectorConfig(min=0, max=500, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Required(
+                    CONF_SEND_ALLOW_BCC, default=opts.get(CONF_SEND_ALLOW_BCC, DEFAULT_SEND_ALLOW_BCC)
+                ): BooleanSelector(),
+                vol.Optional(CONF_PROTECTED_CALENDARS, default=list(opts.get(CONF_PROTECTED_CALENDARS) or [])): multi(
+                    calendars, list(opts.get(CONF_PROTECTED_CALENDARS) or [])
+                ),
+                vol.Optional(CONF_PROTECTED_MAILBOXES, default=list(opts.get(CONF_PROTECTED_MAILBOXES) or [])): multi(
+                    mailboxes, list(opts.get(CONF_PROTECTED_MAILBOXES) or [])
+                ),
+                vol.Optional(CONF_HIDDEN_MAILBOXES, default=list(opts.get(CONF_HIDDEN_MAILBOXES) or [])): multi(
+                    mailboxes, list(opts.get(CONF_HIDDEN_MAILBOXES) or [])
+                ),
+            }
+        )
+        return self.async_show_form(step_id="security", data_schema=schema)
+
+    # ----------------------------------------------------------------- rules
+    async def async_step_rules(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input[CONF_RULES_INTERVAL] = int(user_input.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL))
+            return self._save(user_input)
+        opts = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_RULES_AUTO, default=opts.get(CONF_RULES_AUTO, DEFAULT_RULES_AUTO)): BooleanSelector(),
+                vol.Required(
+                    CONF_RULES_INTERVAL, default=opts.get(CONF_RULES_INTERVAL, DEFAULT_RULES_INTERVAL)
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=MIN_RULES_INTERVAL, max=MAX_RULES_INTERVAL, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="rules", data_schema=schema)
