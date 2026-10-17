@@ -10,3 +10,4 @@ htmlcov/
 *.egg-info/
 .DS_Store
 .ruff_cache/
+.claude/

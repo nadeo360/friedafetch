@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -51,6 +51,7 @@ from .const import (
     SMTP_PORT,
 )
 from .dav import DavAuthError, DavClient, DavError
+from .frontend import async_remove_frontend, async_setup_frontend
 from .llm_api import ICloudClients, ICloudLLMAPI
 from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
@@ -148,6 +149,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     entry.async_on_unload(clients.mail.async_close)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    # Sidebar panel + websocket API for managing the rules
+    try:
+        await async_setup_frontend(hass, str((await async_get_integration(hass, DOMAIN)).version or "0"))
+    except Exception as err:  # noqa: BLE001 - the panel is optional
+        _LOGGER.warning("Could not register the iCloud rules panel: %s", err)
+
     # Own Streamable-HTTP MCP endpoint (registered once; serves the tools of all loaded entries)
     integration = await async_get_integration(hass, DOMAIN)
     async_register_mcp_http(hass, str(integration.version or "0.0.0"))
@@ -161,5 +168,12 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bool:
-    """Unload a config entry (on_unload callbacks do the work)."""
+    """Unload a config entry (on_unload callbacks do the rest)."""
+    others = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id and e.state is ConfigEntryState.LOADED
+    ]
+    if not others:
+        async_remove_frontend(hass)
     return True
