@@ -36,7 +36,9 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
 
 - **Tests** gegen die gepinnte Home-Assistant-Version und **Ruff** inklusive Sicherheitsregeln (Bandit-Regelsatz `S`),
 - **Bandit** als eigenständige statische Analyse,
-- **CodeQL** (Python und JavaScript, `security-extended`),
-- **pip-audit** gegen die Laufzeitabhängigkeiten aus dem Manifest (zusätzlich täglich),
+- **CodeQL** über GitHubs Code-Scanning (Default Setup, Python und JavaScript, bei jedem Push und wöchentlich),
+- **pip-audit** gegen die Laufzeitabhängigkeiten aus dem Manifest (zusätzlich täglich); bekannte, nachweislich nicht
+  zutreffende Meldungen werden im Workflow mit Begründung ausgenommen (derzeit CVE-2026-59951: betrifft nur
+  zustandsbehaftete MCP-Sitzungen, der Endpunkt dieser Integration arbeitet zustandslos),
 - **hassfest** und **HACS-Validierung**,
 - **Dependabot** für Python-Abhängigkeiten und GitHub Actions; Sicherheitswarnungen sind für das Repository aktiviert.

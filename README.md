@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/validate.yml/badge.svg"></a>
-  <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/codeql.yml/badge.svg"></a>
+  <a href="https://github.com/nadeo360/ha-icloud-mcp/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/ha-icloud-mcp/actions/workflows/security.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/ha-icloud-mcp/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/ha-icloud-mcp?display_name=tag"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>

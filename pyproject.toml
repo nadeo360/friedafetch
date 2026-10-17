@@ -25,4 +25,7 @@ ignore = ["E501"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", ".venv314"]
-skips = ["B101"]
+# B314/B405/B406: XML from Apple's authenticated TLS endpoints is parsed with the stdlib (defusedxml is
+# not available inside Home Assistant; expat protects against entity expansion). B406 flags xml.sax.saxutils.escape,
+# which only escapes text.
+skips = ["B101", "B314", "B405", "B406"]

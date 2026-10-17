@@ -27,6 +27,11 @@ jobs:
       - uses: pypa/gh-action-pip-audit@v1.1.0
         with:
           inputs: requirements_manifest.txt
+          # CVE-2026-59951 concerns stateful Streamable-HTTP sessions in mcp < 1.30. Home Assistant 2026.10 ships
+          # mcp 1.28.1 and our endpoint runs the server with stateless=True and no session manager, so it is not
+          # affected. Remove once Home Assistant bumps mcp.
+          ignore-vulns: |
+            CVE-2026-59951
 
   bandit:
     name: Bandit (SAST)
