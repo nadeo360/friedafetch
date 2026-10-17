@@ -115,7 +115,7 @@
           "digest_time": "Tagesüberblick um (HH:MM, leer = aus)",
           "digest_notify": "Überblick senden mit (Notify-Dienst; leer = Benachrichtigung in Home Assistant)",
           "digest_ai_task": "Überblick mit dieser KI-Aufgabe formulieren (optional)",
-          "attachments_dir": "Ordner für Anhänge (leer = <media>/frieda)"
+          "attachments_dir": "Ordner für Anhänge (leer = Unterordner frieda im Medienordner)"
         }
       }
     },

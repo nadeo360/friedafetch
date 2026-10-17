@@ -115,7 +115,7 @@
           "digest_time": "Daily overview at (HH:MM, empty = off)",
           "digest_notify": "Send the overview with (notify service; empty = notification in Home Assistant)",
           "digest_ai_task": "Phrase the overview with this AI task (optional)",
-          "attachments_dir": "Attachment folder (empty = <media>/frieda)"
+          "attachments_dir": "Attachment folder (empty = subfolder frieda in the media folder)"
         }
       }
     },
