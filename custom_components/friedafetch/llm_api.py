@@ -794,7 +794,11 @@ class ListRules(RuleTool):
     parameters = vol.Schema({})
 
     async def run(self, hass, args):
-        return {"rules": await self.rules.async_list(), "last_run": self.rules.last_run}
+        return {
+            "rules": await self.rules.async_list(),
+            "last_run": self.rules.last_run,
+            "automation": self.rules.automation_status(),
+        }
 
 
 class CreateRule(RuleTool):

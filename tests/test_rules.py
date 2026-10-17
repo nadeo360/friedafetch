@@ -246,3 +246,100 @@ async def test_rule_tools_via_api(hass: HomeAssistant, mock_discover: AsyncMock)
 
         missing = await api.async_call_tool(llm.ToolInput(tool_name="icloud_delete_rule", tool_args={"rule_id": "zzz"}))
         assert missing.error is True and missing.data["code"] == "not_found"
+
+
+async def test_last_run_persists_and_dry_run_does_not_count(hass: HomeAssistant) -> None:
+    mail = _mail([11], [NEWSLETTER])
+    engine = RuleEngine(hass, "entry-persist", mail)
+    await engine.async_create(
+        {
+            "name": "News",
+            "conditions": [{"field": "from", "op": "domain", "value": "shop.example.com"}],
+            "actions": {"mark_seen": True},
+        }
+    )
+    await engine.async_run(scope="all", dry_run=True)
+    assert engine.last_run is None  # previews are not a "last run"
+    await engine.async_run(scope="all", trigger="auto")
+    assert engine.last_run["trigger"] == "auto" and engine.last_run["matched"] == 1
+    assert "+" in engine.last_run["finished"] and ":" in engine.last_run["finished"][-6:]  # +02:00, Safari-safe
+    engine.note_check("ran", None)
+    await hass.async_block_till_done()
+
+    reloaded = RuleEngine(hass, "entry-persist", mail)
+    await reloaded.async_load()
+    assert reloaded.last_run["trigger"] == "auto"
+    assert reloaded.last_run["finished"] == engine.last_run["finished"]
+
+
+async def test_automation_status(hass: HomeAssistant) -> None:
+    from datetime import datetime, timedelta
+
+    engine = RuleEngine(hass, "entry-auto", _mail([], []))
+    await engine.async_load()
+    assert engine.automation_status()["enabled"] is False
+    nxt = datetime.now().astimezone() + timedelta(minutes=5)
+    engine.set_automation(True, 5, nxt)
+    status = engine.automation_status()
+    assert status["enabled"] and status["interval"] == 5 and status["next_run"] == nxt.isoformat(timespec="seconds")
+    assert status["idle_reason"] == "no_enabled_rules"
+    engine.note_check("no_enabled_rules", nxt + timedelta(minutes=5))
+    status = engine.automation_status()
+    assert status["last_check"]["result"] == "no_enabled_rules"
+    assert status["next_run"] == (nxt + timedelta(minutes=5)).isoformat(timespec="seconds")
+
+
+async def test_timer_ticks_are_visible(hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client) -> None:
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=APPLE_ID,
+        data={CONF_APPLE_ID: APPLE_ID, CONF_APP_PASSWORD: APP_PASSWORD},
+        options={"rules_interval": 5},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    rules = entry.runtime_data.rules
+    assert rules.auto_enabled and rules.next_run
+
+    # no rules: the tick is recorded as "nothing to do"
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5, seconds=1))
+    await hass.async_block_till_done()
+    assert rules.last_check["result"] == "no_enabled_rules"
+
+    # with an enabled rule the tick runs the engine and is marked as automatic
+    with (
+        patch(
+            "custom_components.friedafetch.mail.ICloudMail.async_mailboxes",
+            new_callable=AsyncMock,
+            return_value=[{"name": "INBOX", "special_use": None}, {"name": "Archive", "special_use": None}],
+        ),
+        patch(
+            "custom_components.friedafetch.mail.ICloudMail.async_search_uids",
+            new_callable=AsyncMock,
+            return_value=[1, 2],
+        ),
+    ):
+        await rules.async_create(
+            {
+                "name": "x",
+                "conditions": [{"field": "subject", "op": "contains", "value": "a"}],
+                "actions": {"move_to": "Archive"},
+            }
+        )
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=10, seconds=2))
+        await hass.async_block_till_done()
+    assert rules.last_check["result"] == "ran"
+    assert rules.last_run["trigger"] == "auto"
+
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "friedafetch/rules/list"})
+    msg = await ws.receive_json()
+    automation = msg["result"]["automation"]
+    assert automation["enabled"] and automation["interval"] == 5 and automation["next_run"]
+    assert automation["last_check"]["result"] == "ran" and automation["idle_reason"] is None

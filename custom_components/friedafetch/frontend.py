@@ -148,6 +148,7 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
                 "rules_enabled": sum(1 for r in rule_list if r.get("enabled")),
                 "hits": sum(int(r.get("hits") or 0) for r in rule_list),
                 "last_run": rules.last_run if rules else None,
+                "automation": rules.automation_status() if rules else None,
                 "approvals_enabled": clients.approvals is not None,
                 "approvals_pending": clients.approvals.pending_count if clients.approvals else 0,
             }
@@ -175,7 +176,12 @@ async def ws_rules_list(hass: HomeAssistant, connection: websocket_api.ActiveCon
     entry, rules = _engine(hass, msg.get("entry_id"))
     connection.send_result(
         msg["id"],
-        {"entry_id": entry.entry_id, "rules": await rules.async_list(), "last_run": rules.last_run},
+        {
+            "entry_id": entry.entry_id,
+            "rules": await rules.async_list(),
+            "last_run": rules.last_run,
+            "automation": rules.automation_status(),
+        },
     )
 
 

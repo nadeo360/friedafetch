@@ -10,9 +10,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import time
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -191,6 +191,11 @@ class RuleEngine:
         self._lock = asyncio.Lock()
         self.allow_delete = allow_delete
         self.last_run: dict[str, Any] | None = None
+        # automation status, shown in the panel
+        self.auto_enabled = False
+        self.auto_interval: int | None = None
+        self.next_run: str | None = None
+        self.last_check: dict[str, Any] | None = None
 
     # ------------------------------------------------------------ storage
     async def async_load(self) -> None:
@@ -199,10 +204,45 @@ class RuleEngine:
         data = await self._store.async_load() or {}
         self._rules = [Rule.from_dict(r) for r in data.get("rules", [])]
         self._last_uid = {k: int(v) for k, v in (data.get("last_uid") or {}).items()}
+        self.last_run = data.get("last_run")
+        self.last_check = data.get("last_check")
         self._loaded = True
 
+    def _data(self) -> dict[str, Any]:
+        return {
+            "rules": [r.to_dict() for r in self._rules],
+            "last_uid": self._last_uid,
+            "last_run": self.last_run,
+            "last_check": self.last_check,
+        }
+
     async def _save(self) -> None:
-        await self._store.async_save({"rules": [r.to_dict() for r in self._rules], "last_uid": self._last_uid})
+        await self._store.async_save(self._data())
+
+    # -------------------------------------------------------- automation
+    def set_automation(self, enabled: bool, interval_minutes: int | None, next_run: datetime | None) -> None:
+        """Remember whether the periodic run is active and when it fires next."""
+        self.auto_enabled = enabled
+        self.auto_interval = interval_minutes if enabled else None
+        self.next_run = next_run.isoformat(timespec="seconds") if (enabled and next_run) else None
+
+    def note_check(self, result: str, next_run: datetime | None, error: str | None = None) -> None:
+        """Record one tick of the periodic run (also when it had nothing to do)."""
+        self.last_check = {"time": _now_iso(), "result": result, "error": error}
+        if next_run is not None:
+            self.next_run = next_run.isoformat(timespec="seconds")
+        self._store.async_delay_save(self._data, 5)
+
+    def automation_status(self) -> dict[str, Any]:
+        enabled_rules = sum(1 for r in self._rules if r.enabled)
+        return {
+            "enabled": self.auto_enabled,
+            "interval": self.auto_interval,
+            "next_run": self.next_run,
+            "last_check": self.last_check,
+            "enabled_rules": enabled_rules,
+            "idle_reason": None if not self.auto_enabled or enabled_rules else "no_enabled_rules",
+        }
 
     # -------------------------------------------------------------- CRUD
     async def async_list(self) -> list[dict[str, Any]]:
@@ -284,6 +324,7 @@ class RuleEngine:
         mailbox: str | None = None,
         rule_ids: list[str] | None = None,
         limit: int = MAX_SCAN_ALL,
+        trigger: str = "manual",
     ) -> dict[str, Any]:
         """Apply rules. scope 'new' = messages since the last run, 'all' = newest messages."""
         await self.async_load()
@@ -294,6 +335,7 @@ class RuleEngine:
             mailboxes = [mailbox] if mailbox else sorted({r.mailbox for r in rules}) or ["INBOX"]
             report: dict[str, Any] = {
                 "scope": scope,
+                "trigger": trigger,
                 "dry_run": dry_run,
                 "started": _now_iso(),
                 "checked": 0,
@@ -314,10 +356,13 @@ class RuleEngine:
                     await self._run_mailbox(box, box_rules, scope, dry_run, limit, report)
                 except (MailError, MailboxNotFound) as err:
                     report["errors"].append({"mailbox": box, "error": str(err)})
-            if not dry_run:
-                await self._save()
             report["finished"] = _now_iso()
-            self.last_run = {k: v for k, v in report.items() if k != "actions"} | {"actions": len(report["actions"])}
+            if not dry_run:
+                # dry runs are previews and do not count as the last run
+                self.last_run = {k: v for k, v in report.items() if k != "actions"} | {
+                    "actions": len(report["actions"])
+                }
+                await self._save()
             if self._audit is not None and not dry_run and report["matched"]:
                 try:
                     await self._audit.async_record(
@@ -456,4 +501,4 @@ class RuleEngine:
 
 
 def _now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    return datetime.now().astimezone().isoformat(timespec="seconds")

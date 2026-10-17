@@ -80,6 +80,17 @@ const I18N = {
     },
     baseline: "Ausgangsbasis gesetzt – beim nächsten Lauf werden neue Mails verarbeitet.",
     delete_disabled: "Löschen ist in den Optionen deaktiviert.",
+    autoEvery: "Automatik: alle {0} Min.",
+    nextRun: "nächster Lauf {0}",
+    lastCheck: "letzte Prüfung {0}",
+    check_ran: "ausgeführt",
+    check_no_enabled_rules: "nichts zu tun",
+    check_error: "Fehler",
+    autoOff: "Automatik aus – aktivierbar in den Optionen unter „Posteingangsregeln“.",
+    autoIdle: "Keine aktive Regel: Die Automatik läuft, hat aber nichts zu tun. Lege eine Regel an oder aktiviere eine.",
+    triggerAuto: "automatisch",
+    triggerManual: "manuell",
+    nextShort: "nächster {0}",
     accounts: "Konten",
     accountRules: "{0} Regeln, {1} aktiv",
     accountAuto: "Automatik alle {0} Min.",
@@ -202,6 +213,17 @@ const I18N = {
     },
     baseline: "Baseline set – new mail will be processed on the next run.",
     delete_disabled: "Deleting is disabled in the options.",
+    autoEvery: "Automation: every {0} min",
+    nextRun: "next run {0}",
+    lastCheck: "last check {0}",
+    check_ran: "ran",
+    check_no_enabled_rules: "nothing to do",
+    check_error: "error",
+    autoOff: "Automation off – enable it in the options under “Inbox rules”.",
+    autoIdle: "No enabled rule: the automation is running but has nothing to do. Create or enable a rule.",
+    triggerAuto: "automatic",
+    triggerManual: "manual",
+    nextShort: "next {0}",
     accounts: "Accounts",
     accountRules: "{0} rules, {1} enabled",
     accountAuto: "automatic every {0} min",
@@ -255,6 +277,17 @@ const I18N = {
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+
+// Parses ISO timestamps, including offsets without colon (+0200) that Safari rejects.
+const parseTime = (iso) => (iso ? new Date(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) : null);
+const fmtDateTime = (iso) => {
+  const d = parseTime(iso);
+  return d && !isNaN(d) ? d.toLocaleString() : "–";
+};
+const fmtClock = (iso) => {
+  const d = parseTime(iso);
+  return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
+};
 
 // Adds data-label attributes to the cells of each row so the CSS can stack tables on phones.
 const withLabels = (rowsHtml, labels) =>
@@ -363,6 +396,32 @@ class ICloudMcpRulesPanel extends HTMLElement {
     };
   }
 
+  connectedCallback() {
+    this._onVisible = () => {
+      if (document.visibilityState === "visible") this._autoRefresh();
+    };
+    document.addEventListener("visibilitychange", this._onVisible);
+    this._timer = setInterval(() => this._autoRefresh(), 30000);
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._timer);
+    document.removeEventListener("visibilitychange", this._onVisible);
+  }
+
+  async _autoRefresh() {
+    const s = this._s;
+    if (!this._hass || !s.loaded || !s.entryId || s.busy || s.editing || document.visibilityState !== "visible") return;
+    const active = this.shadowRoot.activeElement;
+    if (active && ["SELECT", "INPUT", "TEXTAREA"].includes(active.tagName)) return;
+    try {
+      await this._reload();
+      this._render();
+    } catch (err) {
+      /* keep the last state on transient errors */
+    }
+  }
+
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
@@ -410,6 +469,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
     ]);
     this._s.rules = list.rules;
     this._s.lastRun = list.last_run;
+    this._s.automation = list.automation || null;
     this._s.mailboxes = boxes.mailboxes;
     try {
       await this._loadAccounts();
@@ -551,11 +611,11 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const pending = (a.requests || []).filter((r) => r.status === "pending");
     const decided = (a.requests || []).filter((r) => r.status !== "pending").slice(0, 10);
     const row = (r, withButtons) => `<tr>
-        <td style="white-space:nowrap">${esc(new Date(r.created).toLocaleString())}</td>
+        <td style="white-space:nowrap">${esc(fmtDateTime(r.created))}</td>
         <td>${esc(r.client || "–")}</td>
         <td><code>${esc(r.tool)}</code><div class="muted">${reason(r.reason)}</div></td>
         <td>${esc(r.summary)}${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
-        <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(t.validUntil)} ${esc(new Date(r.expires).toLocaleTimeString())}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by)}</div>` : ""}</td>
+        <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(t.validUntil)} ${esc(fmtClock(r.expires))}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by)}</div>` : ""}</td>
         <td class="actions" style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.deny)}</button>` : ""}</td>
       </tr>`;
     const table = (rows) => `<div class="scroll"><table class="stack"><thead><tr><th>${esc(t.colTime)}</th><th>${esc(t.colWho)}</th><th>${esc(t.colTool)}</th><th>${esc(t.colDetails)}</th><th>${esc(t.colResult)}</th><th></th></tr></thead><tbody>${withLabels(rows, [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult, ""])}</tbody></table></div>`;
@@ -612,7 +672,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const resBadge = (r) => `<span class="badge ${r === "ok" ? "" : "warn"}">${esc(r === "ok" ? t.resOk : r === "blocked" ? t.resBlocked : t.resError)}</span>`;
     const rows = s.audit
       .map(
-        (e) => `<tr><td style="white-space:nowrap">${esc(new Date(e.time).toLocaleString())}</td><td>${who(e)}</td><td><code>${esc(e.tool)}</code></td><td>${details(e)}</td><td>${resBadge(e.result)}</td></tr>`
+        (e) => `<tr><td style="white-space:nowrap">${esc(fmtDateTime(e.time))}</td><td>${who(e)}</td><td><code>${esc(e.tool)}</code></td><td>${details(e)}</td><td>${resBadge(e.result)}</td></tr>`
       )
       .join("");
     return `<div class="card">
@@ -671,9 +731,14 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const tabs = s.accounts
       .map((a) => {
         const active = a.entry_id === s.entryId;
-        const last = a.last_run ? new Date(a.last_run.finished || a.last_run.started).toLocaleString() : t.never;
+        const last = a.last_run ? fmtDateTime(a.last_run.finished || a.last_run.started) : t.never;
         const badges = [
-          `<span class="badge">${esc(a.rules_auto && a.mail_enabled && !a.read_only ? fmt(t.accountAuto, a.rules_interval) : t.accountManual)}</span>`,
+          `<span class="badge">${esc(
+            a.automation && a.automation.enabled
+              ? fmt(t.accountAuto, a.automation.interval) + (a.automation.next_run ? " · " + fmt(t.nextShort, fmtClock(a.automation.next_run)) : "")
+              : t.accountManual
+          )}</span>`,
+          a.automation && a.automation.idle_reason ? `<span class="badge warn">${esc(t.check_no_enabled_rules)}</span>` : "",
           a.read_only ? `<span class="badge warn">${esc(t.accountReadOnly)}</span>` : "",
           a.mail_enabled ? "" : `<span class="badge warn">${esc(t.accountNoMail)}</span>`,
           a.approvals_pending ? `<span class="badge warn">${esc(t.approvals)}: ${a.approvals_pending}</span>` : "",
@@ -790,9 +855,22 @@ class ICloudMcpRulesPanel extends HTMLElement {
     const t = this.t;
     const s = this._s;
     const accountSel = "";
+    const trig = s.lastRun ? (s.lastRun.trigger === "auto" ? t.triggerAuto : t.triggerManual) : "";
     const last = s.lastRun
-      ? `${esc(t.lastRun)}: ${esc(new Date(s.lastRun.finished || s.lastRun.started).toLocaleString())} · ${s.lastRun.checked} ${esc(t.checked)} · ${s.lastRun.matched} ${esc(t.matched)}`
+      ? `${esc(t.lastRun)}: ${esc(fmtDateTime(s.lastRun.finished || s.lastRun.started))} (${esc(trig)}) · ${s.lastRun.checked} ${esc(t.checked)} · ${s.lastRun.matched} ${esc(t.matched)}`
       : `${esc(t.lastRun)}: ${esc(t.never)}`;
+    const au = s.automation;
+    const fmt = (str, ...args) => str.replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
+    let autoHtml = "";
+    if (au && au.enabled) {
+      const parts = [fmt(t.autoEvery, au.interval)];
+      if (au.next_run) parts.push(fmt(t.nextRun, fmtClock(au.next_run)));
+      if (au.last_check) parts.push(`${fmt(t.lastCheck, fmtClock(au.last_check.time))}: ${t["check_" + au.last_check.result] || au.last_check.result}`);
+      autoHtml = `<p class="muted" style="margin:0 0 10px">${esc(parts.join(" · "))}</p>`;
+      if (au.idle_reason === "no_enabled_rules") autoHtml += `<div class="info" style="margin-bottom:10px">${esc(t.autoIdle)}</div>`;
+    } else if (au) {
+      autoHtml = `<div class="info" style="margin-bottom:10px">${esc(t.autoOff)}</div>`;
+    }
     const body = !s.loaded
       ? `<p class="muted">${esc(t.loading)}</p>`
       : !s.entryId
@@ -808,6 +886,7 @@ class ICloudMcpRulesPanel extends HTMLElement {
       ${this._renderEditor()}
       <div class="card">
         <h2><span class="grow">${esc(t.run)}</span><span class="muted">${last}</span></h2>
+        ${autoHtml}
         <div class="actionsbar">
           <button class="secondary" data-action="run" data-scope="all" data-dry="1" ${s.busy ? "disabled" : ""}>${esc(t.dryRunAll)}</button>
           <button data-action="run" data-scope="all" data-dry="0" ${s.busy || this._account()?.read_only ? "disabled" : ""} title="${this._account()?.read_only ? esc(t.accountReadOnly) : ""}">${esc(t.runAll)}</button>

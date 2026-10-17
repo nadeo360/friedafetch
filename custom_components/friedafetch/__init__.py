@@ -159,19 +159,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     ):
         minutes = clamp(opts.get(CONF_RULES_INTERVAL), DEFAULT_RULES_INTERVAL, MAX_RULES_INTERVAL)
         minutes = max(MIN_RULES_INTERVAL, minutes)
+        interval = timedelta(minutes=minutes)
+        rules.set_automation(True, minutes, dt_util.now() + interval)
 
-        async def _apply_rules(_now: datetime) -> None:
+        async def _apply_rules(now: datetime) -> None:
+            next_run = dt_util.as_local(now) + interval
             if not rules.has_enabled_rules:
+                rules.note_check("no_enabled_rules", next_run)
                 return
             try:
-                report = await rules.async_run(scope="new")
+                report = await rules.async_run(scope="new", trigger="auto")
             except Exception as err:  # noqa: BLE001 - keep the timer alive
                 _LOGGER.warning("Automatic inbox rules failed: %s", err)
+                rules.note_check("error", next_run, str(err))
                 return
+            rules.note_check("error" if report["errors"] else "ran", next_run)
             if report["matched"]:
                 _LOGGER.info("Inbox rules: %s messages checked, %s matched", report["checked"], report["matched"])
 
-        entry.async_on_unload(async_track_time_interval(hass, _apply_rules, timedelta(minutes=minutes)))
+        entry.async_on_unload(async_track_time_interval(hass, _apply_rules, interval))
+    else:
+        rules.set_automation(False, None, None)
 
     apple_id = entry.data[CONF_APPLE_ID]
     label = account_label(entry)
