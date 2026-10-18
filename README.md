@@ -292,6 +292,8 @@ automation:
 
 ## Development
 
+The architecture of Frieda and Frieda Postfach is described in the arc42 document [docs/architecture.md](https://github.com/nadeo360/friedafetch/blob/main/docs/architecture.md).
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements_dev.txt

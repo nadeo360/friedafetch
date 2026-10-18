@@ -361,6 +361,8 @@ automation:
 
 ## Entwicklung
 
+Die Architektur von Frieda und Frieda Postfach beschreibt das arc42-Dokument [docs/architecture.de.md](https://github.com/nadeo360/friedafetch/blob/main/docs/architecture.de.md).
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements_dev.txt
