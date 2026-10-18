@@ -272,7 +272,8 @@ oder Englisch je nach HA-Sprache):
   bis das Ergebnis da ist, zeigt die Anfrage „Wird gesendet …“).
 - **Änderungsprotokoll:** alles, was Frieda in iCloud verändert hat, als Tabelle nach Tagen gruppiert (z. B.
   „Mails verschoben · 3 Mails · → Archiv“), mit Suche, Filtern nach Bereich und Auslöser, Ergebnis-Umschalter und
-  wählbaren Spalten; ein Klick auf die Zeile zeigt Fehler und Rohparameter.
+  wählbaren Spalten; ein Klick auf die Zeile zeigt Fehler und Rohparameter, bei Läufen von Frieda Postfach auch die Mails
+  mit Link zu ihrem Verlauf.
 
 **Widgets:** Die Karten sind Widgets. Mit **Anordnen** in der Titelleiste lassen sie sich am Griff ziehen (oder per
 Pfeil verschieben), zwischen voller und halber Breite umschalten und ausblenden; Tabellen haben ein Menü **Spalten**.

@@ -205,6 +205,7 @@ flowchart TB
 | `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status, event `friedafetch_mail_rule_matched` (max. 25 per run). |
 | `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login. |
 | `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure, kill switch (`blocked_reasons`), category actions, corrections as examples, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`. |
+| `timeline.py` | Timeline of one message from the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays; optional phrasing by an AI Task (kill switch applied). |
 | `tools.py`, `link.py` | Rule tools for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`. |
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state, important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), next birthday. |
@@ -460,6 +461,7 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-23 | Container queries for tables | Widgets can be half width; tables must switch to the compact layout by widget width, not screen width | Requires a current browser (container queries), as Home Assistant itself does |
 | ADR-24 | One run-history entry per pass of rules and AI sorting | Both act on the same new mail one after the other; showing them apart hid what happened to a message | Timer and push write the entry after the AI step; AI-only passes (no rules, "rate newest") get their own entry; up to 20 messages per pass are kept locally |
 | ADR-25 | Panels update live through Home Assistant's websocket, not through polling or an external broker | Tables lagged up to 30 s behind; a message broker (e.g. Kafka) would add a server without benefit for one instance | Dispatcher signal per change, websocket subscription per open panel, reload of the changed part only; 60-s timer as fallback |
+| ADR-26 | A message timeline links existing records by Message-ID instead of keeping a new per-message log | The steps were spread over four views; a new log would store more mail data | Runs, AI log, ratings and change-log entries carry the Message-ID (it survives moves, the UID does not); older entries are matched by subject and sender; the timeline is assembled on request |
 
 ---
 

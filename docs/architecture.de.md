@@ -206,6 +206,7 @@ flowchart TB
 | `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status, Ereignis `friedafetch_mail_rule_matched` (max. 25 pro Lauf). |
 | `idle.py` | `MailWatcher`: eigene IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen. |
 | `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur, Killswitch (`blocked_reasons`), Kategorie-Aktionen, Korrekturen als Beispiele, Nutzungsprotokoll, Ereignisse `friedafetch_mail_rated` und `friedafetch_mail_important`. |
+| `timeline.py` | Verlauf einer Mail aus Ausführungen, KI-Protokoll und Bewertungen, verknüpft über die Message-ID (WebSocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Sammelt ungelesene Mails, Regelaktivität, Termine, Geburtstage; optional Formulierung durch einen AI Task (mit Killswitch). |
 | `tools.py`, `link.py` | Regel-Tools für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`. |
 | `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status, wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), nächster Geburtstag. |
@@ -470,6 +471,7 @@ sich eine Schnittstelle ändert.
 | ADR-23 | Container Queries für Tabellen | Widgets können halb breit sein; Tabellen wechseln nach Widget-Breite ins Kompaktlayout, nicht nach Bildschirmbreite | Setzt einen aktuellen Browser voraus (Container Queries), wie Home Assistant selbst |
 | ADR-24 | Ein Verlaufseintrag pro Durchgang von Regeln und KI-Sortierung | Beide bearbeiten dieselben neuen Mails nacheinander; getrennt angezeigt war nicht erkennbar, was mit einer Mail passiert ist | Takt und Push schreiben den Eintrag nach dem KI-Schritt; reine KI-Durchgänge (keine Regeln, „Neueste bewerten“) erhalten einen eigenen Eintrag; bis zu 20 Mails pro Durchgang werden lokal gespeichert |
 | ADR-25 | Panels aktualisieren sich live über den WebSocket von Home Assistant, nicht per Polling oder externem Broker | Tabellen hingen bis zu 30 s hinterher; ein Message-Broker (z. B. Kafka) brächte einen Server ohne Nutzen für eine Instanz | Dispatcher-Signal pro Änderung, WebSocket-Abo pro offenem Panel, nur der geänderte Teil wird neu geladen; 60-s-Takt als Rückfallebene |
+| ADR-26 | Der Verlauf einer Mail verknüpft vorhandene Einträge über die Message-ID statt ein neues Protokoll pro Mail zu führen | Die Schritte waren auf vier Ansichten verteilt; ein neues Protokoll speicherte mehr Maildaten | Ausführungen, KI-Protokoll, Bewertungen und Änderungsprotokoll tragen die Message-ID (sie überlebt das Verschieben, die UID nicht); ältere Einträge werden über Betreff und Absender zugeordnet; der Verlauf wird auf Anfrage zusammengesetzt |
 
 ---
 

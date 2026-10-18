@@ -90,7 +90,8 @@ const shown = (el) => !!el && !el.disabled && el.getClientRects().length > 0;
 
 // Redraws and puts the focus back where it was (or into a dialog that just opened, or back to its opener).
 export function keepFocus(root, draw) {
-  const hadModal = !!root.querySelector(".modal");
+  const DIALOG = ".modal, .sheet"; // confirmation dialogs and side sheets
+  const hadModal = !!root.querySelector(DIALOG);
   let el = root.activeElement;
   // an entry of a menu closes the menu: come back to the menu button
   const menu = el?.closest?.("details.menu");
@@ -100,11 +101,14 @@ export function keepFocus(root, draw) {
   const index = el ? all().indexOf(el) : -1;
   const caret = el?.tagName === "INPUT" && /^(text|search)$/.test(el.type) ? [el.selectionStart, el.selectionEnd] : null;
   draw();
-  const hasModal = !!root.querySelector(".modal");
+  const hasModal = !!root.querySelector(DIALOG);
   let target = null;
   if (hasModal && !hadModal) {
     root.__opener = sel;
-    target = root.querySelector('.modal [data-action="confirm-no"]') || root.querySelector(".modal button");
+    target =
+      root.querySelector('.modal [data-action="confirm-no"]') ||
+      root.querySelector('.sheet [data-action="sheet-close"]') ||
+      root.querySelector(".modal button, .sheet button");
   } else if (hadModal && !hasModal) {
     target = root.__opener ? root.querySelector(root.__opener) : null;
     root.__opener = "";
@@ -123,7 +127,7 @@ export function keepFocus(root, draw) {
   }
 }
 
-// Puts the panel's markup into a frame next to a live region that survives redraws. While a dialog is open,
+// Puts the panel's markup into a frame next to a live region that survives redraws. While a dialog or sheet is open,
 // everything else is inert, so Tab stays in the dialog and screen readers only read it.
 export function mount(root, html) {
   let frame = root.querySelector("[data-frame]");
@@ -132,10 +136,11 @@ export function mount(root, html) {
     frame = root.querySelector("[data-frame]");
   }
   frame.innerHTML = html;
-  const modal = frame.querySelector(".modal");
+  const modal = frame.querySelector(".modal, .sheet");
+  const own = ["modal", "modal-backdrop", "sheet", "sheet-backdrop"];
   for (const child of frame.children) {
     if (child.tagName === "STYLE") continue;
-    child.inert = !!modal && !child.classList.contains("modal") && !child.classList.contains("modal-backdrop");
+    child.inert = !!modal && !own.some((c) => child.classList.contains(c));
   }
   // notices and errors (marked data-announce) are read out once when they appear
   const news = [...frame.querySelectorAll("[data-announce]")].map((n) => n.textContent.trim()).filter(Boolean).join(" ");
@@ -709,6 +714,11 @@ const BASE_STYLE = `
   .ilist .tone-ai .i-ic, .ilist .tone-ai .i-chip { background: color-mix(in srgb, var(--frieda-ai-color, #8e6bd8) 15%, transparent); color: var(--frieda-text-ai); }
   .ilist .tone-held .i-ic, .ilist .tone-held .i-chip { background: color-mix(in srgb, var(--success-color, #43a047) 14%, transparent); color: var(--frieda-text-ok); }
   .ilist .tone-none .i-main { font-weight: 400; color: var(--secondary-text-color); }
+  /* entries that open something (a mail's timeline): chevron at the end */
+  .ilist li.go { cursor: pointer; grid-template-columns: 32px minmax(0, 1fr) auto 16px; }
+  .ilist li.go::after { content: "›"; grid-column: 4; grid-row: 1 / span 2; color: var(--secondary-text-color); font-size: 18px; line-height: 1; justify-self: end; }
+  .ilist li.go:hover { background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
+  .ilist li.go:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; border-radius: 10px; }
   .ilist .i-more { display: block; padding: 8px 12px 9px 56px; font-size: 12px; color: var(--secondary-text-color); border-top: 1px solid var(--divider-color, #e0e0e0); }
   /* compact list of items (e.g. the messages a run handled) */
   svg.donut text { font-size: 10px; font-weight: 500; fill: var(--primary-text-color); }

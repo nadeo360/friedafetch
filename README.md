@@ -211,7 +211,7 @@ language):
   shows "Sending …" until the result is in).
 - **Change log:** everything Frieda changed in iCloud as a table grouped by day (e.g. "Mail moved · 3 messages ·
   → Archive"), with search, filters for area and trigger, a result switch and selectable columns; a click on a row
-  shows the error and the raw parameters.
+  shows the error and the raw parameters, and for runs of Frieda Postfach the messages with a link to their timeline.
 
 **Widgets:** the cards are widgets. **Arrange** in the title bar lets you drag them by the handle (or move them with
 the arrows), switch them between full and half width and hide them; tables offer a **Columns** menu. Rare actions

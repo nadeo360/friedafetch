@@ -751,11 +751,22 @@ class FriedaPanel extends HTMLElement {
         lastDay = day;
         const open = s.auditOpen === x.idx;
         const params = Object.keys(e.params || {}).length ? JSON.stringify(e.params, null, 2) : "";
+        // runs of Frieda Postfach name their mails: each one opens its timeline there
+        const mails = this._s.overview?.postfach?.state === "running" ? (e.details?.mails || []).filter((m) => m && m.message_id) : [];
+        const mailsHtml = mails.length
+          ? `<div><div class="lbl">${esc(t.mailsLabel)}</div><ul class="ilist">${mails
+              .map(
+                (m, k) =>
+                  `<li class="go" role="link" tabindex="0" data-action="mail-link" data-i="${x.idx}:${k}"><span class="i-ic">${ico("email-outline")}</span><span class="i-main">${esc(m.subject || "–")}</span><span class="i-sub">${esc(t.tlOpen)}</span></li>`
+              )
+              .join("")}</ul></div>`
+          : "";
         const detail = open
           ? `<tr class="detail"><td colspan="6"><div class="det">
               ${e.error ? `<div class="errtext">${ico("alert-circle-outline")} ${esc(e.error)}</div>` : ""}
               ${x.chips.length ? `<div>${x.chips.map((c) => `<span class="chip">${esc(c)}</span>`).join("")}</div>` : ""}
               <div class="muted">${esc([fmtDateTime(e.time), x.who.text, t[`area_${x.area}`] || x.area].join(" · "))} · <code>${esc(e.tool)}</code></div>
+              ${mailsHtml}
               ${params ? `<div><div class="lbl">${esc(t.details)}</div><pre>${esc(params)}</pre></div>` : ""}
             </div></td></tr>`
           : "";
@@ -851,6 +862,15 @@ class FriedaPanel extends HTMLElement {
           this._s.filter = { ...this._s.filter, result: el.dataset.v };
           this._render();
         },
+        "mail-link": () => {
+          const [i, k] = String(el.dataset.i).split(":").map(Number);
+          const m = this._s.audit?.[i]?.details?.mails?.[k];
+          if (!m?.message_id) return;
+          // Home Assistant's own navigation: no page reload, the Postfach panel opens the timeline
+          const query = new URLSearchParams({ mail: m.message_id, account: this._s.entryId || "" });
+          window.history.pushState(null, "", `/frieda-postfach?${query}`);
+          window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+        },
         "audit-more": () => {
           this._s.auditLimit = Math.min(500, this._s.auditLimit + 100);
           this._call(() => this._loadAudit());
@@ -858,6 +878,15 @@ class FriedaPanel extends HTMLElement {
       }[action];
       if (handler) el.addEventListener("click", handler);
     });
+    // list entries that act as links also answer to Enter
+    root.querySelectorAll('li[role="link"][data-action]').forEach((li) =>
+      li.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          li.click();
+        }
+      })
+    );
     root.querySelector(".modal")?.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") this._confirmDone(false);
     });
