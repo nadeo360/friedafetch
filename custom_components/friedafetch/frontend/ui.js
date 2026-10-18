@@ -465,6 +465,10 @@ const WIDGET_STYLE = `
     table.dtable tr.detail { display: block; border-radius: 0 0 10px 10px; padding: 0 4px 4px; margin-bottom: 6px; }
     table.dtable tr.detail > td { display: block; border: none; }
     .scroll { overflow: visible; }
+    .ilist li { grid-template-columns: 32px minmax(0, 1fr); }
+    .ilist .i-sub { grid-row: 2; }
+    .ilist .i-chip { grid-column: 2; grid-row: 3; justify-self: start; margin-top: 4px; }
+    .ilist .i-ic { grid-row: 1 / span 3; align-self: start; }
   }
 `;
 
@@ -515,12 +519,29 @@ const BASE_STYLE = `
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
   .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   svg.donut { flex: none; display: block; }
+  /* select that looks like a chip (inline choice in tables) */
+  label.chipsel { position: relative; display: inline-flex; align-items: center; max-width: 100%; border-radius: 12px; background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); cursor: pointer; transition: background .15s; }
+  label.chipsel:hover { background: color-mix(in srgb, var(--primary-color) 12%, var(--secondary-background-color, #f0f0f0)); }
+  label.chipsel select { appearance: none; -webkit-appearance: none; border: none; background: transparent; color: inherit; font: inherit; font-size: 12px; padding: 3px 24px 3px 9px; min-height: 0; max-width: 220px; cursor: pointer; text-overflow: ellipsis; }
+  label.chipsel select:focus-visible { outline: none; }
+  label.chipsel:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 45%, transparent); }
+  label.chipsel > ha-icon { position: absolute; right: 6px; pointer-events: none; --mdc-icon-size: 14px; color: var(--secondary-text-color); }
+  label.chipsel.on { background: color-mix(in srgb, var(--primary-color) 14%, transparent); }
+  label.chipsel.on select { padding-left: 28px; }
+  label.chipsel.on > .lead { position: absolute; left: 9px; display: inline-flex; right: auto; --mdc-icon-size: 13px; color: var(--primary-color); }
+  /* item list (e.g. the messages a run handled): tinted icon, two text lines, a chip on the right */
+  .ilist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--divider-color, #e0e0e0); border-radius: 12px; background: var(--card-background-color, #fff); overflow: hidden; }
+  .ilist li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 0 12px; padding: 9px 12px; }
+  .ilist li + li { border-top: 1px solid var(--divider-color, #e0e0e0); }
+  .ilist .i-ic { grid-row: span 2; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; --mdc-icon-size: 17px; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); }
+  .ilist .i-main { min-width: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ilist .i-sub { grid-column: 2; min-width: 0; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ilist .i-chip { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; padding: 2px 9px; border-radius: 10px; white-space: nowrap; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); }
+  .ilist .tone-err .i-ic, .ilist .tone-err .i-chip { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); }
+  .ilist .tone-move .i-ic, .ilist .tone-move .i-chip { background: color-mix(in srgb, var(--info-color, #039be5) 13%, transparent); color: var(--info-color, #039be5); }
+  .ilist .tone-warn .i-ic, .ilist .tone-warn .i-chip { background: color-mix(in srgb, var(--warning-color, #ffa600) 18%, transparent); color: var(--primary-text-color); }
+  .ilist .i-more { display: block; padding: 8px 12px 9px 56px; font-size: 12px; color: var(--secondary-text-color); border-top: 1px solid var(--divider-color, #e0e0e0); }
   /* compact list of items (e.g. the messages a run handled) */
-  .tip-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .tip-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 8px; align-items: start; }
-  .tip-list li > ha-icon { --mdc-icon-size: 16px; color: var(--secondary-text-color); margin-top: 1px; }
-  .tip-list .t-subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tip-list .t-meta { grid-column: 2; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   svg.donut text { font-size: 10px; font-weight: 500; fill: var(--primary-text-color); }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--secondary-text-color); }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
