@@ -589,22 +589,24 @@ class FriedaPanel extends HTMLElement {
       const who = this._who(e);
       const area = this._area(e.tool);
       const chips = this._chips(e);
-      const res = e.result === "ok" ? t.resOk : e.result === "blocked" ? t.resBlocked : t.resError;
+      // one grouping for label, colour, filter and counter: ok, blocked, pending (approval requested), error
+      const group = e.result === "ok" || e.result === "blocked" || e.result === "pending" ? e.result : "error";
+      const res = { ok: t.resOk, blocked: t.resBlocked, pending: t.resPending, error: t.resError }[group];
       const what = this._toolLabel(e.tool, e.result === "ok");
       const text = [what, e.tool, who.text, ...chips, e.error || "", res].join(" ").toLowerCase();
-      return { e, idx, who, area, chips, res, what, text };
+      return { e, idx, who, area, chips, res, what, text, group };
     });
     const matches = (x, withResult = true) =>
       (!f.q || x.text.includes(f.q.toLowerCase().trim())) &&
       (!f.area || x.area === f.area) &&
       (!f.source || x.who.key === f.source) &&
-      (!withResult || !f.result || x.e.result === f.result);
+      (!withResult || !f.result || x.group === f.result);
     const visible = entries.filter((x) => matches(x));
     const opt = (val, label, cur) => `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(label)}</option>`;
     const areas = [...new Set(entries.map((x) => x.area))];
     const srcName = (k) => (k === "rules" ? t.srcRules : k === "ai" ? t.srcAi : this._source(k));
     const sources = [...new Map(entries.map((x) => [x.who.key, srcName(x.who.key)])).entries()];
-    const count = (r) => entries.filter((x) => matches(x, false) && (!r || x.e.result === r)).length;
+    const count = (r) => entries.filter((x) => matches(x, false) && (!r || x.group === r)).length;
     const seg = (val, icon, label) =>
       `<button class="seg ${f.result === val ? "on" : ""}" data-action="audit-result" data-v="${val}" aria-pressed="${f.result === val}">${ico(icon)}${esc(label)}<span class="n">${count(val)}</span></button>`;
     const cols = [
@@ -618,11 +620,11 @@ class FriedaPanel extends HTMLElement {
           <label class="search">${ico("magnify")}<input type="search" data-filter="q" value="${esc(f.q)}" placeholder="${esc(t.search)}" aria-label="${esc(t.search)}"></label>
           <select class="fsel" data-filter="area" aria-label="${esc(t.allAreas)}">${opt("", t.allAreas, f.area)}${areas.map((a) => opt(a, t[`area_${a}`] || a, f.area)).join("")}</select>
           ${sources.length > 1 ? `<select class="fsel" data-filter="source" aria-label="${esc(t.allSources)}">${opt("", t.allSources, f.source)}${sources.map(([k, l]) => opt(k, l, f.source)).join("")}</select>` : ""}
-          <div class="segs" role="group">${seg("", "format-list-bulleted", t.allResultsShort)}${seg("ok", "check-circle-outline", t.resOk)}${seg("error", "alert-circle-outline", t.resError)}${seg("blocked", "cancel", t.resBlocked)}</div>
+          <div class="segs" role="group">${seg("", "format-list-bulleted", t.allResultsShort)}${seg("ok", "check-circle-outline", t.resOk)}${seg("error", "alert-circle-outline", t.resError)}${seg("blocked", "cancel", t.resBlocked)}${count("pending") || f.result === "pending" ? seg("pending", "clock-outline", t.resPending) : ""}</div>
           <span class="grow"></span>${W.columnMenu(this._layout, "audit", cols, t)}
         </div>${W.columnStyle(this._layout, "audit", cols)}`
       : "";
-    const resIcon = { ok: "check-circle-outline", blocked: "cancel" };
+    const resIcon = { ok: "check-circle-outline", blocked: "cancel", pending: "clock-outline", error: "alert-circle-outline" };
     let lastDay = null;
     const rows = visible
       .map((x) => {
@@ -640,14 +642,14 @@ class FriedaPanel extends HTMLElement {
               ${params ? `<div><div class="lbl">${esc(t.details)}</div><pre>${esc(params)}</pre></div>` : ""}
             </div></td></tr>`
           : "";
-        const tint = e.result === "error" ? "row-err" : e.result === "blocked" ? "row-warn" : "";
-        return `${head}<tr data-search="" class="lrow res-${esc(e.result)} ${tint} ${open ? "open" : ""}">
+        const tint = x.group === "error" ? "row-err" : x.group === "blocked" ? "row-warn" : "";
+        return `${head}<tr data-search="" class="lrow res-${x.group} ${tint} ${open ? "open" : ""}">
             <td class="c-ico"><span class="aico">${ico((AREA_ICON[x.area] || AREA_ICON.other).replace("mdi:", ""))}</span></td>
             <td class="c-time num dim" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</td>
             <td class="c-what"><button class="rname" data-action="audit-open" data-i="${x.idx}" aria-expanded="${open}">${ico("chevron-right")}<span class="nm"><strong>${esc(x.what)}</strong>${x.chips.length ? `<small>${esc(x.chips.join(" · "))}</small>` : ""}</span></button></td>
             <td class="c-who dim">${esc(x.who.text)}</td>
             <td class="c-area dim">${esc(t[`area_${x.area}`] || x.area)}</td>
-            <td class="c-res"><span class="fact res" title="${esc(e.error || x.res)}">${ico(resIcon[e.result] || "alert-circle-outline")}${esc(x.res)}</span></td>
+            <td class="c-res"><span class="fact res" title="${esc(e.error || x.res)}">${ico(resIcon[x.group])}${esc(x.res)}</span></td>
           </tr>${detail}`;
       })
       .join("");

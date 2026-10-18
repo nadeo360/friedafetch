@@ -57,6 +57,8 @@ export const STYLE = `
   .ltable tr.res-ok .res { color: var(--success-color, #43a047); }
   .ltable tr.res-error .res { color: var(--error-color, #db4437); }
   .ltable tr.res-blocked .res { color: var(--warning-color, #ffa600); }
+  .ltable tr.res-pending .res { color: var(--info-color, #039be5); }
+  .ltable tr.res-pending .aico { background: color-mix(in srgb, var(--info-color, #039be5) 14%, transparent); color: var(--info-color, #039be5); }
   .errtext { display: flex; gap: 4px; align-items: center; font-size: 13px; color: var(--error-color, #db4437); overflow-wrap: anywhere; }
   @container (max-width: 720px) {
     .ltable tbody tr[data-search] { grid-template-columns: 36px minmax(0, 1fr) auto; }
