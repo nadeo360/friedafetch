@@ -40,6 +40,8 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited and
   compiled before saving. Server responses (XML, vCard, e-mail) are parsed with the Python standard library; mail
   content is passed to the AI as text only.
+- **Contacts cache:** contacts are cached only in memory and every vCard is encrypted there (AES-256-GCM with a
+  random key per process that is never stored); nothing of it is written to disk or included in diagnostics.
 - **Usage counters:** the panel's usage card stores only counts (per day, tool and source) and the name and version an
   MCP client announces in its handshake (`.storage/friedafetch.usage`); no arguments, results or mail content.
 
@@ -124,6 +126,9 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
 - **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt
   und werden vor dem Speichern kompiliert. Serverantworten (XML, vCard, E-Mail) werden mit der Python-Standardbibliothek
   geparst, Mail-Inhalte werden nur als Text an die KI weitergegeben.
+- **Kontakte-Cache:** Kontakte werden nur im Speicher zwischengespeichert, jede vCard dort verschlüsselt (AES-256-GCM
+  mit einem zufälligen Schlüssel pro Prozess, der nie gespeichert wird); nichts davon landet auf der Platte oder in
+  Diagnosedaten.
 - **Nutzungszähler:** Die Karte „Nutzung“ speichert nur Zahlen (pro Tag, Tool und Herkunft) sowie Name und Version,
   die ein MCP-Client im Handshake meldet (`.storage/friedafetch.usage`); keine Argumente, Ergebnisse oder Mail-Inhalte.
 

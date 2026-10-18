@@ -115,7 +115,7 @@ flowchart LR
 | Panels / WebSocket | `/friedafetch`, `/frieda-postfach`; Befehle `friedafetch/*`, `friedafetch_mail/*` | HA-Sitzung, nur Admins |
 | Statische Dateien | `/friedafetch_static`, `/friedafetch_mail_static` (Panel-JS, Icons) | keine (keine Daten) |
 | CalDAV / CardDAV | `https://caldav.icloud.com/`, `https://contacts.icloud.com/` (aiohttp) | Apple-ID + App-Passwort (Basic) |
-| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); zusätzlich eine IDLE-Sitzung für Push | ebenso |
+| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); mit Frieda Postfach zusätzlich eine Sitzung für Hintergrundarbeit und eine IDLE-Sitzung für Push | ebenso |
 | SMTP | `smtp.mail.me.com:587` (STARTTLS, aiosmtplib) | ebenso |
 | AI Task | `ai_task.async_generate_data` / Dienst `ai_task.generate_data` | HA-intern; der Anbieter der Entität verwaltet eigene Zugangsdaten |
 | Ereignisse | `friedafetch_action` (jede schreibende Aktion), Mobile-Action-Ereignisse für Freigaben | HA-Event-Bus |
@@ -180,25 +180,27 @@ flowchart TB
 | Modul | Inhalt |
 |---|---|
 | `__init__.py` | Einrichtung pro Config Entry: Clients, Guard, Protokoll, Freigaben, Anhang-Ablage, Registrierung der LLM-API, MCP-Endpunkt, Panel, Signale, Reparaturmeldungen. |
-| `llm_api.py` | `ICloudClients` (Container pro Konto), Basisklasse `ICloudTool` (Freigabe → Ausführung → Protokoll → Zählung, Fehler als `code`), ca. 30 Tools, `build_tools`, `tool_allowed`. |
+| `tool_base.py` | `ICloudClients` (Container pro Konto inkl. `mail_factory` für weitere Verbindungen), Basisklasse `ICloudTool` (Freigabe → Injection-Sperre → Ausführung → Protokoll → Zählung, Fehler als `code`). |
+| `tools_calendar.py`, `tools_contacts.py`, `tools_mail.py`, `tools_notes.py`, `tools_insights.py` | Die ca. 30 Tools, ein Modul pro Bereich. |
+| `llm_api.py` | Tool-Liste, Options-Filter (`tool_allowed`, `build_tools`), Prompt und die LLM-API von Home Assistant; exportiert die öffentlichen Namen weiter. |
 | `mcp_http.py` | Zustandsloser Streamable-HTTP-MCP-Server (MCP-SDK); Profile *voll* und *nur lesen*; Namenszusätze bei mehreren Konten; merkt sich Client-Namen aus `initialize`. |
-| `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV über aiohttp, iCalendar mit `icalendar`, eigener vCard-Parser. |
+| `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV über aiohttp, iCalendar mit `icalendar`, eigener vCard-Parser; Kontakte-Cache (ETag/CTag) verschlüsselt im Speicher. |
 | `mail.py`, `notes.py` | IMAP (aioimaplib, eigene Verbindungsverwaltung, `BODY.PEEK`), Versand per SMTP, Notizen über das IMAP-Postfach „Notes“. |
 | `guard.py` | Stundenkontingente, Empfänger-Richtlinie (alle / Kontakte / Positivliste), geschützte und verborgene Kalender/Postfächer. |
 | `approvals.py` | Parkt kritische Aufrufe (Senden, Löschen, Massenaktionen), benachrichtigt (persistent + mobile Benachrichtigung mit Aktionen), führt nach Freigabe aus, verfällt nach einer Frist. |
 | `audit.py` | Ringpuffer (500) schreibender Aktionen pro Konto, Ereignis `friedafetch_action`. |
 | `usage.py` | Zähler pro Konto (Tag, Tool, Herkunft) und bekannte MCP-Clients – nur Zahlen. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Freie Zeiten, Geburtstage, Dubletten, Postfach-Statistik; Ein-Klick-Abmeldung nach RFC 8058 mit SSRF-Schutz; sichere Anhang-Ablage. |
-| `frontend.py`, `frontend/panel.js` | WebSocket-Befehle (Konten, Überblick, Nutzung, Protokoll, Freigaben) und das Web-Component-Panel. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Konten, Überblick, Nutzung, Protokoll, Freigaben) und das Web-Component-Panel; Texte und Styles sind eigene Module, geladen mit der Versionsangabe des Panels. |
 | `config_flow.py`, `install_check.py`, `diagnostics.py` | Einrichtung/Optionen (Menü: Tools, Sicherheit, Freigaben), Erkennung veralteter Kopien, geschwärzte Diagnosedaten. |
 
 ### 5.3 Ebene 2 – Frieda Postfach
 
 | Modul | Inhalt |
 |---|---|
-| `__init__.py` | An den Frieda-Eintrag anhängen (wartet darauf), Regel-Engine und KI-Sortierer anlegen, Takt, Push-Wächter, Zeitplan des Tagesüberblicks, Dienst `send_digest`, Neuverbinden nach Neuladen von Frieda. |
+| `__init__.py` | An den Frieda-Eintrag anhängen (wartet darauf), eigene IMAP-Verbindung für Hintergrundarbeit öffnen (`mail_factory`), Regel-Engine und KI-Sortierer anlegen, Takt, Push-Wächter, Zeitplan des Tagesüberblicks, Dienst `send_digest`, Neuverbinden nach Neuladen von Frieda. |
 | `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status. |
-| `idle.py` | `MailWatcher`: zweite IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen. |
+| `idle.py` | `MailWatcher`: eigene IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen. |
 | `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur, Killswitch (`blocked_reasons`), Kategorie-Aktionen, Korrekturen als Beispiele, Nutzungsprotokoll. |
 | `digest.py` | Sammelt ungelesene Mails, Regelaktivität, Termine, Geburtstage; optional Formulierung durch einen AI Task (mit Killswitch). |
 | `tools.py`, `link.py` | Regel-Tools für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`. |
@@ -367,7 +369,11 @@ flowchart LR
 ### 8.3 Persistenz
 
 Home-Assistant-`Store` (JSON in `.storage`) mit verzögertem Speichern; Ringpuffer begrenzen das Wachstum.
-Kontingente und wartende Freigaben liegen nur im Speicher (siehe Risiken).
+Kontingente und wartende Freigaben liegen nur im Speicher (siehe Risiken). Der Kontakte-Cache liegt nur im Speicher
+und hält jede vCard verschlüsselt (AES-256-GCM, zufälliger Schlüssel pro Prozess, Chiffrat an den Datensatz gebunden).
+
+Die Mail-Automatik fragt beim Server nur neue UIDs ab (`UID n:*`) und speichert UIDVALIDITY pro Postfach; vergibt
+der Server die UIDs neu, wird nichts verarbeitet und der Startpunkt neu gesetzt.
 
 ### 8.4 Fehlerbehandlung
 
@@ -421,6 +427,9 @@ sich eine Schnittstelle ändert.
 | ADR-11 | Release-Zips mit Prüfsumme, SBOM und Attestierung; Actions per SHA gepinnt | Lieferketten-Sicherheit für ein Werkzeug mit Mail-Zugriff | Release-Workflow pro Repository |
 | ADR-12 | Injection-Sperre pro Aufrufer statt verdächtige Inhalte zu blockieren | Lesen muss möglich bleiben (der Nutzer will wissen, was in einer Phishing-Mail steht); gefährlich ist das Handeln danach | Kurzlebiger Sperrzustand im Speicher; Panel zeigt aktive Sperren |
 | ADR-13 | Regeln als Massenaktionen behandeln (Freigaben, Obergrenze pro Lauf, Kontingent) | Regel plus „auf ganzes Postfach anwenden“ würde sonst Lösch-Freigaben und Kontingente umgehen | Zurückgestellte Mails werden im nächsten Lauf verarbeitet |
+| ADR-14 | Eigene IMAP-Verbindung für Hintergrundarbeit | Eine gemeinsame Verbindung serialisiert KI-Clients und Regelläufe | Drei IMAP-Sitzungen pro Konto mit Frieda Postfach (Tools, Automatik, Push) |
+| ADR-15 | Gezielte UID-Suche plus UIDVALIDITY | Bei großen Postfächern ist das Auflisten aller UIDs pro Lauf verschwenderisch; neu nummerierte Postfächer dürfen keine Aktionen an falschen Mails auslösen | Neuer Startpunkt nach einer Neunummerierung |
+| ADR-16 | Kontakte-Cache im Speicher verschlüsseln | Kontakte sind personenbezogene Daten; keine lesbaren Kopien in Speicherobjekten, Diagnosedaten oder Abbildern | Entschlüsselung pro Nutzung (ca. 0,1 s für 2.000 Kontakte); kein Schutz gegen Auslesen des ganzen Prozesses |
 
 ---
 

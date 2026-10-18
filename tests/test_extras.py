@@ -100,7 +100,7 @@ async def test_unsubscribe_tool(hass: HomeAssistant, mock_discover: AsyncMock) -
             AsyncMock(return_value=(MagicMock(), NEWSLETTER)),
         ),
         patch(
-            "custom_components.friedafetch.llm_api.async_one_click",
+            "custom_components.friedafetch.tools_mail.async_one_click",
             AsyncMock(return_value={"method": "one_click", "status": 200, "host": "shop.example"}),
         ) as one_click,
     ):

@@ -114,7 +114,7 @@ flowchart LR
 | Panels / WebSocket | `/friedafetch`, `/frieda-postfach`; commands `friedafetch/*`, `friedafetch_mail/*` | HA session, admin only |
 | Static files | `/friedafetch_static`, `/friedafetch_mail_static` (panel JS, icons) | none (no data) |
 | CalDAV / CardDAV | `https://caldav.icloud.com/`, `https://contacts.icloud.com/` (aiohttp) | Apple ID + app-specific password (Basic) |
-| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); plus one IDLE session for push | same |
+| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); with Frieda Postfach also one session for background work and one IDLE session for push | same |
 | SMTP | `smtp.mail.me.com:587` (STARTTLS, aiosmtplib) | same |
 | AI Task | `ai_task.async_generate_data` / service `ai_task.generate_data` | HA-internal; the entity's provider handles its own credentials |
 | Events | `friedafetch_action` (every writing action), mobile action events for approvals | HA event bus |
@@ -179,25 +179,27 @@ flowchart TB
 | Module | Content |
 |---|---|
 | `__init__.py` | Setup per config entry: clients, guard, audit, approvals, attachment store, LLM API registration, MCP endpoint, panel, signals, repair issues. |
-| `llm_api.py` | `ICloudClients` (per-account container), `ICloudTool` base class (approval → run → audit → usage counting, error mapping to `code`s), ~30 tools, `build_tools`, `tool_allowed`. |
+| `tool_base.py` | `ICloudClients` (per-account container incl. `mail_factory` for further connections), `ICloudTool` base class (approval → injection lock → run → audit → usage counting, error mapping to `code`s). |
+| `tools_calendar.py`, `tools_contacts.py`, `tools_mail.py`, `tools_notes.py`, `tools_insights.py` | The ~30 tools, one module per area. |
+| `llm_api.py` | Tool list, option filter (`tool_allowed`, `build_tools`), prompt and the Home Assistant LLM API; re-exports the public names. |
 | `mcp_http.py` | Stateless Streamable-HTTP MCP server (MCP SDK); profiles *full* and *readonly*; tool name suffixes for several accounts; records client names from `initialize`. |
-| `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV over aiohttp, iCalendar via `icalendar`, own vCard parser. |
+| `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV over aiohttp, iCalendar via `icalendar`, own vCard parser; contacts cache (ETag/CTag) kept encrypted in memory. |
 | `mail.py`, `notes.py` | IMAP (aioimaplib, own connection handling, `BODY.PEEK`), SMTP sending, notes via the IMAP “Notes” mailbox. |
 | `guard.py` | Hourly quotas, recipient policy (any / contacts / allow list), protected and hidden calendars/mailboxes. |
 | `approvals.py` | Parks critical calls (send, delete, mass actions), notifies (persistent + actionable mobile notification), executes on approval, expires after a timeout. |
 | `audit.py` | Ring buffer (500) of writing actions per account, event `friedafetch_action`. |
 | `usage.py` | Counters per account (day, tool, source) and known MCP clients – counts only. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Free slots, birthdays, duplicates, mailbox statistics; RFC 8058 one-click unsubscribe with SSRF protection; safe attachment storage. |
-| `frontend.py`, `frontend/panel.js` | WebSocket commands (accounts, overview, usage, audit, approvals) and the web-component panel. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (accounts, overview, usage, audit, approvals) and the web-component panel; texts and styles are separate modules loaded with the panel's version query. |
 | `config_flow.py`, `install_check.py`, `diagnostics.py` | Setup/options (menu: tools, security, approvals), detection of stale copies, redacted diagnostics. |
 
 ### 5.3 Level 2 – Frieda Postfach
 
 | Module | Content |
 |---|---|
-| `__init__.py` | Attach to the Frieda entry (waits for it), create rule engine and AI sorter, timer, push watcher, daily overview schedule, `send_digest` service, re-attach on Frieda reloads. |
+| `__init__.py` | Attach to the Frieda entry (waits for it), open an own IMAP connection for background work (`mail_factory`), create rule engine and AI sorter, timer, push watcher, daily overview schedule, `send_digest` service, re-attach on Frieda reloads. |
 | `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status. |
-| `idle.py` | `MailWatcher`: second IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login. |
+| `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login. |
 | `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure, kill switch (`blocked_reasons`), category actions, corrections as examples, usage log. |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays; optional phrasing by an AI Task (kill switch applied). |
 | `tools.py`, `link.py` | Rule tools for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`. |
@@ -361,7 +363,11 @@ flowchart LR
 ### 8.3 Persistence
 
 Home Assistant `Store` (JSON in `.storage`) with delayed saves; ring buffers limit growth. Quotas and pending
-approvals are kept in memory only (see risks).
+approvals are kept in memory only (see risks). The contacts cache lives only in memory and keeps every vCard
+encrypted (AES-256-GCM, random key per process, ciphertext bound to the record).
+
+Mail automation asks the server only for new UIDs (`UID n:*`) and stores UIDVALIDITY per mailbox; when the server
+renumbers a mailbox, nothing is processed and the starting point is set again.
 
 ### 8.4 Error handling
 
@@ -412,6 +418,9 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-11 | Release zips with checksum, SBOM and attestation; SHA-pinned actions | Supply-chain security for a tool with mail access | Release workflow per repository |
 | ADR-12 | Injection lock per caller instead of blocking suspicious content | Reading must stay possible (the user wants to know what a phishing mail says); the danger is acting on it | Short-lived lock state in memory; panel shows active locks |
 | ADR-13 | Treat rules as mass actions (approvals, per-run cap, quota) | A rule plus “run on whole mailbox” would otherwise bypass delete approvals and quotas | Deferred messages are processed in the next run |
+| ADR-14 | Own IMAP connection for background work | One shared connection serialises AI clients and rule runs | Three IMAP sessions per account with Frieda Postfach (tools, automation, push) |
+| ADR-15 | Incremental UID search plus UIDVALIDITY | Listing every UID each run is wasteful for large mailboxes; renumbered mailboxes must not trigger actions on wrong messages | Re-baseline after a renumbering |
+| ADR-16 | Encrypt the in-memory contacts cache | Contacts are personal data; avoid readable copies in memory objects, diagnostics or dumps | Decrypt per use (~0.1 s for 2000 contacts); no protection against reading the whole process |
 
 ---
 
