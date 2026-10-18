@@ -593,7 +593,7 @@ class FriedaPanel extends HTMLElement {
       const group = e.result === "ok" || e.result === "blocked" || e.result === "pending" ? e.result : "error";
       const res = { ok: t.resOk, blocked: t.resBlocked, pending: t.resPending, error: t.resError }[group];
       const what = this._toolLabel(e.tool, e.result === "ok");
-      const text = [what, e.tool, who.text, ...chips, e.error || "", res].join(" ").toLowerCase();
+      const text = [what, e.tool, who.text, ...chips, e.error || "", res, t[`area_${area}`] || area, JSON.stringify(e.params || {})].join(" ").toLowerCase();
       return { e, idx, who, area, chips, res, what, text, group };
     });
     const matches = (x, withResult = true) =>
