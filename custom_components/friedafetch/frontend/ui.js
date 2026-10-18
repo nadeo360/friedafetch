@@ -381,6 +381,16 @@ export function bindWidgets(root, layout, rerender) {
     const fn = act[el.dataset.action];
     if (fn) el.addEventListener("click", () => fn(el));
   });
+  // menus open inside their card: flip to the right when there is no room on the left (e.g. next to HA's sidebar)
+  root.querySelectorAll("details.menu").forEach((d) =>
+    d.addEventListener("toggle", () => {
+      const list = d.querySelector(".menu-list");
+      if (!d.open || !list) return;
+      list.classList.remove("flip");
+      const box = (d.closest(".card, section.widget") || root.host || document.body).getBoundingClientRect();
+      if (list.getBoundingClientRect().left < Math.max(box.left, 0)) list.classList.add("flip");
+    })
+  );
   // choosing an entry closes its menu
   root.querySelectorAll("details.menu .menu-list button").forEach((b) => b.addEventListener("click", () => b.closest("details")?.removeAttribute("open")));
   root.querySelectorAll("[data-col-table]").forEach((el) =>
@@ -489,6 +499,10 @@ const WIDGET_STYLE = `
   details.menu.colmenu > summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); color: var(--frieda-text-on-fill); font-size: 13px; }
   details.menu.rowmenu > summary:hover, details.menu.rowmenu[open] > summary, details.menu.colmenu[open] > summary { background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); filter: none; }
   details.menu.colmenu .menu-list { min-width: 200px; }
+  /* the column button stays on the right, also when the toolbar wraps */
+  .tbar details.colmenu { margin-left: auto; }
+  /* a menu that would leave its card on the left opens to the right instead */
+  details.menu .menu-list.flip { right: auto; left: 0; }
   .card .chead details.cardmenu { flex: none; margin-right: -6px; }
   .card .chead details.cardmenu .menu-list { font-size: 14px; font-weight: 400; }
   button.morelink { background: none; color: var(--primary-color); padding: 6px 4px; font-size: 13px; min-height: 0; border: none; display: inline-flex; align-items: center; gap: 4px; }
