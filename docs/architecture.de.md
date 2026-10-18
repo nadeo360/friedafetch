@@ -404,6 +404,13 @@ HA-CSS-Variablen dem Theme an, haben mobile Layouts mit gestapelten Tabellen, ak
 und folgen der HA-Sprache (Deutsch/Englisch). Options-Dialoge nutzen Menüs; optionale Felder verwenden
 `suggested_value`, damit geleerte Felder leer bleiben.
 
+Barrierefreiheit steckt in Frieda UI, damit jedes Panel sie bekommt: Panels zeichnen ihren Inhalt komplett neu, und
+`keepFocus()` setzt den Fokus danach wieder auf dasselbe Bedienelement (bzw. in einen geöffneten Dialog und zurück
+zu seinem Auslöser). `mount()` hält eine Live-Region außerhalb des neu gezeichneten Bereichs und macht alles außer
+einem offenen Dialog `inert`; `announce()` liest Hinweise, Fehler und Suchtreffer vor. Symbole mit Bedeutung haben
+einen zugänglichen Namen, Karten-Aktionen stehen neben statt in der Überschrift, und Tonfarben für Text werden mit
+der Textfarbe gemischt (`--frieda-text-*`), damit hell wie dunkel der WCAG-AA-Kontrast hält.
+
 ### 8.6 Internationalisierung
 
 `strings.json` + `translations/de|en.json` für Dialoge und Dienste, I18N-Tabellen in den Panels, zweisprachige

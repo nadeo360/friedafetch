@@ -7,7 +7,7 @@
    Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
    user to other devices. */
 
-export const UI_API = 3; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll()
+export const UI_API = 4; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll(); 4: keepFocus(), mount(), announce(), .chead
 
 // ------------------------------------------------------------------ helpers
 const escape = (s) =>
@@ -38,8 +38,11 @@ export const fmtShort = (iso) => {
 export const fmtNum = (n) => Number(n || 0).toLocaleString();
 
 // Material Design Icons from Home Assistant's own icon set.
+// With a title the icon carries meaning and gets an accessible name; without one it is decoration.
 export const ico = (name, title = "") =>
-  `<ha-icon icon="mdi:${name}"${title ? ` title="${escape(title)}"` : ""} aria-hidden="${title ? "false" : "true"}"></ha-icon>`;
+  title
+    ? `<ha-icon icon="mdi:${name}" role="img" aria-label="${escape(title)}" title="${escape(title)}"></ha-icon>`
+    : `<ha-icon icon="mdi:${name}" aria-hidden="true"></ha-icon>`;
 
 // Redraws a panel without losing the scroll position. Safari and the companion apps do not anchor the scroll
 // position like Chrome, so replacing the panel's content (on every filter click) would jump to the top.
@@ -59,6 +62,95 @@ export function keepScroll(host, draw) {
   };
   restore();
   requestAnimationFrame(restore); // once more after icons and fonts have their size
+}
+
+// ------------------------------------------------------------------ accessibility
+// Panels redraw their whole content on every change. These helpers keep that invisible for keyboard and screen
+// reader users: the focus stays on the same control, a dialog keeps the focus inside, and news is read out.
+const FOCUS_ATTRS = ["data-action", "data-v", "data-id", "data-k", "data-i", "data-w", "data-index", "data-scope", "data-dry", "data-filter", "data-search-table", "data-col-table", "data-col"];
+const CONTEXT_ATTRS = ["data-rule-id", "data-widget", "data-detail-for"];
+const FOCUSABLE = "button, input, select, textarea, summary, a[href]";
+const quote = (v) => `"${String(v).replace(/["\\]/g, "\\$&")}"`;
+
+// A selector that finds the same control again after a redraw.
+function describe(el) {
+  const ctxEl = el.closest(CONTEXT_ATTRS.map((a) => `[${a}]`).join(","));
+  const ctxAttr = ctxEl && CONTEXT_ATTRS.find((a) => ctxEl.hasAttribute(a));
+  const ctx = ctxEl ? `[${ctxAttr}=${quote(ctxEl.getAttribute(ctxAttr))}] ` : "";
+  if (el.tagName === "SUMMARY") {
+    const det = el.parentElement;
+    return `${ctx}details${[...det.classList].map((c) => `.${c}`).join("")} > summary`;
+  }
+  if (el.id) return `#${el.id}`;
+  const own = FOCUS_ATTRS.filter((a) => el.hasAttribute(a)).map((a) => `[${a}=${quote(el.getAttribute(a))}]`).join("");
+  return own ? `${ctx}${el.tagName.toLowerCase()}${own}` : "";
+}
+
+const shown = (el) => !!el && !el.disabled && el.getClientRects().length > 0;
+
+// Redraws and puts the focus back where it was (or into a dialog that just opened, or back to its opener).
+export function keepFocus(root, draw) {
+  const hadModal = !!root.querySelector(".modal");
+  let el = root.activeElement;
+  // an entry of a menu closes the menu: come back to the menu button
+  const menu = el?.closest?.("details.menu");
+  if (menu && el.tagName === "BUTTON") el = menu.querySelector(":scope > summary");
+  const sel = el ? describe(el) : "";
+  const all = () => [...root.querySelectorAll(FOCUSABLE)];
+  const index = el ? all().indexOf(el) : -1;
+  const caret = el?.tagName === "INPUT" && /^(text|search)$/.test(el.type) ? [el.selectionStart, el.selectionEnd] : null;
+  draw();
+  const hasModal = !!root.querySelector(".modal");
+  let target = null;
+  if (hasModal && !hadModal) {
+    root.__opener = sel;
+    target = root.querySelector('.modal [data-action="confirm-no"]') || root.querySelector(".modal button");
+  } else if (hadModal && !hasModal) {
+    target = root.__opener ? root.querySelector(root.__opener) : null;
+    root.__opener = "";
+  } else if (el) {
+    target = sel ? root.querySelector(sel) : null;
+    if (!shown(target) && index >= 0) target = all().slice(Math.max(0, index - 1)).find(shown) || null;
+  }
+  if (!shown(target) || target === root.activeElement) return;
+  target.focus({ preventScroll: true });
+  if (caret && target.tagName === "INPUT") {
+    try {
+      target.setSelectionRange(...caret);
+    } catch (err) {
+      /* not a text field */
+    }
+  }
+}
+
+// Puts the panel's markup into a frame next to a live region that survives redraws. While a dialog is open,
+// everything else is inert, so Tab stays in the dialog and screen readers only read it.
+export function mount(root, html) {
+  let frame = root.querySelector("[data-frame]");
+  if (!frame) {
+    root.innerHTML = `<div data-frame></div><div class="vh" data-live aria-live="polite" aria-atomic="true"></div>`;
+    frame = root.querySelector("[data-frame]");
+  }
+  frame.innerHTML = html;
+  const modal = frame.querySelector(".modal");
+  for (const child of frame.children) {
+    if (child.tagName === "STYLE") continue;
+    child.inert = !!modal && !child.classList.contains("modal") && !child.classList.contains("modal-backdrop");
+  }
+  // notices and errors (marked data-announce) are read out once when they appear
+  const news = [...frame.querySelectorAll("[data-announce]")].map((n) => n.textContent.trim()).filter(Boolean).join(" ");
+  if (news && news !== root.__news) announce(root, news);
+  root.__news = news;
+}
+
+// Reads a short text out (e.g. "3 hits") without moving the focus.
+// A longer delay suits texts that follow typing (search hits), so only the last one is read.
+export function announce(root, text, delay = 100) {
+  const live = root.querySelector("[data-live]");
+  if (!live) return;
+  clearTimeout(root.__liveTimer);
+  live.textContent = "";
+  root.__liveTimer = setTimeout(() => (live.textContent = text), delay);
 }
 
 // Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
@@ -372,7 +464,7 @@ const WIDGET_STYLE = `
   label.search:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 45%, transparent); }
   select.fsel { height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: none; background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); font-size: 13px; max-width: 220px; }
   .segs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); }
-  button.seg { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--secondary-text-color); padding: 5px 12px; border-radius: 8px; font-size: 13px; min-height: 0; border: none; }
+  button.seg { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--frieda-text-on-fill); padding: 5px 12px; border-radius: 8px; font-size: 13px; min-height: 0; border: none; }
   button.seg ha-icon { --mdc-icon-size: 16px; }
   button.seg .n { font-size: 11px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent); }
   button.seg.on { background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
@@ -391,14 +483,14 @@ const WIDGET_STYLE = `
   details.menu .menu-list .mi > span { font-weight: 500; }
   details.menu .menu-list button small { color: var(--secondary-text-color); font-size: 12px; }
   details.menu .menu-list hr { border: none; border-top: 1px solid var(--divider-color, #e0e0e0); margin: 4px 2px; }
-  details.menu .menu-list button.danger-item, details.menu .menu-list button.danger-item ha-icon { color: var(--error-color, #db4437); }
+  details.menu .menu-list button.danger-item, details.menu .menu-list button.danger-item ha-icon { color: var(--frieda-text-err); }
   details.menu.rowmenu, details.menu.colmenu { display: inline-block; }
   details.menu.rowmenu > summary { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary-text-color); --mdc-icon-size: 20px; }
-  details.menu.colmenu > summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); font-size: 13px; }
+  details.menu.colmenu > summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); color: var(--frieda-text-on-fill); font-size: 13px; }
   details.menu.rowmenu > summary:hover, details.menu.rowmenu[open] > summary, details.menu.colmenu[open] > summary { background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); filter: none; }
   details.menu.colmenu .menu-list { min-width: 200px; }
-  .card h2 details.cardmenu { flex: none; margin-right: -6px; }
-  .card h2 details.cardmenu .menu-list { font-size: 14px; font-weight: 400; }
+  .card .chead details.cardmenu { flex: none; margin-right: -6px; }
+  .card .chead details.cardmenu .menu-list { font-size: 14px; font-weight: 400; }
   button.morelink { background: none; color: var(--primary-color); padding: 6px 4px; font-size: 13px; min-height: 0; border: none; display: inline-flex; align-items: center; gap: 4px; }
   label.colitem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--primary-text-color); }
   label.colitem:hover { background: var(--secondary-background-color, #f0f0f0); }
@@ -435,10 +527,11 @@ const WIDGET_STYLE = `
   .det .lbl { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 3px; }
   .det pre { margin: 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--secondary-background-color, #f0f0f0); border-radius: 8px; padding: 8px 10px; }
   .nomatch { margin: 8px 0 0; }
-  input.switch { appearance: none; -webkit-appearance: none; flex: none; width: 32px; height: 18px; min-height: 0; border-radius: 9px; background: color-mix(in srgb, var(--secondary-text-color) 35%, transparent); position: relative; cursor: pointer; margin: 0; padding: 0; border: none; transition: background .15s; vertical-align: middle; }
-  input.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
-  input.switch:checked { background: var(--primary-color); }
-  input.switch:checked::after { transform: translateX(14px); }
+  /* switch: outlined with a grey knob when off, filled with a white knob when on (both 3:1 against the card) */
+  input.switch { appearance: none; -webkit-appearance: none; flex: none; width: 32px; height: 18px; min-height: 0; border-radius: 9px; background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent); box-shadow: inset 0 0 0 1.5px var(--secondary-text-color); position: relative; cursor: pointer; margin: 0; padding: 0; border: none; transition: background .15s, box-shadow .15s; vertical-align: middle; }
+  input.switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--secondary-text-color); transition: transform .15s, width .15s, height .15s, top .15s, left .15s; }
+  input.switch:checked { background: var(--primary-color); box-shadow: none; }
+  input.switch:checked::after { top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transform: translateX(14px); }
   input.switch:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 
   @media (max-width: 760px) {
@@ -474,7 +567,15 @@ const WIDGET_STYLE = `
 
 // ------------------------------------------------------------------ styles
 const BASE_STYLE = `
-  :host { display: block; height: 100%; color: var(--primary-text-color); background: var(--primary-background-color); }
+  :host { display: block; height: 100%; color: var(--primary-text-color); background: var(--primary-background-color);
+    /* tone colours for text and icons, mixed with the text colour so they stay readable in light and dark themes (WCAG AA) */
+    --frieda-text-err: color-mix(in srgb, var(--error-color, #db4437) 65%, var(--primary-text-color));
+    --frieda-text-ok: color-mix(in srgb, var(--success-color, #43a047) 65%, var(--primary-text-color));
+    --frieda-text-info: color-mix(in srgb, var(--info-color, #039be5) 65%, var(--primary-text-color));
+    --frieda-text-warn: color-mix(in srgb, var(--warning-color, #ffa600) 50%, var(--primary-text-color));
+    --frieda-text-ai: color-mix(in srgb, var(--frieda-ai-color, #8e6bd8) 65%, var(--primary-text-color));
+    /* grey text on grey fills (segments, menus, figures) */
+    --frieda-text-on-fill: color-mix(in srgb, var(--secondary-text-color) 80%, var(--primary-text-color)); }
   .toolbar { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; background: var(--app-header-background-color, var(--primary-color)); color: var(--app-header-text-color, #fff); font-size: 20px; }
   .toolbar .grow { flex: 1; }
   .toolbar img { width: 28px; height: 28px; border-radius: 7px; }
@@ -482,13 +583,16 @@ const BASE_STYLE = `
   .card { background: var(--card-background-color, #fff); border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0 2px 2px rgba(0,0,0,.14)); border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0)); padding: 16px; }
   .card h2 { margin: 0 0 12px; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .card h2 .grow { flex: 1; }
+  /* card head: the heading, then its actions (menus and buttons are not part of the heading) */
+  .card .chead { margin: 0 0 12px; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .card .chead > h2 { flex: 1; min-width: 0; margin: 0; font: inherit; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   h3 { font-size: 13px; font-weight: 500; margin: 14px 0 8px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
 
   /* buttons: primary (default), secondary, danger, link, small, icon, ib (icon + text), round, pill */
   button { font: inherit; font-size: 14px; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; background: var(--primary-color); color: var(--text-primary-color, #fff); }
   button.secondary { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
   button.danger { background: var(--error-color, #db4437); }
-  button.secondary.danger { background: transparent; color: var(--error-color, #db4437); border-color: color-mix(in srgb, var(--error-color, #db4437) 60%, transparent); }
+  button.secondary.danger { background: transparent; color: var(--frieda-text-err); border-color: color-mix(in srgb, var(--error-color, #db4437) 60%, transparent); }
   button.link { background: none; color: var(--primary-color); padding: 2px 4px; min-height: 0; }
   button.small { padding: 3px 9px; font-size: 12.5px; }
   button.icon { display: inline-grid; place-items: center; background: transparent; color: var(--secondary-text-color); padding: 4px 6px; border-radius: 8px; }
@@ -513,7 +617,7 @@ const BASE_STYLE = `
   .dot.off { background: var(--disabled-text-color, #bdbdbd); }
   .dot.warn { background: var(--warning-color, #ffa600); }
   .dot.err { background: var(--error-color, #db4437); }
-  .error { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); padding: 10px 12px; border-radius: 8px; }
+  .error { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--frieda-text-err); padding: 10px 12px; border-radius: 8px; }
   .ok { background: color-mix(in srgb, var(--success-color, #43a047) 12%, transparent); padding: 10px 12px; border-radius: 8px; }
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
@@ -536,12 +640,12 @@ const BASE_STYLE = `
   .ilist .i-ic { grid-row: span 2; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; --mdc-icon-size: 17px; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); }
   .ilist .i-main { min-width: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ilist .i-sub { grid-column: 2; min-width: 0; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ilist .i-chip { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; padding: 2px 9px; border-radius: 10px; white-space: nowrap; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); }
-  .ilist .tone-err .i-ic, .ilist .tone-err .i-chip { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); }
-  .ilist .tone-move .i-ic, .ilist .tone-move .i-chip { background: color-mix(in srgb, var(--info-color, #039be5) 13%, transparent); color: var(--info-color, #039be5); }
+  .ilist .i-chip { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; padding: 2px 9px; border-radius: 10px; white-space: nowrap; background: var(--secondary-background-color, #f0f0f0); color: var(--frieda-text-on-fill); }
+  .ilist .tone-err .i-ic, .ilist .tone-err .i-chip { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--frieda-text-err); }
+  .ilist .tone-move .i-ic, .ilist .tone-move .i-chip { background: color-mix(in srgb, var(--info-color, #039be5) 13%, transparent); color: var(--frieda-text-info); }
   .ilist .tone-warn .i-ic, .ilist .tone-warn .i-chip { background: color-mix(in srgb, var(--warning-color, #ffa600) 18%, transparent); color: var(--primary-text-color); }
-  .ilist .tone-ai .i-ic, .ilist .tone-ai .i-chip { background: color-mix(in srgb, var(--frieda-ai-color, #8e6bd8) 15%, transparent); color: var(--frieda-ai-color, #8e6bd8); }
-  .ilist .tone-held .i-ic, .ilist .tone-held .i-chip { background: color-mix(in srgb, var(--success-color, #43a047) 14%, transparent); color: var(--success-color, #43a047); }
+  .ilist .tone-ai .i-ic, .ilist .tone-ai .i-chip { background: color-mix(in srgb, var(--frieda-ai-color, #8e6bd8) 15%, transparent); color: var(--frieda-text-ai); }
+  .ilist .tone-held .i-ic, .ilist .tone-held .i-chip { background: color-mix(in srgb, var(--success-color, #43a047) 14%, transparent); color: var(--frieda-text-ok); }
   .ilist .tone-none .i-main { font-weight: 400; color: var(--secondary-text-color); }
   .ilist .i-more { display: block; padding: 8px 12px 9px 56px; font-size: 12px; color: var(--secondary-text-color); border-top: 1px solid var(--divider-color, #e0e0e0); }
   /* compact list of items (e.g. the messages a run handled) */
@@ -562,10 +666,10 @@ const BASE_STYLE = `
   /* key figures */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .stat { background: var(--secondary-background-color, #f5f5f5); border-radius: 10px; padding: 10px 12px; }
-  .stat .k { font-size: 12px; color: var(--secondary-text-color); }
+  .stat .k { font-size: 12px; color: var(--frieda-text-on-fill); }
   .stat .v { font-size: 24px; font-weight: 500; line-height: 1.25; }
   .stat .v small { font-size: 12px; font-weight: 400; }
-  .stat .s { font-size: 12px; color: var(--secondary-text-color); }
+  .stat .s { font-size: 12px; color: var(--frieda-text-on-fill); }
 
   /* account tabs */
   .tabs { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -579,9 +683,9 @@ const BASE_STYLE = `
   .modal { position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 20px; background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: var(--ha-dialog-border-radius, 16px); box-shadow: 0 12px 40px rgba(0,0,0,.3); }
   .modal-head { display: flex; align-items: center; gap: 12px; }
   .modal-head h3 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.3; text-transform: none; letter-spacing: normal; color: var(--primary-text-color); }
-  .modal-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--error-color, #db4437); --mdc-icon-size: 22px; }
+  .modal-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--frieda-text-err); --mdc-icon-size: 22px; }
   .modal p { margin: 14px 0 0; font-size: 14px; line-height: 1.45; }
-  .modal .modal-warn { margin-top: 8px; color: var(--error-color, #db4437); font-size: 13px; font-weight: 500; }
+  .modal .modal-warn { margin-top: 8px; color: var(--frieda-text-err); font-size: 13px; font-weight: 500; }
   .modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
   .modal-actions button { font-size: 14px; padding: 8px 18px; border-radius: 18px; }
   .modal button:focus-visible, .modal button:focus { outline: 2px solid var(--primary-color); outline-offset: 2px; }
@@ -590,7 +694,7 @@ const BASE_STYLE = `
     .toolbar { height: 52px; padding: 0 10px; font-size: 18px; }
     .content { padding: 10px; gap: 10px; }
     .card { padding: 12px; }
-    .card h2 { font-size: 17px; }
+    .card h2, .card .chead { font-size: 17px; }
     .tabs .tab { flex-basis: 100%; }
     .stat .v { font-size: 22px; }
     button { min-height: 40px; }

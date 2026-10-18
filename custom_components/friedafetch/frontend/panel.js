@@ -349,7 +349,7 @@ class FriedaPanel extends HTMLElement {
         </button>`;
       })
       .join("");
-    return `<div class="card"><h2><span class="grow">${esc(t.accounts)}</span><span class="muted">${s.accounts.length}</span></h2>
+    return `<div class="card"><div class="chead"><h2>${esc(t.accounts)}</h2><span class="muted">${s.accounts.length}</span></div>
       <div class="tabs">${tabs}</div>
       <p class="muted" style="margin:10px 0 0">${esc(t.switchHint)}</p></div>`;
   }
@@ -403,7 +403,7 @@ class FriedaPanel extends HTMLElement {
           .join("")}
         ${ha.installed ? `<div class="line"><span class="dot ${ha.selected ? "" : "off"}"></span><span class="muted">${esc(ha.selected ? t.haMcpOn : t.haMcpOff)}</span></div>` : ""}
       </div>`;
-    return `<div class="card"><h2><span class="grow">${esc(t.overview)}</span><span class="muted">${esc(a.apple_id || a.title)}</span></h2>
+    return `<div class="card"><div class="chead"><h2>${esc(t.overview)}</h2><span class="muted">${esc(a.apple_id || a.title)}</span></div>
       <div class="tiles">${endpointTile}${clientsTile}${this._renderPostfachTile(o.postfach || {})}</div></div>`;
   }
 
@@ -456,7 +456,7 @@ class FriedaPanel extends HTMLElement {
     const stat = (label, b, sub) => `<div class="stat"><div class="k">${esc(label)}</div><div class="v">${esc(fmtNum(b.read + b.write))}</div>
         <div class="s">${esc(fmtNum(b.read))} ${esc(t.reads)} · ${esc(fmtNum(b.write))} ${esc(t.writes)}${b.error ? ` · ${esc(fmtNum(b.error))} ${esc(t.errors)}` : ""}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ""}</div>`;
     const total = u.total.read + u.total.write;
-    const header = `<h2><span class="grow">${esc(t.usage)}</span>${W.cardMenu([total && { action: "usage-reset", icon: "restart", label: t.resetUsage, danger: true, disabled: this._s.busy }], t)}</h2>
+    const header = `<div class="chead"><h2>${esc(t.usage)}</h2>${W.cardMenu([total && { action: "usage-reset", icon: "restart", label: t.resetUsage, danger: true, disabled: this._s.busy }], t)}</div>
       <p class="muted" style="margin:0 0 12px">${esc(t.usageHint)}</p>`;
     const quotaHtml = quota ? `<div class="badges" style="margin-top:12px"><span class="muted">${esc(t.quota)}:</span>${quota}</div>` : "";
     if (!total) return `<div class="card">${header}<p class="muted">${esc(t.noUsage)}</p>${quotaHtml}</div>`;
@@ -466,7 +466,7 @@ class FriedaPanel extends HTMLElement {
         const r = (d.read / max) * 100;
         const w = (d.write / max) * 100;
         const tip = `${fmtDate(d.date)}: ${d.read} ${t.reads}, ${d.write} ${t.writes}${d.error ? `, ${d.error} ${t.errors}` : ""}`;
-        return `<div class="col ${d.write ? "" : "solo"}" title="${esc(tip)}"><div class="r" style="height:${r}%"></div><div class="w" style="height:${w}%"></div></div>`;
+        return `<div class="col ${d.write ? "" : "solo"}" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"><div class="r" style="height:${r}%"></div><div class="w" style="height:${w}%"></div></div>`;
       })
       .join("");
     const axis = u.series
@@ -517,7 +517,7 @@ class FriedaPanel extends HTMLElement {
     const labels = [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult, ""];
     const table = (rows) => `<div class="scroll"><table class="stack"><thead><tr>${labels.map((l) => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${withLabels(rows, labels)}</tbody></table></div>`;
     return `<div class="card">
-      <h2><span class="grow">${esc(t.approvals)}${pending.length ? ` <span class="badge warn">${pending.length}</span>` : ""}</span></h2>
+      <div class="chead"><h2>${esc(t.approvals)}${pending.length ? ` <span class="badge warn">${pending.length}</span>` : ""}</h2></div>
       <p class="muted" style="margin:0 0 10px">${esc(a.enabled ? t.approvalsHint : t.approvalsOff)}</p>
       ${a.enabled ? (pending.length ? table(pending.map((r) => row(r, true)).join("")) : `<p class="muted">${esc(t.noApprovals)}</p>`) : ""}
       ${decided.length ? `<h3>${esc(t.recentDecisions)}</h3>${table(decided.map((r) => row(r, false)).join(""))}` : ""}
@@ -658,8 +658,8 @@ class FriedaPanel extends HTMLElement {
         <th class="c-ico"><span class="vh">${esc(t.colArea)}</span></th><th class="c-time num">${esc(t.colTime)}</th><th>${esc(t.colAction)}</th><th class="c-who">${esc(t.colWho)}</th><th class="c-area">${esc(t.colArea)}</th><th class="c-res">${esc(t.colResult)}</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`;
     return `<div class="card">
-      <h2><span class="grow">${esc(t.activity)}</span>
-        ${W.cardMenu([s.audit.length && { action: "audit-clear", icon: "delete-sweep-outline", label: t.clearLog, danger: true, disabled: s.busy }], t)}</h2>
+      <div class="chead"><h2>${esc(t.activity)}</h2>
+        ${W.cardMenu([s.audit.length && { action: "audit-clear", icon: "delete-sweep-outline", label: t.clearLog, danger: true, disabled: s.busy }], t)}</div>
       <p class="muted" style="margin:0 0 10px">${esc(t.activityHint)}</p>
       ${tbar}
       ${entries.length ? (visible.length ? table : `<p class="muted">${esc(t.noMatch)}</p>`) : `<p class="muted">${esc(t.noActivity)}</p>`}
@@ -670,19 +670,18 @@ class FriedaPanel extends HTMLElement {
 
   // ---------------------------------------------------------------- render
   _render() {
-    W.keepScroll(this, () => this._draw());
+    W.keepScroll(this, () => W.keepFocus(this.shadowRoot, () => this._draw()));
   }
 
   _draw() {
     const t = this.t;
     const s = this._s;
-    const focus = this.shadowRoot.activeElement?.dataset?.filter;
     const body = !s.loaded
       ? `<p class="muted">${esc(t.loading)}</p>`
       : !s.entryId
         ? `<div class="card"><p>${esc(t.noAccount)}</p></div>`
         : `
-      ${s.error ? `<div class="error">${esc(s.error)}</div>` : ""}
+      ${s.error ? `<div class="error" data-announce>${esc(s.error)}</div>` : ""}
       ${this._renderAccounts()}
       ${W.renderWidgets(
         this._layout,
@@ -694,9 +693,12 @@ class FriedaPanel extends HTMLElement {
         },
         t
       )}`;
-    this.shadowRoot.innerHTML = `<style>${W.UI_STYLE}${STYLE}</style>
+    W.mount(
+      this.shadowRoot,
+      `<style>${W.UI_STYLE}${STYLE}</style>
       <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${s.loaded && s.entryId ? W.layoutButton(this._layout, t) : ""}</div>
-      <div class="content widgets">${body}</div>${this._renderConfirm()}`;
+      <div class="content widgets">${body}</div>${this._renderConfirm()}`
+    );
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {
       menu.hass = this._hass;
@@ -704,13 +706,6 @@ class FriedaPanel extends HTMLElement {
     }
     this._bind();
     W.bindWidgets(this.shadowRoot, this._layout, () => this._render());
-    if (focus) {
-      const el = this.shadowRoot.querySelector(`[data-filter="${focus}"]`);
-      if (el) {
-        el.focus({ preventScroll: true });
-        if (el.tagName === "INPUT") el.setSelectionRange(el.value.length, el.value.length);
-      }
-    }
   }
 
   _bind() {
@@ -749,6 +744,8 @@ class FriedaPanel extends HTMLElement {
       el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
         this._s.filter = { ...this._s.filter, [el.dataset.filter]: el.value };
         this._render();
+        const hits = this.shadowRoot.querySelectorAll("tr.lrow").length;
+        W.announce(this.shadowRoot, fmt(this.t.searchHits, hits), el.tagName === "SELECT" ? 100 : 700);
       });
     });
   }

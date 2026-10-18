@@ -219,7 +219,9 @@ Assistant user in Home Assistant itself, so it survives restarts and follows you
 
 **Frieda UI:** both panels use one shared design library (`/friedafetch_static/ui.js`): colours from the Home
 Assistant theme, buttons, chips, tables, menus, dialogs and widgets. Frieda Postfach loads it from Frieda, so every
-module looks and behaves the same.
+module looks and behaves the same. It also covers accessibility: the focus stays in place when a panel redraws,
+dialogs keep the focus inside, notices and search hits are read out, symbols have names for screen readers, and
+coloured text keeps WCAG AA contrast in light and dark themes.
 
 The panel has no external dependencies and talks to the integration via WebSocket commands (`friedafetch/accounts`,
 `friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`).

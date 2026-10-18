@@ -49,17 +49,17 @@ export const STYLE = `
   }
   .ltable .c-ico { width: 36px; }
   .ltable .aico { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--primary-color) 12%, transparent); color: var(--primary-color); --mdc-icon-size: 16px; }
-  .ltable tr.res-error .aico, .ltable tr.res-blocked .aico { background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--error-color, #db4437); }
+  .ltable tr.res-error .aico, .ltable tr.res-blocked .aico { background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--frieda-text-err); }
   .ltable .c-time { width: 56px; text-align: left; }
   .ltable .c-what { min-width: 220px; }
   .ltable .c-res { white-space: nowrap; }
   .ltable .fact { display: inline-flex; align-items: center; gap: 4px; }
-  .ltable tr.res-ok .res { color: var(--success-color, #43a047); }
-  .ltable tr.res-error .res { color: var(--error-color, #db4437); }
-  .ltable tr.res-blocked .res { color: var(--warning-color, #ffa600); }
-  .ltable tr.res-pending .res { color: var(--info-color, #039be5); }
-  .ltable tr.res-pending .aico { background: color-mix(in srgb, var(--info-color, #039be5) 14%, transparent); color: var(--info-color, #039be5); }
-  .errtext { display: flex; gap: 4px; align-items: center; font-size: 13px; color: var(--error-color, #db4437); overflow-wrap: anywhere; }
+  .ltable tr.res-ok .res { color: var(--frieda-text-ok); }
+  .ltable tr.res-error .res { color: var(--frieda-text-err); }
+  .ltable tr.res-blocked .res { color: var(--frieda-text-warn); }
+  .ltable tr.res-pending .res { color: var(--frieda-text-info); }
+  .ltable tr.res-pending .aico { background: color-mix(in srgb, var(--info-color, #039be5) 14%, transparent); color: var(--frieda-text-info); }
+  .errtext { display: flex; gap: 4px; align-items: center; font-size: 13px; color: var(--frieda-text-err); overflow-wrap: anywhere; }
   @container (max-width: 720px) {
     .ltable tbody tr[data-search] { grid-template-columns: 36px minmax(0, 1fr) auto; }
     .ltable .c-ico { grid-column: 1; grid-row: 1 / 3; }

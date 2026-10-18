@@ -280,7 +280,9 @@ Home-Assistant-Benutzer in Home Assistant gespeichert, übersteht also Neustarts
 
 **Frieda UI:** Beide Panels nutzen eine gemeinsame Design-Bibliothek (`/friedafetch_static/ui.js`): Farben aus dem
 Home-Assistant-Theme, Buttons, Chips, Tabellen, Menüs, Dialoge und Widgets. Frieda Postfach lädt sie von Frieda,
-damit alle Module gleich aussehen und sich gleich bedienen.
+damit alle Module gleich aussehen und sich gleich bedienen. Sie sorgt auch für Barrierefreiheit: Der Fokus bleibt
+beim Neuzeichnen an seiner Stelle, Dialoge halten den Fokus, Hinweise und Suchtreffer werden vorgelesen, Symbole
+haben Namen für Screenreader, und farbiger Text hält in hellen und dunklen Themes den WCAG-AA-Kontrast ein.
 
 Das Panel kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle (`friedafetch/accounts`,
 `friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der

@@ -395,6 +395,13 @@ Panels are plain web components (no build step, no external libraries), theme-aw
 layouts with stacked tables, 30-second self refresh, German/English by the HA language. Options flows use menus;
 optional fields use `suggested_value` so that cleared fields stay empty.
 
+Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
+the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
+live region outside the redrawn frame and makes everything but an open dialog `inert`; `announce()` reads notices,
+errors and search hits out. Symbols that carry meaning get an accessible name, card actions sit next to the heading
+instead of inside it, and tone colours for text are mixed with the text colour (`--frieda-text-*`) to keep WCAG AA
+contrast in light and dark themes.
+
 ### 8.6 Internationalisation
 
 `strings.json` + `translations/de|en.json` for flows and services, I18N tables in the panels, bilingual READMEs,
