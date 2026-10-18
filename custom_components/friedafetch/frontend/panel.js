@@ -135,7 +135,7 @@ class FriedaPanel extends HTMLElement {
 
   async _autoRefresh() {
     const s = this._s;
-    if (!this._hass || !s.loaded || !s.entryId || s.busy || document.visibilityState !== "visible") return;
+    if (!this._hass || !s.loaded || !s.entryId || s.busy || s.confirm || document.visibilityState !== "visible") return;
     const active = this.shadowRoot.activeElement;
     if (active && ["SELECT", "INPUT", "TEXTAREA"].includes(active.tagName)) return;
     if (this.shadowRoot.querySelector(".ev details[open]")) return;
@@ -270,7 +270,8 @@ class FriedaPanel extends HTMLElement {
   }
 
   async _clearAudit() {
-    if (!confirm(this.t.confirmClear)) return;
+    const t = this.t;
+    if (!(await this._confirm({ title: t.confirmClearTitle, text: t.confirmClear, ok: t.clearOk }))) return;
     await this._call(async () => {
       await this._ws({ type: "friedafetch/audit/clear", entry_id: this._s.entryId });
       await this._loadAudit();
@@ -278,11 +279,44 @@ class FriedaPanel extends HTMLElement {
   }
 
   async _resetUsage() {
-    if (!confirm(this.t.confirmResetUsage)) return;
+    const t = this.t;
+    if (!(await this._confirm({ title: t.confirmResetUsageTitle, text: t.confirmResetUsage, ok: t.resetOk }))) return;
     await this._call(async () => {
       await this._ws({ type: "friedafetch/usage/reset", entry_id: this._s.entryId });
       await this._loadOverview();
     });
+  }
+
+  // Confirmation in the panel's own design (window.confirm looks foreign and is not shown by every app).
+  _confirm({ title, text, ok, irreversible = true }) {
+    if (this._confirmResolve) this._confirmResolve(false);
+    return new Promise((resolve) => {
+      this._confirmResolve = resolve;
+      this._s.confirm = { title, text, ok, irreversible };
+      this._render();
+      this.shadowRoot.querySelector('.modal [data-action="confirm-no"]')?.focus();
+    });
+  }
+
+  _confirmDone(value) {
+    const resolve = this._confirmResolve;
+    this._confirmResolve = null;
+    this._s.confirm = null;
+    this._render();
+    if (resolve) resolve(value);
+  }
+
+  _renderConfirm() {
+    const c = this._s.confirm;
+    if (!c) return "";
+    const t = this.t;
+    return `<div class="modal-backdrop" data-action="confirm-no"></div>
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+        <div class="modal-head"><span class="modal-icon"><ha-icon icon="mdi:alert-outline"></ha-icon></span><h3 id="confirm-title">${esc(c.title)}</h3></div>
+        <p id="confirm-text">${esc(c.text)}</p>
+        ${c.irreversible ? `<p class="modal-warn">${esc(t.irreversible)}</p>` : ""}
+        <div class="modal-actions"><button class="secondary" data-action="confirm-no">${esc(t.cancel)}</button><button class="danger" data-action="confirm-yes">${esc(c.ok)}</button></div>
+      </div>`;
   }
 
   async _switchAccount(entryId) {
@@ -641,7 +675,7 @@ class FriedaPanel extends HTMLElement {
       ${this._renderActivity()}`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style>
       <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span></div>
-      <div class="content">${body}</div>`;
+      <div class="content">${body}</div>${this._renderConfirm()}`;
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {
       menu.hass = this._hass;
@@ -668,12 +702,17 @@ class FriedaPanel extends HTMLElement {
         deny: () => this._decide(el.dataset.id, "deny"),
         "audit-clear": () => this._clearAudit(),
         "usage-reset": () => this._resetUsage(),
+        "confirm-yes": () => this._confirmDone(true),
+        "confirm-no": () => this._confirmDone(false),
         "audit-more": () => {
           this._s.auditLimit = Math.min(500, this._s.auditLimit + 100);
           this._call(() => this._loadAudit());
         },
       }[action];
       if (handler) el.addEventListener("click", handler);
+    });
+    root.querySelector(".modal")?.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") this._confirmDone(false);
     });
     root.querySelectorAll("[data-filter]").forEach((el) => {
       el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {

@@ -15,6 +15,16 @@ export const STYLE = `
   button.danger { background: var(--error-color, #db4437); }
   button.link { background: none; color: var(--primary-color); padding: 2px 4px; }
   button.small { padding: 3px 9px; font-size: 12.5px; }
+  .modal-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.45); }
+  .modal { position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 20px; background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: var(--ha-dialog-border-radius, 16px); box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .modal-head { display: flex; align-items: center; gap: 12px; }
+  .modal-head h3 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.3; text-transform: none; letter-spacing: normal; color: var(--primary-text-color); }
+  .modal-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--error-color, #db4437); --mdc-icon-size: 22px; }
+  .modal p { margin: 14px 0 0; font-size: 14px; line-height: 1.45; }
+  .modal .modal-warn { margin-top: 8px; color: var(--error-color, #db4437); font-size: 13px; font-weight: 500; }
+  .modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .modal-actions button { font-size: 14px; padding: 8px 18px; border-radius: 18px; }
+  .modal button:focus-visible, .modal button:focus { outline: 2px solid var(--primary-color); outline-offset: 2px; }
   button:disabled { opacity: .5; cursor: default; }
   a.btn { display: inline-flex; align-items: center; text-decoration: none; border-radius: 6px; padding: 3px 9px; font-size: 12.5px; color: var(--primary-color); border: 1px solid var(--primary-color); }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
