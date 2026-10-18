@@ -37,8 +37,10 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Rules and AI sorting are bounded:** rule tools that create deleting/moving rules or run rules over the whole
   mailbox follow the approvals; unattended and AI-requested rule runs are capped per run (100 changes, 50 deletions)
   and, like AI sorting, count against the hourly mail-change quota.
-- **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited and
-  compiled before saving. Server responses (XML, vCard, e-mail) are parsed with the Python standard library; mail
+- **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited,
+  compiled before saving and refused when they could block Home Assistant (nested repetition such as `(a+)+`, or
+  measured as too slow on hostile headers); stored patterns are checked again before use and only see the first
+  300 characters of a header. Parsers of third-party data are fuzzed with Hypothesis. Server responses (XML, vCard, e-mail) are parsed with the Python standard library; mail
   content is passed to the AI as text only.
 - **Contacts cache:** contacts are cached only in memory and every vCard is encrypted there (AES-256-GCM with a
   random key per process that is never stored); nothing of it is written to disk or included in diagnostics.
@@ -66,7 +68,7 @@ Every commit and pull request automatically runs:
 | Prompt injection via e-mail, notes or calendar content making the AI act against the user | Content is sanitised, labelled as third-party data and scanned for injection patterns (`suspicious`); the prompt forbids following embedded instructions; the injection lock holds back sending/deleting of the same caller afterwards; approvals and quotas bound the consequences. |
 | Runaway or buggy agent deleting or sending in bulk | Hourly quotas, recipient policy, protected/hidden areas, approvals for sending/deleting/mass actions, trash instead of permanent deletion, approvals and per-run caps also for rules, audit log and `friedafetch_action` events for alerting. |
 | Compromised dependency or build | Pinned dependencies with pip-audit, Bandit/Ruff/CodeQL, GitHub Actions pinned to commit SHAs, OpenSSF Scorecard, SBOM and signed build provenance for release assets, Dependabot, protected `main` branch. |
-| Malicious unsubscribe links in e-mail used to reach the local network (SSRF) | Only https on port 443, no credentials or local host names; the connection uses a resolver that drops private, loopback and link-local addresses (also against DNS rebinding); no redirects, no cookies, fixed request body; links without one-click support are never fetched. |
+| Malicious unsubscribe links in e-mail used to reach the local network (SSRF) | The link is checked in the exact form the HTTP client uses (IDNA/UTS 46 normalisation, so full-width or other-script digits cannot hide 127.0.0.1); only https on port 443, no credentials, no local host names and no numeric shorthand hosts; the connection uses a resolver that drops private, loopback and link-local addresses (also against DNS rebinding); no redirects, no cookies, fixed request body; links without one-click support are never fetched. |
 | Attachments written outside the intended folder | Folder must be allowed by Home Assistant; subfolders and file names are reduced to safe segments; the resolved target must stay below the attachment folder (symlinks included); size limit 25 MB per file. |
 | Loss of the app-specific password from HA storage | The password is only as safe as the HA instance; keep HA updated, use strong admin passwords/2FA, revoke the app-specific password at Apple if in doubt. |
 
@@ -123,8 +125,11 @@ Es wird jeweils das neueste Release unterstützt. Ältere Versionen erhalten kei
 - **Regeln und KI-Sortierung sind begrenzt:** Regel-Tools, die löschende/verschiebende Regeln anlegen oder Regeln über
   das ganze Postfach anwenden, folgen den Freigaben; unbeaufsichtigte und von einer KI angestoßene Regelläufe sind pro
   Lauf begrenzt (100 Änderungen, 50 Löschungen) und zählen – wie die KI-Sortierung – gegen das Stundenkontingent.
-- **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt
-  und werden vor dem Speichern kompiliert. Serverantworten (XML, vCard, E-Mail) werden mit der Python-Standardbibliothek
+- **Eingaben:** Alle Tool-Parameter werden gegen Schemas validiert; Regex-Bedingungen in Regeln sind längenbegrenzt,
+  werden vor dem Speichern kompiliert und abgelehnt, wenn sie Home Assistant blockieren könnten (verschachtelte
+  Wiederholung wie `(a+)+` oder gemessen zu langsam auf feindlichen Kopfzeilen); gespeicherte Muster werden vor der
+  Nutzung erneut geprüft und sehen nur die ersten 300 Zeichen einer Kopfzeile. Parser für Fremddaten werden mit
+  Hypothesis gefuzzt. Serverantworten (XML, vCard, E-Mail) werden mit der Python-Standardbibliothek
   geparst, Mail-Inhalte werden nur als Text an die KI weitergegeben.
 - **Kontakte-Cache:** Kontakte werden nur im Speicher zwischengespeichert, jede vCard dort verschlüsselt (AES-256-GCM
   mit einem zufälligen Schlüssel pro Prozess, der nie gespeichert wird); nichts davon landet auf der Platte oder in
@@ -153,7 +158,7 @@ Jeder Commit und jeder Pull Request durchläuft automatisch:
 | Prompt-Injection über Mail-, Notiz- oder Kalenderinhalte, die die KI gegen den Nutzer handeln lässt | Inhalte werden bereinigt, als Fremddaten gekennzeichnet und auf Injektionsmuster geprüft (`suspicious`); der Prompt verbietet das Befolgen eingebetteter Anweisungen; die Injection-Sperre hält danach Senden/Löschen desselben Aufrufers zurück; Freigaben und Kontingente begrenzen die Folgen. |
 | Außer Kontrolle geratener oder fehlerhafter Agent, der massenhaft löscht oder sendet | Stundenkontingente, Empfänger-Richtlinie, geschützte/verborgene Bereiche, Freigaben für Senden/Löschen/Massenaktionen, Freigaben und Obergrenzen pro Lauf auch für Regeln, Papierkorb statt endgültigem Löschen, Änderungsprotokoll und Ereignisse `friedafetch_action` zur Alarmierung. |
 | Kompromittierte Abhängigkeit oder Build | Gepinnte Abhängigkeiten mit pip-audit, Bandit/Ruff/CodeQL, GitHub Actions auf Commit-SHAs gepinnt, OpenSSF Scorecard, SBOM und signierte Build-Provenance für Release-Artefakte, Dependabot, geschützter `main`-Branch. |
-| Präparierte Abmelde-Links in Mails, die ins lokale Netz zielen (SSRF) | Nur https auf Port 443, keine Zugangsdaten und keine lokalen Hostnamen; die Verbindung nutzt einen Resolver, der private, Loopback- und Link-Local-Adressen verwirft (auch gegen DNS-Rebinding); keine Weiterleitungen, keine Cookies, fester Request-Inhalt; Links ohne Ein-Klick-Unterstützung werden nie aufgerufen. |
+| Präparierte Abmelde-Links in Mails, die ins lokale Netz zielen (SSRF) | Der Link wird in genau der Form geprüft, die der HTTP-Client verwendet (IDNA/UTS-46-Normalisierung, damit vollbreite oder fremdschriftliche Ziffern kein 127.0.0.1 verstecken); nur https auf Port 443, keine Zugangsdaten, keine lokalen Hostnamen und keine numerischen Kurzformen; die Verbindung nutzt einen Resolver, der private, Loopback- und Link-Local-Adressen verwirft (auch gegen DNS-Rebinding); keine Weiterleitungen, keine Cookies, fester Request-Inhalt; Links ohne Ein-Klick-Unterstützung werden nie aufgerufen. |
 | Anhänge, die außerhalb des vorgesehenen Ordners landen | Ordner muss von Home Assistant erlaubt sein; Unterordner und Dateinamen werden auf sichere Bestandteile reduziert; das aufgelöste Ziel muss unterhalb des Anhang-Ordners liegen (auch bei Symlinks); Größenlimit 25 MB pro Datei. |
 | Verlust des App-Passworts aus dem HA-Speicher | Das Passwort ist nur so sicher wie die HA-Instanz; HA aktuell halten, starke Admin-Passwörter/2FA nutzen, im Zweifel das App-Passwort bei Apple widerrufen. |
 

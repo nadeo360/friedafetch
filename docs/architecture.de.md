@@ -396,8 +396,10 @@ READMEs, SECURITY.md und dieses Dokument.
 
 ### 8.7 Test und Qualitätssicherung
 
-pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 105 Tests, Frieda Postfach ca. 48 Tests; die
-Postfach-Tests laufen gegen Friedas `main`), Ruff (Lint/Format/Sicherheitsregeln), hassfest, HACS-Prüfung,
+pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 146 Tests, Frieda Postfach ca. 63 Tests; die
+Postfach-Tests laufen gegen Friedas `main`), eigenschaftsbasierte Tests mit Hypothesis für alles, was Fremddaten
+verarbeitet (vCard, MIME, FETCH-Antworten, modifiziertes UTF-7, Datumsangaben, Abmelde-Links, Bereinigung,
+Injection-Erkennung, Regel-Bedingungen, Regex-Sicherheit, Killswitch; 200 Beispiele pro Test in der CI), Ruff (Lint/Format/Sicherheitsregeln), hassfest, HACS-Prüfung,
 pip-audit, Bandit, CodeQL, OpenSSF Scorecard, Pixelprüfung der Icons. Externe Dienste werden gemockt; der
 AI-Task-Aufruf wird über `ai._generate` ersetzt.
 

@@ -125,6 +125,16 @@ def parse_message(data: bytes) -> Message:
     return email.message_from_bytes(data, policy=policy.default)
 
 
+def _raw_values(msg: Message, name: str) -> list[str]:
+    """Header values exactly as received, without the (sometimes crashing) structured parsing of the policy.
+
+    The modern policy parses address headers on access; a header such as ``From: "`` makes the standard library
+    raise IndexError there – also in ``get_all``. ``raw_items`` returns the stored strings untouched.
+    """
+    wanted = name.lower()
+    return [str(value) for key, value in msg.raw_items() if key.lower() == wanted]
+
+
 def header_text(msg: Message, name: str) -> str | None:
     """Return a decoded, unfolded header value regardless of the policy in use."""
     try:
@@ -132,8 +142,9 @@ def header_text(msg: Message, name: str) -> str | None:
     except Exception:  # noqa: BLE001 - defective header
         value = None
     if value is None:
-        raw = msg.get_all(name)
-        return _decode_header_value(str(raw[0])) if raw else None
+        raw = _raw_values(msg, name)
+        text = _decode_header_value(raw[0]) if raw else None
+        return " ".join(text.split()) or None if text else None
     text = str(value)
     if "=?" in text:
         text = _decode_header_value(text) or text
@@ -153,10 +164,9 @@ def _addresses(msg: Message, header: str) -> list[dict[str, str]]:
                     continue
                 out.append({"name": addr.display_name or "", "email": addr.addr_spec})
         return out
-    except Exception:  # noqa: BLE001 - fall back to the legacy parser
+    except Exception:  # noqa: BLE001 - fall back to the legacy parser on the raw header text
         out = []
-        raw = msg.get_all(header, [])
-        for name, addr in getaddresses([str(v) for v in raw]):
+        for name, addr in getaddresses(_raw_values(msg, header)):
             if not addr and not name:
                 continue
             out.append({"name": _decode_header_value(name) or "", "email": addr})

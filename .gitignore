@@ -11,3 +11,6 @@ htmlcov/
 .DS_Store
 .ruff_cache/
 .claude/
+
+# Hypothesis example database (local fuzzing state)
+.hypothesis/
