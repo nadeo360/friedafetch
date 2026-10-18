@@ -444,6 +444,7 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-21 | Shared design library "Frieda UI" served by Frieda (`/friedafetch_static/ui.js`) | Panels of several modules must look and behave the same; one source instead of copies | Frieda Postfach needs a Frieda that provides the library (`UI_API`), otherwise it shows an update hint; the cache key contains both versions |
 | ADR-22 | Panel layout (widget order, width, hidden widgets, table columns) in Home Assistant's frontend user data | Must survive restarts and follow the user across devices without own storage or backend code | Stored per HA user (`frontend/set_user_data`, keys `friedafetch_panel`, `friedafetch_mail_panel`) |
 | ADR-23 | Container queries for tables | Widgets can be half width; tables must switch to the compact layout by widget width, not screen width | Requires a current browser (container queries), as Home Assistant itself does |
+| ADR-24 | One run-history entry per pass of rules and AI sorting | Both act on the same new mail one after the other; showing them apart hid what happened to a message | Timer and push write the entry after the AI step; AI-only passes (no rules, "rate newest") get their own entry; up to 20 messages per pass are kept locally |
 
 ---
 

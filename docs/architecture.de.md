@@ -454,6 +454,7 @@ sich eine Schnittstelle ändert.
 | ADR-21 | Gemeinsame Design-Bibliothek „Frieda UI“, ausgeliefert von Frieda (`/friedafetch_static/ui.js`) | Panels mehrerer Module sollen gleich aussehen und sich gleich bedienen; eine Quelle statt Kopien | Frieda Postfach braucht ein Frieda mit Bibliothek (`UI_API`), sonst erscheint ein Update-Hinweis; der Cache-Schlüssel enthält beide Versionen |
 | ADR-22 | Panel-Anordnung (Reihenfolge, Breite, ausgeblendete Widgets, Tabellenspalten) in den Frontend-Benutzerdaten von Home Assistant | Muss Neustarts überstehen und dem Benutzer auf alle Geräte folgen, ohne eigenen Speicher oder Backend-Code | Pro HA-Benutzer gespeichert (`frontend/set_user_data`, Schlüssel `friedafetch_panel`, `friedafetch_mail_panel`) |
 | ADR-23 | Container Queries für Tabellen | Widgets können halb breit sein; Tabellen wechseln nach Widget-Breite ins Kompaktlayout, nicht nach Bildschirmbreite | Setzt einen aktuellen Browser voraus (Container Queries), wie Home Assistant selbst |
+| ADR-24 | Ein Verlaufseintrag pro Durchgang von Regeln und KI-Sortierung | Beide bearbeiten dieselben neuen Mails nacheinander; getrennt angezeigt war nicht erkennbar, was mit einer Mail passiert ist | Takt und Push schreiben den Eintrag nach dem KI-Schritt; reine KI-Durchgänge (keine Regeln, „Neueste bewerten“) erhalten einen eigenen Eintrag; bis zu 20 Mails pro Durchgang werden lokal gespeichert |
 
 ---
 

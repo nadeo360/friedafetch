@@ -540,6 +540,9 @@ const BASE_STYLE = `
   .ilist .tone-err .i-ic, .ilist .tone-err .i-chip { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); }
   .ilist .tone-move .i-ic, .ilist .tone-move .i-chip { background: color-mix(in srgb, var(--info-color, #039be5) 13%, transparent); color: var(--info-color, #039be5); }
   .ilist .tone-warn .i-ic, .ilist .tone-warn .i-chip { background: color-mix(in srgb, var(--warning-color, #ffa600) 18%, transparent); color: var(--primary-text-color); }
+  .ilist .tone-ai .i-ic, .ilist .tone-ai .i-chip { background: color-mix(in srgb, var(--frieda-ai-color, #8e6bd8) 15%, transparent); color: var(--frieda-ai-color, #8e6bd8); }
+  .ilist .tone-held .i-ic, .ilist .tone-held .i-chip { background: color-mix(in srgb, var(--success-color, #43a047) 14%, transparent); color: var(--success-color, #43a047); }
+  .ilist .tone-none .i-main { font-weight: 400; color: var(--secondary-text-color); }
   .ilist .i-more { display: block; padding: 8px 12px 9px 56px; font-size: 12px; color: var(--secondary-text-color); border-top: 1px solid var(--divider-color, #e0e0e0); }
   /* compact list of items (e.g. the messages a run handled) */
   svg.donut text { font-size: 10px; font-weight: 500; fill: var(--primary-text-color); }
