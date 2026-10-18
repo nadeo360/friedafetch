@@ -5,7 +5,8 @@
 ## Reporting a vulnerability
 
 Please do **not** open public issues for security problems. Use GitHub's private reporting instead:
-**Security → Report a vulnerability** in this repository. You will get a response within 7 days; confirmed issues
+**Security → Report a vulnerability** in this repository
+([direct link](https://github.com/nadeo360/friedafetch/security/advisories/new)). You will get a response within 7 days; confirmed issues
 are fixed in a release and described in the changelog without naming the reporter unless you wish otherwise.
 
 ## Supported versions
@@ -96,7 +97,8 @@ A CycloneDX SBOM (`sbom.cdx.json`) listing the runtime dependencies is attached 
 ## Sicherheitslücke melden
 
 Bitte **keine** öffentlichen Issues für Sicherheitsprobleme. Nutze stattdessen die private Meldung über GitHub:
-**Security → Report a vulnerability** in diesem Repository. Du bekommst innerhalb von 7 Tagen eine Rückmeldung;
+**Security → Report a vulnerability** in diesem Repository
+([direkter Link](https://github.com/nadeo360/friedafetch/security/advisories/new)). Du bekommst innerhalb von 7 Tagen eine Rückmeldung;
 bestätigte Lücken werden mit einem Release behoben und im Changelog ohne Nennung der meldenden Person beschrieben,
 sofern nicht anders gewünscht.
 

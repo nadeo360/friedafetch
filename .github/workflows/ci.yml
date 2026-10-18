@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
-      - run: pip install "ruff==0.17.1"
+      - run: pip install --require-hashes -r requirements/lint.txt
       - run: ruff check custom_components tests
       - run: ruff format --check custom_components tests
 
@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements_dev.txt
+      - run: pip install --require-hashes -r requirements/test.txt
       - run: pytest -q --timeout=120
 
   manifest:
@@ -46,10 +46,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
-      - run: |
-          python -c "import json; print('\n'.join(json.load(open('custom_components/friedafetch/manifest.json'))['requirements']))" > requirements_manifest.txt
-          pip install -r requirements_manifest.txt
-          pip check
+      - run: pip install --require-hashes -r requirements/manifest.txt
+      - run: pip check
+      - run: python scripts/check_manifest_requirements.py
 
   icons:
     name: Icon assets match the SVG sources
@@ -59,5 +58,5 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
-      - run: pip install "resvg-py==0.5.0" "pillow>=11"
+      - run: pip install --require-hashes -r requirements/icons.txt
       - run: python scripts/build_icons.py --check --only icons

@@ -1,0 +1,2 @@
+# Linting in CI (compiled with hashes to lint.txt)
+ruff==0.17.1

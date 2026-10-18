@@ -3,7 +3,7 @@ updates:
   # Python pins in requirements_dev.txt follow the Home Assistant release and are bumped together with it;
   # Dependabot only opens security updates for them.
   - package-ecosystem: pip
-    directory: "/"
+    directories: ["/", "/requirements"]  # requirements/*.txt are the hash-pinned CI locks (scripts/lock_requirements.sh)
     schedule:
       interval: weekly
     open-pull-requests-limit: 0

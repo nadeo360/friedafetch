@@ -49,13 +49,13 @@ jobs:
 
       - name: SBOM of the runtime requirements (CycloneDX)
         run: |
-          python -c "import json; print('\n'.join(json.load(open('custom_components/friedafetch/manifest.json'))['requirements']))" > requirements_manifest.txt
           python -m venv sbom-venv
-          sbom-venv/bin/pip install -q -r requirements_manifest.txt cyclonedx-bom
+          sbom-venv/bin/pip install -q --require-hashes -r requirements/sbom.txt
           sbom-venv/bin/cyclonedx-py environment sbom-venv --of JSON -o sbom.cdx.json --mc-type library
           python -c "import json; d=json.load(open('sbom.cdx.json')); print(len(d.get('components', [])), 'components')"
 
       - name: Attest build provenance
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
@@ -66,4 +66,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: gh release upload "$TAG" friedafetch.zip friedafetch.zip.sha256 sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        # the Sigstore bundle of the attestation goes along, so the signature can be checked offline
+        # (cosign verify-blob-attestation / gh attestation verify --bundle) and is visible to OpenSSF Scorecard
+        run: |
+          cp "$BUNDLE" friedafetch.zip.sigstore.json
+          gh release upload "$TAG" friedafetch.zip friedafetch.zip.sha256 friedafetch.zip.sigstore.json sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"

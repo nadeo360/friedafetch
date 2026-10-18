@@ -1,0 +1,7 @@
+# The runtime requirements of manifest.json plus the SBOM generator (release workflow)
+icalendar>=6.3.1
+aioimaplib>=2.0.1
+aiosmtplib>=5.1.3
+mcp>=1.28.1
+anyio>=4.14.2
+cyclonedx-bom
