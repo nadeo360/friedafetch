@@ -291,7 +291,7 @@ class FriedaPanel extends HTMLElement {
       this._confirmResolve = resolve;
       this._s.confirm = { title, text, ok, irreversible };
       this._render();
-      this.shadowRoot.querySelector('.modal [data-action="confirm-no"]')?.focus();
+      this.shadowRoot.querySelector('.modal [data-action="confirm-no"]')?.focus({ preventScroll: true });
     });
   }
 
@@ -667,6 +667,10 @@ class FriedaPanel extends HTMLElement {
 
   // ---------------------------------------------------------------- render
   _render() {
+    W.keepScroll(this, () => this._draw());
+  }
+
+  _draw() {
     const t = this.t;
     const s = this._s;
     const focus = this.shadowRoot.activeElement?.dataset?.filter;
@@ -700,7 +704,7 @@ class FriedaPanel extends HTMLElement {
     if (focus) {
       const el = this.shadowRoot.querySelector(`[data-filter="${focus}"]`);
       if (el) {
-        el.focus();
+        el.focus({ preventScroll: true });
         if (el.tagName === "INPUT") el.setSelectionRange(el.value.length, el.value.length);
       }
     }

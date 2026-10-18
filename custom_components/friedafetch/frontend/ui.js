@@ -7,7 +7,7 @@
    Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
    user to other devices. */
 
-export const UI_API = 2; // 2: donut(), Layout.opt()/setOpt()
+export const UI_API = 3; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll()
 
 // ------------------------------------------------------------------ helpers
 const escape = (s) =>
@@ -40,6 +40,26 @@ export const fmtNum = (n) => Number(n || 0).toLocaleString();
 // Material Design Icons from Home Assistant's own icon set.
 export const ico = (name, title = "") =>
   `<ha-icon icon="mdi:${name}"${title ? ` title="${escape(title)}"` : ""} aria-hidden="${title ? "false" : "true"}"></ha-icon>`;
+
+// Redraws a panel without losing the scroll position. Safari and the companion apps do not anchor the scroll
+// position like Chrome, so replacing the panel's content (on every filter click) would jump to the top.
+export function keepScroll(host, draw) {
+  const saved = [];
+  let node = host;
+  while (node && node !== document) {
+    if (node.scrollTop > 0) saved.push([node, node.scrollTop]);
+    node = node.parentNode instanceof ShadowRoot ? node.parentNode.host : node.parentNode;
+  }
+  const doc = document.scrollingElement;
+  const top = doc ? doc.scrollTop : 0;
+  draw();
+  const restore = () => {
+    for (const [el, y] of saved) if (el.scrollTop !== y) el.scrollTop = y;
+    if (doc && doc.scrollTop !== top) doc.scrollTop = top;
+  };
+  restore();
+  requestAnimationFrame(restore); // once more after icons and fonts have their size
+}
 
 // Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
 export function renderConfirm(c, t) {
@@ -314,7 +334,7 @@ export function bindWidgets(root, layout, rerender) {
 }
 
 const WIDGET_STYLE = `
-  ha-icon { --mdc-icon-size: 18px; display: inline-flex; flex: none; }
+  ha-icon { --mdc-icon-size: 18px; display: inline-flex; flex: none; width: var(--mdc-icon-size); height: var(--mdc-icon-size); }
   .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   tr[hidden] { display: none !important; }
 
