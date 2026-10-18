@@ -479,8 +479,8 @@ class FriedaPanel extends HTMLElement {
         <td>${esc(r.client ? this._source(r.client) : "–")}</td>
         <td>${esc(this._toolLabel(r.tool))}<div class="muted">${reason(r.reason)}</div></td>
         <td>${esc(r.summary)}${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
-        <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(t.validUntil)} ${esc(fmtClock(r.expires))}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by)}</div>` : ""}</td>
-        <td class="actions" style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(t.deny)}</button>` : ""}</td>
+        <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(r.reason === "delay" ? t.sendsAt : t.validUntil)} ${esc(fmtClock(r.expires))}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by === "delay" ? t.decidedByDelay : r.decided_by === "restart" ? t.decidedByRestart : r.decided_by)}</div>` : ""}</td>
+        <td class="actions" style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(r.reason === "delay" ? t.sendNow : t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(r.reason === "delay" ? t.cancelSend : t.deny)}</button>` : ""}</td>
       </tr>`;
     const labels = [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult, ""];
     const table = (rows) => `<div class="scroll"><table class="stack"><thead><tr>${labels.map((l) => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${withLabels(rows, labels)}</tbody></table></div>`;

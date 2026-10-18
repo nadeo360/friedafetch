@@ -315,6 +315,14 @@ die sich an ein Frieda-Konto hängen, dessen Verbindung und Leitplanken nutzen u
   Freigeben/Ablehnen-Buttons auf dem Handy), die Karte „Freigaben“ im Panel listet die Anfrage; nach Freigabe führt
   Home Assistant die Aktion aus und die KI liest das Ergebnis mit `icloud_approval_status`. Anfragen verfallen nach
   einstellbarer Zeit.
+- **Verzögertes Senden (Optionen → Freigaben, standardmäßig aus):** E-Mails von Assistenten warten einige Sekunden
+  (z. B. 60), bevor sie rausgehen. Bis dahin zeigt die Karte „Freigaben“ sie mit „Jetzt senden“ und „Abbrechen“, die
+  Benachrichtigung hat einen Abbrechen-Button. Empfänger und Kontingente werden sofort und beim Senden noch einmal
+  geprüft. Ohne Wirkung, wenn das Senden ohnehin freigegeben werden muss.
+- **Dauerhafter Zustand:** Stunden-Kontingente, aktive Injection-Sperren und die Liste der Freigaben überstehen
+  Neustarts und Neuladen; ein Neustart füllt also kein Kontingent auf und hebt keine Sperre auf. Anfragen, die bei
+  einem Neustart noch offen waren, lassen sich danach nicht mehr ausführen: Sie werden als abgelaufen geschlossen
+  (eine verzögerte Mail als abgebrochen, also nicht gesendet).
 - **Endpunkt-Profile:** Neben `/api/friedafetch` gibt es `/api/friedafetch/readonly`, das nur Tools ohne jede
   Schreibwirkung ausliefert – der richtige Endpunkt für Experimente oder weniger vertrauenswürdige Agenten. Die Option
   „MCP-Endpunkt nur für Admin-Tokens“ weist Nicht-Admin-Tokens ab; Anfragen sind auf 1 MiB begrenzt.

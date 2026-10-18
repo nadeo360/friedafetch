@@ -129,7 +129,7 @@ class SendMail(ICloudTool):
         }
     )
 
-    async def run(self, hass, args):
+    async def precheck(self, hass, args):
         if not args.get("subject") and args.get("reply_to_uid") is None:
             raise ValueError("subject is required for a new e-mail")
         guard = self.clients.guard
@@ -145,6 +145,10 @@ class SendMail(ICloudTool):
         guard.check_recipients(args.get("to") or [], args.get("cc"), args.get("bcc"), known)
         if args.get("reply_to_uid") is not None:
             self._mailbox(args, "reply_to_mailbox")
+
+    async def run(self, hass, args):
+        await self.precheck(hass, args)  # again at sending time: quotas or the recipients policy may have changed
+        guard = self.clients.guard
         result = await self.clients.mail.async_send(
             to=list(args.get("to") or []),
             subject=args.get("subject") or "",

@@ -3,10 +3,17 @@
 A gated tool call is parked as a pending request, announced as a persistent
 notification (and optionally as an actionable mobile notification) and only
 executed once an admin approves it in the panel or on the phone.
+
+Delayed sending uses the same mechanism the other way round: the mail is parked
+and sent automatically when the delay is over, unless someone cancels it first.
+
+The list survives restarts. Requests that were still open then cannot be
+executed any more (their call is gone) and are closed as expired or cancelled.
 """
 
 from __future__ import annotations
 
+import functools
 import logging
 import secrets
 from dataclasses import dataclass, field
@@ -43,7 +50,7 @@ class ApprovalRequest:
     params: dict[str, Any]
     created: str
     expires: str
-    status: str = "pending"  # pending | executed | failed | denied | expired
+    status: str = "pending"  # pending | executed | failed | denied | expired | cancelled
     client: str | None = None
     user_id: str | None = None
     decided_by: str | None = None
@@ -79,6 +86,7 @@ class ApprovalManager:
         self._timeout = max(1, int(timeout_minutes))
         self._lang = "de" if (language or "").lower().startswith("de") else "en"
         self._requests: dict[str, ApprovalRequest] = {}
+        self.on_change: Any | None = None  # persists the list (set up by the integration)
 
     # ----------------------------------------------------------- texts
     def _t(self, key: str, **kw: Any) -> str:
@@ -93,6 +101,10 @@ class ApprovalManager:
                 "reason_mass": "Massenaktion",
                 "reason_rule": "Regel mit Lösch- oder Massenwirkung",
                 "reason_injection": "kurz zuvor verdächtige Mail gelesen",
+                "delay_title": "Frieda: E-Mail wird gleich gesendet",
+                "delay_body": "{client} sendet um {expires} eine E-Mail:\n{summary}\n\nKonto: {account}. Bis dahin kannst du sie abbrechen.",
+                "send_now": "Jetzt senden",
+                "cancel": "Abbrechen",
             },
             "en": {
                 "title": "Frieda: approval required",
@@ -104,6 +116,10 @@ class ApprovalManager:
                 "reason_mass": "mass action",
                 "reason_rule": "rule that deletes or affects many messages",
                 "reason_injection": "a suspicious message was read just before",
+                "delay_title": "Frieda: e-mail about to be sent",
+                "delay_body": "{client} sends an e-mail at {expires}:\n{summary}\n\nAccount: {account}. You can cancel it until then.",
+                "send_now": "Send now",
+                "cancel": "Cancel",
             },
         }
         return texts[self._lang][key].format(**kw)
@@ -140,7 +156,7 @@ class ApprovalManager:
         self._requests[req.id] = req
         self._trim()
         req._cancel_expiry = async_call_later(  # noqa: SLF001
-            self._hass, self._timeout * 60, lambda _now, rid=req.id: self._hass.async_create_task(self._expire(rid))
+            self._hass, self._timeout * 60, functools.partial(self._timer_expire, req.id)
         )
         await self._announce(req)
         if self._audit is not None:
@@ -165,7 +181,83 @@ class ApprovalManager:
             ),
         }
 
+    async def async_schedule(
+        self,
+        *,
+        tool_name: str,
+        action: str,
+        summary: str,
+        params: dict[str, Any],
+        runner: Any,
+        client: str | None,
+        user_id: str | None,
+        delay_seconds: int,
+    ) -> dict[str, Any]:
+        """Delayed sending: run the call after the delay unless it is cancelled before."""
+        now = datetime.now(UTC)
+        due = now + timedelta(seconds=max(1, int(delay_seconds)))
+        req = ApprovalRequest(
+            id=secrets.token_hex(4),
+            tool=tool_name,
+            action=action,
+            reason="delay",
+            summary=summary,
+            params=sanitize_params(params),
+            created=now.isoformat(timespec="seconds"),
+            expires=due.isoformat(timespec="seconds"),
+            client=client,
+            user_id=user_id,
+        )
+        req._runner = runner  # noqa: SLF001
+        self._requests[req.id] = req
+        self._trim()
+        req._cancel_expiry = async_call_later(  # noqa: SLF001
+            self._hass,
+            max(1, int(delay_seconds)),
+            functools.partial(self._timer_due, req.id),
+        )
+        self._changed()
+        await self._announce(req)
+        if self._audit is not None:
+            await self._audit.async_record(
+                tool=tool_name,
+                action=action,
+                params=params,
+                result="pending",
+                client=client,
+                user_id=user_id,
+                details={"approval_id": req.id, "reason": "delay"},
+            )
+        send_at = due.astimezone().strftime("%H:%M:%S")
+        return {
+            "code": "scheduled",
+            "request_id": req.id,
+            "send_at": req.expires,
+            "message": (
+                f"The e-mail will be sent at {send_at} unless the user cancels it (Frieda panel or notification). "
+                f"Check the outcome with icloud_approval_status(request_id='{req.id}'). Do not retry the call."
+            ),
+        }
+
+    # timers fire in the event loop (plain lambdas would run in a worker thread)
+    @callback
+    def _timer_expire(self, request_id: str, _now: datetime) -> None:
+        self._hass.async_create_task(self._expire(request_id), eager_start=True)
+
+    @callback
+    def _timer_due(self, request_id: str, _now: datetime) -> None:
+        self._hass.async_create_task(self._due(request_id), eager_start=True)
+
+    async def _due(self, request_id: str) -> None:
+        req = self._requests.get(request_id)
+        if req is None or req.status != "pending":
+            return
+        await self.async_approve(request_id, "delay")
+
     async def _announce(self, req: ApprovalRequest) -> None:
+        if req.reason == "delay":
+            await self._announce_delay(req)
+            return
         reason = (
             self._t(f"reason_{req.reason}")
             if req.reason in ("send", "delete", "mass", "rule", "injection")
@@ -212,6 +304,45 @@ class ApprovalManager:
             except Exception as err:  # noqa: BLE001 - the persistent notification remains
                 _LOGGER.warning("Could not send approval notification via notify.%s: %s", self._notify, err)
 
+    async def _announce_delay(self, req: ApprovalRequest) -> None:
+        body = self._t(
+            "delay_body",
+            client=req.client or "MCP client",
+            summary=req.summary,
+            account=self._account,
+            expires=datetime.fromisoformat(req.expires).astimezone().strftime("%H:%M:%S"),
+        )
+        persistent_notification.async_create(
+            self._hass,
+            body + "\n\n→ /friedafetch",
+            title=self._t("delay_title"),
+            notification_id=f"{DOMAIN}_approval_{req.id}",
+        )
+        if self._notify and self._hass.services.has_service("notify", self._notify):
+            try:
+                await self._hass.services.async_call(
+                    "notify",
+                    self._notify,
+                    {
+                        "title": self._t("delay_title"),
+                        "message": body,
+                        "data": {
+                            "tag": f"{DOMAIN}_approval_{req.id}",
+                            "actions": [
+                                {
+                                    "action": f"{APPROVAL_ACTION_PREFIX}DENY_{req.id}",
+                                    "title": self._t("cancel"),
+                                    "destructive": True,
+                                },
+                                {"action": f"{APPROVAL_ACTION_PREFIX}APPROVE_{req.id}", "title": self._t("send_now")},
+                            ],
+                        },
+                    },
+                    blocking=False,
+                )
+            except Exception as err:  # noqa: BLE001 - the persistent notification remains
+                _LOGGER.warning("Could not send the delayed-sending notification via notify.%s: %s", self._notify, err)
+
     def _dismiss(self, req: ApprovalRequest) -> None:
         persistent_notification.async_dismiss(self._hass, f"{DOMAIN}_approval_{req.id}")
         if self._notify and self._hass.services.has_service("notify", self._notify):
@@ -246,6 +377,7 @@ class ApprovalManager:
             req._cancel_expiry = None  # noqa: SLF001
         req._runner = None  # noqa: SLF001
         self._dismiss(req)
+        self._changed()
 
     async def async_approve(self, request_id: str, decided_by: str | None) -> ApprovalRequest:
         req = self._get_pending(request_id)
@@ -283,7 +415,7 @@ class ApprovalManager:
 
     async def async_deny(self, request_id: str, decided_by: str | None) -> ApprovalRequest:
         req = self._get_pending(request_id)
-        self._finish(req, "denied", decided_by)
+        self._finish(req, "cancelled" if req.reason == "delay" else "denied", decided_by)
         if self._audit is not None:
             await self._audit.async_record(
                 tool=req.tool,
@@ -292,7 +424,7 @@ class ApprovalManager:
                 result="blocked",
                 client=f"denied:{decided_by or 'unknown'}",
                 user_id=req.user_id,
-                error="denied by the user",
+                error="cancelled by the user" if req.reason == "delay" else "denied by the user",
                 details={"approval_id": req.id},
             )
         return req
@@ -311,6 +443,60 @@ class ApprovalManager:
                 client="expired",
                 user_id=req.user_id,
                 error="approval request expired",
+                details={"approval_id": req.id},
+            )
+
+    # ----------------------------------------------------------- storage
+    def _changed(self) -> None:
+        if self.on_change is not None:
+            self.on_change()
+
+    def export(self) -> list[dict[str, Any]]:
+        return [r.to_dict() for r in self._requests.values()]
+
+    def restore(self, data: Any) -> list[ApprovalRequest]:
+        """Take over the stored list; returns the requests that a restart left open (now closed)."""
+        interrupted: list[ApprovalRequest] = []
+        if not isinstance(data, list):
+            return interrupted
+        fields = set(ApprovalRequest.__dataclass_fields__) - {"_runner", "_cancel_expiry"}
+        for item in data:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            try:
+                req = ApprovalRequest(**{k: v for k, v in item.items() if k in fields})
+            except TypeError:
+                continue
+            if req.status == "pending":
+                delayed = req.reason == "delay"
+                req.status = "cancelled" if delayed else "expired"
+                req.error = (
+                    "Home Assistant restarted before the delay was over: not sent"
+                    if delayed
+                    else "Home Assistant restarted before a decision"
+                )
+                req.decided_by = "restart"
+                req.decided_at = datetime.now(UTC).isoformat(timespec="seconds")
+                persistent_notification.async_dismiss(self._hass, f"{DOMAIN}_approval_{req.id}")
+                interrupted.append(req)
+            self._requests.setdefault(req.id, req)
+        self._trim()
+        if interrupted:
+            self._changed()
+        return interrupted
+
+    async def async_record_interrupted(self, requests: list[ApprovalRequest]) -> None:
+        if self._audit is None:
+            return
+        for req in requests:
+            await self._audit.async_record(
+                tool=req.tool,
+                action=req.action,
+                params=req.params,
+                result="blocked",
+                client="restart",
+                user_id=req.user_id,
+                error=req.error,
                 details={"approval_id": req.id},
             )
 

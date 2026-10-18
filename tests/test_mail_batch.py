@@ -31,7 +31,7 @@ async def test_move_many_uses_single_move_command() -> None:
     client = MagicMock()
     client.has_capability.return_value = True
     client.uid = AsyncMock(return_value=MagicMock(result="OK", lines=[]))
-    mail._mailboxes = [{"name": "Junk", "delimiter": "/", "flags": [], "special_use": "junk"}]
+    mail._shared["mailboxes"] = [{"name": "Junk", "delimiter": "/", "flags": [], "special_use": "junk"}]
 
     async def run(func, *args, retry=True):
         mail._selected = "INBOX"
@@ -45,7 +45,7 @@ async def test_move_many_uses_single_move_command() -> None:
 
 async def test_delete_many_moves_to_trash_in_one_call() -> None:
     mail = _mail()
-    mail._mailboxes = [{"name": "Deleted Messages", "delimiter": "/", "flags": [], "special_use": "trash"}]
+    mail._shared["mailboxes"] = [{"name": "Deleted Messages", "delimiter": "/", "flags": [], "special_use": "trash"}]
     with patch.object(mail, "async_move", AsyncMock(return_value={"uids": [1, 2], "count": 2})) as move:
         result = await mail.async_delete("INBOX", [2, 1])
     move.assert_awaited_once_with("INBOX", [2, 1], "Deleted Messages")

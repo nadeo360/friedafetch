@@ -25,15 +25,18 @@ from .const import (
     CONF_INJECTION_LOCK,
     CONF_INJECTION_LOCK_MINUTES,
     CONF_MAX_RESULTS,
+    CONF_SEND_DELAY,
     DEFAULT_APPROVAL_DELETE,
     DEFAULT_APPROVAL_MASS,
     DEFAULT_APPROVAL_SEND,
     DEFAULT_INJECTION_LOCK,
     DEFAULT_INJECTION_LOCK_MINUTES,
     DEFAULT_MAX_RESULTS,
+    DEFAULT_SEND_DELAY,
     DOMAIN,
     MAX_INJECTION_LOCK_MINUTES,
     MAX_RESULTS_LIMIT,
+    MAX_SEND_DELAY,
 )
 from .dav import DavAuthError, DavConflictError, DavError, DavNotFoundError
 from .guard import Guard, PolicyError
@@ -91,6 +94,7 @@ class ICloudClients:
         self.mail_factory: Callable[[], ICloudMail] | None = None
         # injection lock per caller (platform:user): until when, and which tool returned the suspicious content
         self._locks: dict[str, dict[str, Any]] = {}
+        self.on_change: Callable[[], None] | None = None  # persists the locks (set up by the integration)
 
     @property
     def injection_lock_enabled(self) -> bool:
@@ -103,6 +107,8 @@ class ICloudClients:
         )
         until = dt_util.utcnow() + timedelta(minutes=max(1, minutes))
         self._locks[source] = {"until": until, "tool": tool}
+        if self.on_change is not None:
+            self.on_change()
         _LOGGER.warning(
             "Injection lock for %s until %s: %s returned content that looks like a prompt-injection attempt",
             source,
@@ -120,6 +126,25 @@ class ICloudClients:
             return None
         return lock["until"]
 
+    def export_locks(self) -> dict[str, dict[str, str]]:
+        """Active injection locks for storage: a restart must not lift them."""
+        return {
+            source: {"until": lock["until"].isoformat(), "tool": lock["tool"]}
+            for source, lock in self._locks.items()
+            if lock["until"] > dt_util.utcnow()
+        }
+
+    def restore_locks(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        for source, lock in data.items():
+            try:
+                until = datetime.fromisoformat(str(lock["until"]))
+            except (TypeError, ValueError, KeyError):
+                continue
+            if until.tzinfo is not None and until > dt_util.utcnow():
+                self._locks[str(source)] = {"until": until, "tool": str(lock.get("tool") or "")}
+
     def lock_status(self) -> list[dict[str, Any]]:
         """Active injection locks (for the panel)."""
         out = []
@@ -128,6 +153,15 @@ class ICloudClients:
             if until is not None:
                 out.append({"source": source, "until": until.isoformat(), "tool": self._locks[source]["tool"]})
         return out
+
+    @property
+    def send_delay(self) -> int:
+        """Seconds an assistant's e-mail waits before it is sent (0 = immediately)."""
+        try:
+            value = int(self.options.get(CONF_SEND_DELAY, DEFAULT_SEND_DELAY) or 0)
+        except (TypeError, ValueError):
+            return DEFAULT_SEND_DELAY
+        return max(0, min(value, MAX_SEND_DELAY))
 
     @property
     def max_results(self) -> int:
@@ -245,6 +279,23 @@ class ICloudTool(llm.Tool):
             )
             return _result(parked)
         try:
+            delay = self.clients.send_delay if self.sends_mail else 0
+            if delay and self.clients.approvals is not None:
+                # delayed sending: check now (so errors come back at once), send when the delay is over
+                await self.precheck(hass, args)
+                context = getattr(llm_context, "context", None)
+                return _result(
+                    await self.clients.approvals.async_schedule(
+                        tool_name=self.name,
+                        action="send",
+                        summary=self.approval_summary(args),
+                        params=args,
+                        runner=lambda: self.run(hass, dict(args)),
+                        client=getattr(llm_context, "platform", None),
+                        user_id=getattr(context, "user_id", None),
+                        delay_seconds=delay,
+                    )
+                )
             data = await self.run(hass, args)
         except PolicyError as err:
             await self._audit(args, "blocked", llm_context, error=str(err))
@@ -330,6 +381,9 @@ class ICloudTool(llm.Tool):
 
     async def run(self, hass: HomeAssistant, args: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
+
+    async def precheck(self, hass: HomeAssistant, args: dict[str, Any]) -> None:
+        """Checks that can run before a delayed call (raise to refuse it right away)."""
 
     def approval_reason(self, args: dict[str, Any]) -> str | None:
         """Return why this call needs human approval, or None."""

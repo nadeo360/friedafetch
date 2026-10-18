@@ -22,6 +22,7 @@ from .const import (
     CONF_ENABLE_MAIL,
     CONF_ENABLE_NOTES,
     CONF_READ_ONLY,
+    CONF_SEND_DELAY,
     DEFAULT_ALLOW_DELETE,
     DEFAULT_ALLOW_SEND_MAIL,
     DEFAULT_APPROVAL_DELETE,
@@ -32,8 +33,10 @@ from .const import (
     DEFAULT_ENABLE_MAIL,
     DEFAULT_ENABLE_NOTES,
     DEFAULT_READ_ONLY,
+    DEFAULT_SEND_DELAY,
     LLM_API_ID,
     LLM_API_NAME,
+    MAX_SEND_DELAY,
 )
 from .schema import vol
 from .tool_base import (
@@ -179,6 +182,10 @@ DISABLED_HINT = (
     "Tell the user to enable it under Settings → Devices & services → Frieda → Configure if they ask for it."
 )
 
+DELAY_HINT = (
+    "E-mails are sent with a delay of {seconds} seconds so the user can still cancel them: a result with code "
+    "'scheduled' means the mail goes out at 'send_at' unless it is cancelled; check with icloud_approval_status."
+)
 APPROVAL_HINT = (
     "The following actions require human approval in Home Assistant: {items}. "
     "A result with status 'approval_required' is not an error: tell the user the request is waiting for approval "
@@ -225,6 +232,12 @@ def capability_hints(options: Mapping[str, Any], label: str = "") -> str:
     approvals = approval_capabilities(options)
     if approvals:
         parts.append(prefix + APPROVAL_HINT.format(items=", ".join(approvals)))
+    try:
+        delay = int(options.get(CONF_SEND_DELAY, DEFAULT_SEND_DELAY) or 0)
+    except (TypeError, ValueError):
+        delay = 0
+    if delay > 0 and not options.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND):
+        parts.append(prefix + DELAY_HINT.format(seconds=min(delay, MAX_SEND_DELAY)))
     return " ".join(parts)
 
 

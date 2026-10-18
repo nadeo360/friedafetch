@@ -96,10 +96,12 @@
           "approval_delete": "Löschen erfordert Freigabe",
           "approval_mass": "Mail-Aktionen ab dieser Anzahl Nachrichten erfordern Freigabe (0 = aus)",
           "approval_notify": "Benachrichtigungsdienst für Push mit Buttons (optional)",
-          "approval_timeout": "Ablauf offener Anfragen (Minuten)"
+          "approval_timeout": "Ablauf offener Anfragen (Minuten)",
+          "send_delay": "Verzögerung vor dem Senden (Sekunden)"
         },
         "data_description": {
-          "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App."
+          "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App.",
+          "send_delay": "E-Mails von Assistenten warten so lange und lassen sich bis dahin im Frieda-Panel oder in der Benachrichtigung abbrechen. 0 = sofort senden. Ohne Wirkung, wenn das Senden ohnehin freigegeben werden muss."
         }
       }
     },

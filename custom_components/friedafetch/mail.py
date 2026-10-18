@@ -395,6 +395,7 @@ class ICloudMail:
         smtp_port: int,
         timeout: int = 30,
         ssl_context: ssl.SSLContext | None = None,
+        shared: dict[str, Any] | None = None,
     ) -> None:
         self._username = username
         self._password = password
@@ -409,8 +410,10 @@ class ICloudMail:
         self._selected: str | None = None
         self._last_used = 0.0
         self._lock = asyncio.Lock()
-        self._mailboxes: list[dict[str, Any]] | None = None
+        # facts about the account that all connections of it share (the mailbox list)
+        self._shared: dict[str, Any] = shared if shared is not None else {}
         self._uidvalidity: dict[str, int] = {}
+        self._closing: set[asyncio.Task] = set()
 
     # ---------------------------------------------------------- connection
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
@@ -434,9 +437,28 @@ class ICloudMail:
             state = self._client.get_state()
             if state in ("AUTH", "SELECTED") and now - self._last_used < _IDLE_RECONNECT_AFTER:
                 return self._client
-            await self._drop()
+            self._discard()
         self._client = await self._connect()
         return self._client
+
+    def _discard(self) -> None:
+        """Forget an idle connection and log it out in the background.
+
+        The server has usually closed it already, so waiting for the logout would only delay the caller.
+        """
+        client, self._client, self._selected = self._client, None, None
+        if client is None:
+            return
+        task = asyncio.get_running_loop().create_task(self._quiet_logout(client))
+        self._closing.add(task)
+        task.add_done_callback(self._closing.discard)
+
+    @staticmethod
+    async def _quiet_logout(client: aioimaplib.IMAP4_SSL) -> None:
+        try:
+            await asyncio.wait_for(client.logout(), 5)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("IMAP logout of an idle connection failed (ignored)")
 
     async def _drop(self) -> None:
         client, self._client, self._selected = self._client, None, None
@@ -450,6 +472,8 @@ class ICloudMail:
     async def async_close(self) -> None:
         async with self._lock:
             await self._drop()
+        if self._closing:
+            await asyncio.gather(*self._closing, return_exceptions=True)
 
     async def async_test_login(self) -> None:
         """Validate the credentials (used by the config flow)."""
@@ -500,8 +524,9 @@ class ICloudMail:
 
     # ---------------------------------------------------------- mailboxes
     async def async_mailboxes(self, force: bool = False) -> list[dict[str, Any]]:
-        if self._mailboxes is not None and not force:
-            return self._mailboxes
+        cached = self._shared.get("mailboxes")
+        if cached is not None and not force:
+            return cached
 
         async def op(client: aioimaplib.IMAP4_SSL) -> list[dict[str, Any]]:
             response = await client.list('""', '"*"')
@@ -554,7 +579,7 @@ class ICloudMail:
                 if box["name"] in names:
                     box["special_use"] = special
                     break
-        self._mailboxes = boxes
+        self._shared["mailboxes"] = boxes
         return boxes
 
     async def async_special_mailbox(self, special: str) -> str | None:

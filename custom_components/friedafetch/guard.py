@@ -61,6 +61,7 @@ class Guard:
         self._options = options
         self._clock = clock
         self._windows: dict[str, deque[tuple[float, int]]] = {k: deque() for k in _LIMIT_OPTIONS}
+        self.on_change: Any | None = None  # called after every consume, so the usage survives a restart
 
     # ------------------------------------------------------------- quotas
     def limit(self, category: str) -> int:
@@ -91,6 +92,34 @@ class Guard:
     def consume(self, category: str, amount: int = 1) -> None:
         if amount > 0:
             self._windows[category].append((self._clock(), amount))
+            if self.on_change is not None:
+                self.on_change()
+
+    def export(self, wall: float | None = None) -> dict[str, list[list[float]]]:
+        """Usage of the last hour with wall-clock times (for storage)."""
+        now, wall = self._clock(), time.time() if wall is None else wall
+        return {
+            category: [[round(wall - (now - t), 3), n] for t, n in window if now - t <= WINDOW_SECONDS]
+            for category, window in self._windows.items()
+        }
+
+    def restore(self, data: Any, wall: float | None = None) -> None:
+        """Take over stored usage, so a restart or reload does not refill the hourly quotas."""
+        if not isinstance(data, dict):
+            return
+        now, wall = self._clock(), time.time() if wall is None else wall
+        for category, items in data.items():
+            window = self._windows.get(category)
+            if window is None or not isinstance(items, list):
+                continue
+            for item in items:
+                try:
+                    stamp, amount = float(item[0]), int(item[1])
+                except (TypeError, ValueError, IndexError):
+                    continue
+                age = wall - stamp
+                if 0 <= age <= WINDOW_SECONDS and amount > 0:
+                    window.append((now - age, amount))
 
     def quota_status(self) -> dict[str, dict[str, int]]:
         return {c: {"used": self.used(c), "limit": self.limit(c)} for c in _LIMIT_OPTIONS}

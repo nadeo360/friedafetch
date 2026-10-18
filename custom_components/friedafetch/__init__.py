@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -43,12 +44,14 @@ from .const import (
     CONF_ATTACHMENTS_DIR,
     CONF_ENABLE_MAIL,
     CONF_FROM_ADDRESS,
+    CONF_SEND_DELAY,
     DEFAULT_APPROVAL_DELETE,
     DEFAULT_APPROVAL_MASS,
     DEFAULT_APPROVAL_SEND,
     DEFAULT_APPROVAL_TIMEOUT,
     DEFAULT_ATTACHMENTS_SUBDIR,
     DEFAULT_ENABLE_MAIL,
+    DEFAULT_SEND_DELAY,
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
@@ -69,6 +72,7 @@ from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
 from .mcp_http import async_register as async_register_mcp_http
 from .notes import ICloudNotes
+from .state import AccountState
 from .usage import async_get_usage
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,6 +119,8 @@ def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
     dav = DavClient(session, apple_id, password, timeout=REQUEST_TIMEOUT)
     tz = dt_util.get_default_time_zone()
 
+    shared: dict[str, Any] = {}  # mailbox list, shared by all connections of the account
+
     def new_mail() -> ICloudMail:
         """A further, independent IMAP/SMTP client for the same account (e.g. for background automation)."""
         return ICloudMail(
@@ -127,6 +133,7 @@ def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
             smtp_port=SMTP_PORT,
             timeout=REQUEST_TIMEOUT,
             ssl_context=client_context(),
+            shared=shared,
         )
 
     mail = new_mail()
@@ -156,7 +163,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
 
     # inbox rules (stored in HA, applied by this integration)
     opts = entry.options
+    # quotas, injection locks and approvals survive restarts and reloads
+    state = AccountState(hass, entry.entry_id)
+    stored = await state.async_load()
     clients.guard = Guard(dict(opts))
+    clients.guard.restore(stored.get("quotas"))
+    clients.guard.on_change = state.changed
+    state.register("quotas", clients.guard.export)
+    clients.restore_locks(stored.get("locks"))
+    clients.on_change = state.changed
+    state.register("locks", clients.export_locks)
+    entry.async_on_unload(state.async_flush)
     audit = AuditLog(hass, entry.entry_id, entry.data[CONF_APPLE_ID])
     await audit.async_load()
     clients.audit = audit
@@ -164,6 +181,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         opts.get(CONF_APPROVAL_SEND, DEFAULT_APPROVAL_SEND)
         or opts.get(CONF_APPROVAL_DELETE, DEFAULT_APPROVAL_DELETE)
         or int(opts.get(CONF_APPROVAL_MASS, DEFAULT_APPROVAL_MASS) or 0) > 0
+        or int(opts.get(CONF_SEND_DELAY, DEFAULT_SEND_DELAY) or 0) > 0
     ):
         approvals = ApprovalManager(
             hass,
@@ -175,6 +193,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
             language=hass.config.language or "en",
         )
         clients.approvals = approvals
+        await approvals.async_record_interrupted(approvals.restore(stored.get("approvals")))
+        approvals.on_change = state.changed
+        state.register("approvals", approvals.export)
         entry.async_on_unload(hass.bus.async_listen(MOBILE_ACTION_EVENT, approvals.handle_mobile_action))
         entry.async_on_unload(approvals.shutdown)
     clients.entry_id = entry.entry_id

@@ -79,6 +79,9 @@ DEFAULT_APPROVAL_SEND = False
 DEFAULT_APPROVAL_DELETE = False
 DEFAULT_APPROVAL_MASS = 0
 DEFAULT_APPROVAL_TIMEOUT = 15
+CONF_SEND_DELAY = "send_delay"  # seconds an assistant's e-mail waits before it is sent (cancellable), 0 = off
+DEFAULT_SEND_DELAY = 0
+MAX_SEND_DELAY = 600
 APPROVAL_ACTION_PREFIX = "FRIEDAFETCH_"
 MOBILE_ACTION_EVENT = "mobile_app_notification_action"
 

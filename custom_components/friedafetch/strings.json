@@ -96,10 +96,12 @@
           "approval_delete": "Deleting requires approval",
           "approval_mass": "Mail actions touching more than this many messages require approval (0 = off)",
           "approval_notify": "Notify service for actionable push (optional)",
-          "approval_timeout": "Pending requests expire after (minutes)"
+          "approval_timeout": "Pending requests expire after (minutes)",
+          "send_delay": "Delay before sending (seconds)"
         },
         "data_description": {
-          "approval_notify": "e.g. mobile_app_iphone – requires the Home Assistant companion app."
+          "approval_notify": "e.g. mobile_app_iphone – requires the Home Assistant companion app.",
+          "send_delay": "E-mails from assistants wait this long and can be cancelled in the Frieda panel or the notification until then. 0 = send immediately. Without effect when sending needs approval anyway."
         }
       }
     },

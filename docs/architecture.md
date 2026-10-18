@@ -418,11 +418,15 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-9 | Push via a second IMAP session, timer as fallback | IDLE blocks a connection; push only covers the inbox | Two IMAP sessions per account |
 | ADR-10 | Re-read IMAP capabilities after login | iCloud announces IDLE only after login; aioimaplib keeps the pre-login list | Push works with iCloud |
 | ADR-11 | Release zips with checksum, SBOM and attestation; SHA-pinned actions | Supply-chain security for a tool with mail access | Release workflow per repository |
-| ADR-12 | Injection lock per caller instead of blocking suspicious content | Reading must stay possible (the user wants to know what a phishing mail says); the danger is acting on it | Short-lived lock state in memory; panel shows active locks |
+| ADR-12 | Injection lock per caller instead of blocking suspicious content | Reading must stay possible (the user wants to know what a phishing mail says); the danger is acting on it | Short-lived lock state, stored per account (ADR-17); panel shows active locks |
 | ADR-13 | Treat rules as mass actions (approvals, per-run cap, quota) | A rule plus “run on whole mailbox” would otherwise bypass delete approvals and quotas | Deferred messages are processed in the next run |
 | ADR-14 | Own IMAP connection for background work | One shared connection serialises AI clients and rule runs | Three IMAP sessions per account with Frieda Postfach (tools, automation, push) |
 | ADR-15 | Incremental UID search plus UIDVALIDITY | Listing every UID each run is wasteful for large mailboxes; renumbered mailboxes must not trigger actions on wrong messages | Re-baseline after a renumbering |
 | ADR-16 | Encrypt the in-memory contacts cache | Contacts are personal data; avoid readable copies in memory objects, diagnostics or dumps | Decrypt per use (~0.1 s for 2000 contacts); no protection against reading the whole process |
+| ADR-17 | Persist quotas, injection locks and approvals; close open requests on restart | A restart must not refill quotas or lift locks; parked calls cannot be re-created safely after a restart | One small store per account; open requests end as expired/cancelled |
+| ADR-18 | Delayed sending as a self-approving request | Reuses notifications, panel card, status tool and audit of the approvals; one place to cancel | Off by default; approval takes precedence when sending needs approval |
+| ADR-19 | Share the mailbox list between the connections of an account; close idle connections in the background | With ADR-14 the tool connection is often idle, and waiting for the logout of a dead connection delayed panels and forms | Panels and option forms no longer wait on idle connections |
+| ADR-20 | Events and sensors in Frieda Postfach | Automations should react to rule matches and AI ratings without polling the panel | Events carry subject and sender locally on the HA bus; at most 25 rule events per run |
 
 ---
 

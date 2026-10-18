@@ -249,6 +249,13 @@ a Frieda account, reuse its connection and guard rails, and add their tools to i
   can be parked instead of executed. Home Assistant shows a notification (optionally an actionable push on your phone
   with Approve/Deny) and the "Approvals" card in the panel lists the request; after approval Home Assistant runs the
   action and the AI reads the outcome with `icloud_approval_status`. Requests expire after a configurable time.
+- **Delayed sending (options → Approvals, default off):** e-mails from assistants wait a few seconds (e.g. 60) before
+  they go out. Until then the "Approvals" card shows them with "Send now" and "Cancel", and the notification has a
+  Cancel button. Recipients and quotas are checked at once and again when the mail is sent. Without effect when sending
+  needs approval anyway.
+- **Persistent state:** the hourly quotas, active injection locks and the list of approvals survive restarts and
+  reloads, so a restart neither refills a quota nor lifts a lock. Requests that were still open at a restart cannot
+  be executed afterwards: they are closed as expired (a delayed mail as cancelled, i.e. not sent).
 - **Endpoint profiles:** besides `/api/friedafetch` there is `/api/friedafetch/readonly`, which serves only tools that
   cannot change anything – the right endpoint for experiments or less trusted agents. The option "MCP endpoint only
   for administrator tokens" refuses non-admin tokens; request bodies are capped at 1 MiB.

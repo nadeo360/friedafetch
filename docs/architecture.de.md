@@ -427,11 +427,15 @@ sich eine Schnittstelle ändert.
 | ADR-9 | Push über eine zweite IMAP-Sitzung, Takt als Rückfallebene | IDLE blockiert eine Verbindung; Push deckt nur den Posteingang ab | Zwei IMAP-Sitzungen pro Konto |
 | ADR-10 | IMAP-Fähigkeiten nach dem Login neu abfragen | iCloud meldet IDLE erst nach dem Login; aioimaplib behält die Liste von davor | Push funktioniert mit iCloud |
 | ADR-11 | Release-Zips mit Prüfsumme, SBOM und Attestierung; Actions per SHA gepinnt | Lieferketten-Sicherheit für ein Werkzeug mit Mail-Zugriff | Release-Workflow pro Repository |
-| ADR-12 | Injection-Sperre pro Aufrufer statt verdächtige Inhalte zu blockieren | Lesen muss möglich bleiben (der Nutzer will wissen, was in einer Phishing-Mail steht); gefährlich ist das Handeln danach | Kurzlebiger Sperrzustand im Speicher; Panel zeigt aktive Sperren |
+| ADR-12 | Injection-Sperre pro Aufrufer statt verdächtige Inhalte zu blockieren | Lesen muss möglich bleiben (der Nutzer will wissen, was in einer Phishing-Mail steht); gefährlich ist das Handeln danach | Kurzlebiger Sperrzustand, pro Konto gespeichert (ADR-17); Panel zeigt aktive Sperren |
 | ADR-13 | Regeln als Massenaktionen behandeln (Freigaben, Obergrenze pro Lauf, Kontingent) | Regel plus „auf ganzes Postfach anwenden“ würde sonst Lösch-Freigaben und Kontingente umgehen | Zurückgestellte Mails werden im nächsten Lauf verarbeitet |
 | ADR-14 | Eigene IMAP-Verbindung für Hintergrundarbeit | Eine gemeinsame Verbindung serialisiert KI-Clients und Regelläufe | Drei IMAP-Sitzungen pro Konto mit Frieda Postfach (Tools, Automatik, Push) |
 | ADR-15 | Gezielte UID-Suche plus UIDVALIDITY | Bei großen Postfächern ist das Auflisten aller UIDs pro Lauf verschwenderisch; neu nummerierte Postfächer dürfen keine Aktionen an falschen Mails auslösen | Neuer Startpunkt nach einer Neunummerierung |
 | ADR-16 | Kontakte-Cache im Speicher verschlüsseln | Kontakte sind personenbezogene Daten; keine lesbaren Kopien in Speicherobjekten, Diagnosedaten oder Abbildern | Entschlüsselung pro Nutzung (ca. 0,1 s für 2.000 Kontakte); kein Schutz gegen Auslesen des ganzen Prozesses |
+| ADR-17 | Kontingente, Injection-Sperren und Freigaben speichern; offene Anfragen beim Neustart schließen | Ein Neustart darf kein Kontingent auffüllen und keine Sperre aufheben; geparkte Aufrufe lassen sich nach einem Neustart nicht sicher neu erzeugen | Ein kleiner Speicher pro Konto; offene Anfragen enden als abgelaufen/abgebrochen |
+| ADR-18 | Verzögertes Senden als selbst freigebende Anfrage | Nutzt Benachrichtigungen, Panel-Karte, Status-Tool und Protokoll der Freigaben; eine Stelle zum Abbrechen | Standardmäßig aus; Freigabe hat Vorrang, wenn Senden freigegeben werden muss |
+| ADR-19 | Postfachliste zwischen den Verbindungen eines Kontos teilen; ungenutzte Verbindungen im Hintergrund schließen | Mit ADR-14 ist die Tool-Verbindung oft ungenutzt, und das Warten auf das Abmelden einer toten Verbindung verzögerte Panels und Formulare | Panels und Optionsformulare warten nicht mehr auf ungenutzte Verbindungen |
+| ADR-20 | Ereignisse und Sensoren in Frieda Postfach | Automationen sollen auf Regeltreffer und KI-Bewertungen reagieren, ohne das Panel abzufragen | Ereignisse tragen Betreff und Absender lokal auf dem HA-Bus; höchstens 25 Regel-Ereignisse pro Lauf |
 
 ---
 

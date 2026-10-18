@@ -37,6 +37,11 @@ Only the latest release is supported. Older versions do not receive fixes.
 - **Rules and AI sorting are bounded:** rule tools that create deleting/moving rules or run rules over the whole
   mailbox follow the approvals; unattended and AI-requested rule runs are capped per run (100 changes, 50 deletions)
   and, like AI sorting, count against the hourly mail-change quota.
+- **Delayed sending and persistent state:** optionally, e-mails from assistants wait a configurable time (up to ten
+  minutes) and can be cancelled in the panel or from the notification. Quota usage, injection locks and approval
+  requests are stored per account in Home Assistant's `.storage` (`friedafetch.state.<entry>`; approval parameters
+  shortened as in the audit log), so restarts neither refill quotas nor lift locks. Requests left open by a restart
+  are closed and never executed later.
 - **Input:** all tool parameters are validated against schemas; regex conditions in rules are length-limited,
   compiled before saving and refused when they could block Home Assistant (nested repetition such as `(a+)+`, or
   measured as too slow on hostile headers); stored patterns are checked again before use and only see the first

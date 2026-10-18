@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -62,6 +63,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SEND_ALLOW_BCC,
     CONF_SEND_ALLOWLIST,
+    CONF_SEND_DELAY,
     CONF_SEND_MAX_RECIPIENTS,
     CONF_SEND_POLICY,
     DEFAULT_ALLOW_DELETE,
@@ -83,6 +85,7 @@ from .const import (
     DEFAULT_MAX_RESULTS,
     DEFAULT_READ_ONLY,
     DEFAULT_SEND_ALLOW_BCC,
+    DEFAULT_SEND_DELAY,
     DEFAULT_SEND_MAX_RECIPIENTS,
     DEFAULT_SEND_POLICY,
     DOMAIN,
@@ -90,6 +93,7 @@ from .const import (
     IMAP_PORT,
     MAX_INJECTION_LOCK_MINUTES,
     MAX_RESULTS_LIMIT,
+    MAX_SEND_DELAY,
     REQUEST_TIMEOUT,
     SEND_POLICIES,
     SMTP_HOST,
@@ -118,6 +122,17 @@ STEP_REAUTH_SCHEMA = vol.Schema(
         ),
     }
 )
+
+
+OPTIONS_LOOKUP_TIMEOUT = 8  # seconds a form waits for mailbox or calendar names from iCloud
+
+
+async def _bounded(coro: Any, fallback: Any) -> Any:
+    """Result of coro, or fallback if iCloud does not answer in time (the selectors then take custom values)."""
+    try:
+        return await asyncio.wait_for(coro, OPTIONS_LOOKUP_TIMEOUT)
+    except TimeoutError:
+        return fallback
 
 
 class CannotConnect(Exception):
@@ -353,8 +368,10 @@ class ICloudMcpOptionsFlow(OptionsFlow):
             ]
             return self._save(user_input)
         opts = self.config_entry.options
-        mailboxes = await self._mailbox_options()
-        calendars = await self._calendar_options()
+        # both lists come from iCloud: ask at the same time, and never let the form wait long for them
+        mailboxes, calendars = await asyncio.gather(
+            _bounded(self._mailbox_options(), []), _bounded(self._calendar_options(), [])
+        )
 
         def multi(options: list, current: list) -> SelectSelector:
             # one shape for all entries: mixing plain strings with {value, label} is rejected by the selector
@@ -428,6 +445,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 user_input.get(CONF_APPROVAL_TIMEOUT, DEFAULT_APPROVAL_TIMEOUT) or 1
             )
             user_input[CONF_APPROVAL_NOTIFY] = str(user_input.get(CONF_APPROVAL_NOTIFY) or "").removeprefix("notify.")
+            user_input[CONF_SEND_DELAY] = int(user_input.get(CONF_SEND_DELAY, 0) or 0)
             return self._save(user_input)
         opts = self.config_entry.options
         notify_services = sorted(self.hass.services.async_services().get("notify", {}))
@@ -452,6 +470,11 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_APPROVAL_TIMEOUT, default=opts.get(CONF_APPROVAL_TIMEOUT, DEFAULT_APPROVAL_TIMEOUT)
                 ): NumberSelector(NumberSelectorConfig(min=1, max=1440, step=1, mode=NumberSelectorMode.BOX)),
+                vol.Required(CONF_SEND_DELAY, default=opts.get(CONF_SEND_DELAY, DEFAULT_SEND_DELAY)): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0, max=MAX_SEND_DELAY, step=5, mode=NumberSelectorMode.BOX, unit_of_measurement="s"
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="approvals", data_schema=schema)
