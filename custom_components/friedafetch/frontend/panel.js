@@ -93,7 +93,7 @@ class FriedaPanel extends HTMLElement {
       audit: [],
       quota: {},
       approvals: null,
-      auditLimit: 50,
+      auditLimit: 500, // everything that is kept; the table pages it
       filter: { q: "", area: "", result: "", source: "" },
       busy: false,
       loaded: false,
@@ -794,7 +794,7 @@ class FriedaPanel extends HTMLElement {
     const more = s.audit.length >= s.auditLimit && s.auditLimit < 500;
     const table = `<div class="scroll"><table class="dtable ltable" data-table="audit"><thead><tr>
         <th class="c-ico"><span class="vh">${esc(t.colArea)}</span></th><th class="c-time num">${esc(t.colTime)}</th><th>${esc(t.colAction)}</th><th class="c-who">${esc(t.colWho)}</th><th class="c-area">${esc(t.colArea)}</th><th class="c-res">${esc(t.colResult)}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`;
+      </tr></thead><tbody>${rows}</tbody></table></div>${W.pagerSlot("audit")}`;
     return `<div class="card">
       <div class="chead"><h2>${esc(t.activity)}</h2>
         ${W.cardMenu([s.audit.length && { action: "audit-clear", icon: "delete-sweep-outline", label: t.clearLog, danger: true, disabled: s.busy }], t)}</div>
@@ -845,6 +845,7 @@ class FriedaPanel extends HTMLElement {
     }
     this._bind();
     W.bindWidgets(this.shadowRoot, this._layout, () => this._render());
+    W.applyPaging(this.shadowRoot, this._layout, "audit", (this._s.pages ||= {}), t, 25);
   }
 
   _bind() {
@@ -871,6 +872,7 @@ class FriedaPanel extends HTMLElement {
           this._render();
         },
         "audit-result": () => {
+          (this._s.pages ||= {}).audit = 0;
           this._s.filter = { ...this._s.filter, result: el.dataset.v };
           this._render();
         },
@@ -905,8 +907,9 @@ class FriedaPanel extends HTMLElement {
     root.querySelectorAll("[data-filter]").forEach((el) => {
       el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
         this._s.filter = { ...this._s.filter, [el.dataset.filter]: el.value };
+        (this._s.pages ||= {}).audit = 0;
         this._render();
-        const hits = this.shadowRoot.querySelectorAll("tr.lrow").length;
+        const hits = this.shadowRoot.querySelectorAll("tr.lrow").length; // all matching entries, on every page
         W.announce(this.shadowRoot, fmt(this.t.searchHits, hits), el.tagName === "SELECT" ? 100 : 700);
       });
     });

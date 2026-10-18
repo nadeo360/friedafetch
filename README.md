@@ -221,6 +221,9 @@ Assistant user in Home Assistant itself, so it survives restarts and follows you
 **Live:** the tables follow changes right away (new change-log entries, approvals, runs), without reloading the page;
 new rows light up briefly. After an update the panel offers a reload when it still runs the old code.
 
+**Pages:** long tables show 5, 10, 25, 50 or all entries per page (remembered per table); search and filters
+always cover all entries.
+
 **Frieda UI:** both panels use one shared design library (`/friedafetch_static/ui.js`): colours from the Home
 Assistant theme, buttons, chips, tables, menus, dialogs and widgets. Frieda Postfach loads it from Frieda, so every
 module looks and behaves the same. It also covers accessibility: the focus stays in place when a panel redraws,

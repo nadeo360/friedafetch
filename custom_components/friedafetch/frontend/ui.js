@@ -67,8 +67,8 @@ export function keepScroll(host, draw) {
 // ------------------------------------------------------------------ accessibility
 // Panels redraw their whole content on every change. These helpers keep that invisible for keyboard and screen
 // reader users: the focus stays on the same control, a dialog keeps the focus inside, and news is read out.
-const FOCUS_ATTRS = ["data-action", "data-v", "data-id", "data-k", "data-i", "data-w", "data-index", "data-scope", "data-dry", "data-filter", "data-search-table", "data-col-table", "data-col"];
-const CONTEXT_ATTRS = ["data-rule-id", "data-widget", "data-detail-for"];
+const FOCUS_ATTRS = ["data-pager-do", "data-action", "data-v", "data-id", "data-k", "data-i", "data-w", "data-index", "data-scope", "data-dry", "data-filter", "data-search-table", "data-col-table", "data-col"];
+const CONTEXT_ATTRS = ["data-pager", "data-rule-id", "data-widget", "data-detail-for"];
 const FOCUSABLE = "button, input, select, textarea, summary, a[href]";
 const quote = (v) => `"${String(v).replace(/["\\]/g, "\\$&")}"`;
 
@@ -191,6 +191,80 @@ export async function copyText(text, restore = null) {
 export function toast(host, message) {
   host.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
   if (host.shadowRoot) announce(host.shadowRoot, message);
+}
+
+// ------------------------------------------------------------------ paging
+// Tables render all their rows; paging only shows a part of the rows that match the search (rows with
+// data-nomatch="1" do not). Detail rows after a row follow it, day headings without visible rows disappear.
+// The page size is stored with the layout (per table), the current page lives in the panel (state[table]).
+export const PAGE_SIZES = [5, 10, 25, 50, 0]; // 0 = all
+
+// Placeholder below a table; applyPaging() fills it.
+export const pagerSlot = (table) => `<div class="pager" data-pager="${escape(table)}"></div>`;
+
+export function applyPaging(root, layout, table, state, t, fallback = 10) {
+  const tbl = root.querySelector(`table[data-table="${table}"]`);
+  const bar = root.querySelector(`[data-pager="${table}"]`);
+  if (!tbl) return;
+  const size = Number(layout.opt(`page-${table}`, "size", fallback));
+  const rows = [...tbl.querySelectorAll("tbody tr[data-search]")];
+  const match = rows.filter((tr) => tr.dataset.nomatch !== "1");
+  const pages = size ? Math.max(1, Math.ceil(match.length / size)) : 1;
+  const page = Math.max(0, Math.min(state[table] || 0, pages - 1));
+  state[table] = page;
+  const from = size ? page * size : 0;
+  const to = size ? Math.min(from + size, match.length) : match.length;
+  const show = new Set(match.slice(from, to));
+  for (const tr of rows) {
+    const visible = show.has(tr);
+    tr.hidden = !visible;
+    for (let n = tr.nextElementSibling; n && !n.hasAttribute("data-search") && !n.classList.contains("dayrow"); n = n.nextElementSibling) {
+      n.hidden = !visible;
+    }
+  }
+  tbl.querySelectorAll("tr.dayrow").forEach((day) => {
+    let any = false;
+    for (let n = day.nextElementSibling; n && !n.classList.contains("dayrow"); n = n.nextElementSibling) {
+      if (n.hasAttribute("data-search") && !n.hidden) {
+        any = true;
+        break;
+      }
+    }
+    day.hidden = !any;
+  });
+  if (!bar) return;
+  if (match.length <= PAGE_SIZES[0]) {
+    bar.hidden = true;
+    bar.innerHTML = "";
+    return;
+  }
+  bar.hidden = false;
+  const focused = root.activeElement && bar.contains(root.activeElement) ? root.activeElement.dataset.pagerDo : null;
+  const opts = PAGE_SIZES.map((n) => `<option value="${n}" ${n === size ? "selected" : ""}>${n ? n : escape(t.pageAll)}</option>`).join("");
+  bar.innerHTML = `<label class="psize"><span>${escape(t.perPage)}</span><select class="fsel" data-pager-do="size" aria-label="${escape(t.perPage)}">${opts}</select></label>
+    <span class="grow"></span>
+    <span class="prange" aria-live="polite">${escape(fmt(t.pageRange, match.length ? from + 1 : 0, to, match.length))}</span>
+    <button class="icon" data-pager-do="prev" ${page === 0 ? "disabled" : ""} aria-label="${escape(t.prevPage)}" title="${escape(t.prevPage)}">${ico("chevron-left")}</button>
+    <button class="icon" data-pager-do="next" ${page >= pages - 1 ? "disabled" : ""} aria-label="${escape(t.nextPage)}" title="${escape(t.nextPage)}">${ico("chevron-right")}</button>`;
+  const again = () => applyPaging(root, layout, table, state, t, fallback);
+  bar.querySelector('[data-pager-do="size"]').addEventListener("change", (ev) => {
+    layout.setOpt(`page-${table}`, "size", Number(ev.target.value));
+    state[table] = 0;
+    again();
+  });
+  bar.querySelector('[data-pager-do="prev"]').addEventListener("click", () => {
+    state[table] = page - 1;
+    again();
+  });
+  bar.querySelector('[data-pager-do="next"]').addEventListener("click", () => {
+    state[table] = page + 1;
+    again();
+  });
+  // keep the focus on the control that was used (the bar was just redrawn)
+  if (focused) {
+    const el = bar.querySelector(`[data-pager-do="${focused}"]`);
+    (el && !el.disabled ? el : bar.querySelector("[data-pager-do]:not(:disabled)"))?.focus({ preventScroll: true });
+  }
 }
 
 // Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
@@ -683,6 +757,15 @@ const BASE_STYLE = `
   .ok { background: color-mix(in srgb, var(--success-color, #43a047) 12%, transparent); padding: 10px 12px; border-radius: 8px; }
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   /* hint after an update: the open page still runs the old code */
+  /* pager below a table: page size, range, previous/next */
+  .pager { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 8px 0 0; font-size: 13px; color: var(--secondary-text-color); }
+  .pager[hidden] { display: none; }
+  .pager .grow { flex: 1; }
+  .pager .psize { display: inline-flex; align-items: center; gap: 8px; }
+  .pager .psize span { white-space: nowrap; }
+  .pager select.fsel { width: auto; min-width: 0; max-width: none; height: 32px; min-height: 32px; padding: 0 8px; font-size: 14px; }
+  .pager .prange { font-variant-numeric: tabular-nums; }
+  .pager button.icon { padding: 4px; border-radius: 50%; --mdc-icon-size: 20px; }
   .content.widgets > .update-hint { grid-column: 1 / -1; }
   .update-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; --mdc-icon-size: 20px; }
   .update-hint .grow { flex: 1 1 220px; }
