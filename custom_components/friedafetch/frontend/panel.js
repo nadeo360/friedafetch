@@ -111,6 +111,16 @@ class FriedaPanel extends HTMLElement {
   }
 
   connectedCallback() {
+    // Home Assistant may create this element and set hass/narrow/panel/route before the module has finished
+    // loading (it awaits its texts and styles). Those values then sit on the element as plain properties and hide
+    // the setters, so the panel would never start. Hand them to the setters now.
+    for (const prop of ["panel", "narrow", "route", "hass"]) {
+      if (Object.prototype.hasOwnProperty.call(this, prop)) {
+        const value = this[prop];
+        delete this[prop];
+        this[prop] = value;
+      }
+    }
     this._onVisible = () => {
       if (document.visibilityState === "visible") this._autoRefresh();
     };
