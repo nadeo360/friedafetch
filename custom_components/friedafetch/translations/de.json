@@ -51,57 +51,69 @@
           "enable_contacts": "Kontakt-Tools",
           "enable_mail": "E-Mail-Tools",
           "enable_notes": "Notiz-Tools (IMAP-Ordner „Notes“)",
-          "read_only": "Nur-Lesen-Modus (alle Erstellen/Ändern/Löschen/Senden-Tools ausblenden)",
+          "read_only": "Nur-Lesen-Modus",
           "allow_send_mail": "Senden von E-Mails erlauben",
-          "allow_delete": "Löschen von Terminen, Kontakten, E-Mails und Notizen erlauben",
-          "max_results": "Standard-Maximalanzahl an Ergebnissen",
-          "account_label": "Kontobezeichnung (für Tool-Namen bei mehreren Konten)",
-          "from_address": "Absenderadresse für ausgehende E-Mails",
-          "attachments_dir": "Ordner für Anhänge (leer = Unterordner frieda im Medienordner)"
+          "allow_delete": "Löschen erlauben",
+          "max_results": "Maximale Ergebnisse",
+          "account_label": "Kontobezeichnung",
+          "from_address": "Absenderadresse",
+          "attachments_dir": "Ordner für Anhänge"
         },
         "data_description": {
-          "account_label": "Kurzname wie privat oder arbeit. Bei mehr als einem iCloud-Konto erhalten die Tools weiterer Konten dieses Suffix, z. B. icloud_list_events_arbeit. Standard: lokaler Teil der Apple-ID."
+          "account_label": "Kurzname wie privat oder arbeit. Bei mehr als einem iCloud-Konto erhalten die Tools weiterer Konten dieses Suffix, z. B. icloud_list_events_arbeit. Standard: lokaler Teil der Apple-ID.",
+          "read_only": "Blendet alle Tools zum Erstellen, Ändern, Löschen und Senden aus.",
+          "allow_delete": "Termine, Kontakte, E-Mails und Notizen.",
+          "max_results": "Standardwert, wenn ein Tool keine Anzahl angibt.",
+          "from_address": "Für ausgehende E-Mails.",
+          "attachments_dir": "Leer = Unterordner frieda im Medienordner."
         }
       },
       "security": {
         "title": "Sicherheit und Leitplanken",
         "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Änderungsprotokoll des Panels „Frieda“ und als Ereignis friedafetch_action.",
         "data": {
-          "limit_mail_modify": "Mails verschieben/löschen/markieren pro Stunde (0 = unbegrenzt)",
-          "limit_mail_send": "Gesendete Mails pro Stunde (0 = unbegrenzt)",
-          "limit_item_delete": "Gelöschte Termine/Kontakte/Notizen pro Stunde (0 = unbegrenzt)",
+          "limit_mail_modify": "Mail-Änderungen pro Stunde",
+          "limit_mail_send": "Gesendete Mails pro Stunde",
+          "limit_item_delete": "Löschungen pro Stunde",
           "send_policy": "Empfänger-Richtlinie beim Senden",
-          "send_allowlist": "Erlaubte Adressen oder Domains (kommagetrennt)",
-          "send_max_recipients": "Maximale Empfänger pro Mail (0 = unbegrenzt)",
+          "send_allowlist": "Erlaubte Adressen/Domains",
+          "send_max_recipients": "Max. Empfänger pro Mail",
           "send_allow_bcc": "BCC erlauben",
           "protected_calendars": "Geschützte Kalender (nur lesen)",
-          "protected_mailboxes": "Geschützte Postfächer (nur lesen, keine Regeln)",
-          "hidden_mailboxes": "Verborgene Postfächer (für die KI unsichtbar)",
-          "endpoint_admin_only": "MCP-Endpunkt nur für Admin-Tokens",
-          "injection_lock": "Injection-Sperre: nach einer verdächtigen Mail Senden und Löschen nur mit Freigabe",
-          "injection_lock_minutes": "Dauer der Injection-Sperre (Minuten)"
+          "protected_mailboxes": "Geschützte Postfächer",
+          "hidden_mailboxes": "Verborgene Postfächer",
+          "endpoint_admin_only": "MCP-Endpunkt nur für Admins",
+          "injection_lock": "Injection-Sperre",
+          "injection_lock_minutes": "Dauer der Sperre (Minuten)"
         },
         "data_description": {
           "send_policy": "„Beliebig“: jede Adresse. „Kontakte“: nur Adressen aus den iCloud-Kontakten oder der Allowlist. „Allowlist“: nur die Allowlist.",
-          "send_allowlist": "z. B. familie@example.com, example.org",
+          "send_allowlist": "Kommagetrennt, z. B. familie@example.com, example.org",
           "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/friedafetch, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/friedafetch/readonly.",
-          "injection_lock": "Liefert ein Tool Inhalte, die nach einem Prompt-Injection-Versuch aussehen, darf derselbe Client für diese Zeit nicht senden, löschen oder löschende Regeln anlegen, ohne dass du es freigibst (ohne aktivierte Freigaben wird es blockiert)."
+          "injection_lock": "Nach einer verdächtigen Mail sind Senden und Löschen nur mit Freigabe möglich. Liefert ein Tool Inhalte, die nach einem Prompt-Injection-Versuch aussehen, darf derselbe Client für diese Zeit nicht senden, löschen oder löschende Regeln anlegen, ohne dass du es freigibst (ohne aktivierte Freigaben wird es blockiert).",
+          "limit_mail_modify": "Verschieben, Löschen und Markieren. 0 = unbegrenzt.",
+          "limit_mail_send": "0 = unbegrenzt.",
+          "limit_item_delete": "Termine, Kontakte und Notizen. 0 = unbegrenzt.",
+          "send_max_recipients": "0 = unbegrenzt.",
+          "protected_mailboxes": "Nur lesen, keine Regeln.",
+          "hidden_mailboxes": "Für die KI unsichtbar."
         }
       },
       "approvals": {
         "title": "Freigaben (Human-in-the-Loop)",
         "description": "Kritische Aktionen werden nicht sofort ausgeführt, sondern als Freigabeanfrage geparkt: als Benachrichtigung in Home Assistant, optional als Push mit Freigeben/Ablehnen-Buttons auf dem Handy, und im Panel „Frieda“. Nach Freigabe führt Home Assistant die Aktion aus; die KI kann das Ergebnis mit icloud_approval_status abfragen.",
         "data": {
-          "approval_send": "Senden von E-Mails erfordert Freigabe",
+          "approval_send": "Senden erfordert Freigabe",
           "approval_delete": "Löschen erfordert Freigabe",
-          "approval_mass": "Mail-Aktionen ab dieser Anzahl Nachrichten erfordern Freigabe (0 = aus)",
-          "approval_notify": "Benachrichtigungsdienst für Push mit Buttons (optional)",
+          "approval_mass": "Freigabe ab Anzahl Mails",
+          "approval_notify": "Push-Dienst (optional)",
           "approval_timeout": "Ablauf offener Anfragen (Minuten)",
-          "send_delay": "Verzögerung vor dem Senden (Sekunden)"
+          "send_delay": "Sendeverzögerung (Sekunden)"
         },
         "data_description": {
-          "approval_notify": "z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App.",
-          "send_delay": "E-Mails von Assistenten warten so lange und lassen sich bis dahin im Frieda-Panel oder in der Benachrichtigung abbrechen. 0 = sofort senden. Ohne Wirkung, wenn das Senden ohnehin freigegeben werden muss."
+          "approval_notify": "Für Benachrichtigungen mit Buttons, z. B. mobile_app_iphone – benötigt die Home-Assistant-Companion-App.",
+          "send_delay": "E-Mails von Assistenten warten so lange und lassen sich bis dahin im Frieda-Panel oder in der Benachrichtigung abbrechen. 0 = sofort senden. Ohne Wirkung, wenn das Senden ohnehin freigegeben werden muss.",
+          "approval_mass": "Mail-Aktionen mit mehr Nachrichten als hier angegeben erfordern eine Freigabe. 0 = aus."
         }
       }
     },

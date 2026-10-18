@@ -51,57 +51,69 @@
           "enable_contacts": "Contact tools",
           "enable_mail": "E-mail tools",
           "enable_notes": "Notes tools (IMAP notes folder)",
-          "read_only": "Read-only mode (hide all create/update/delete/send tools)",
+          "read_only": "Read-only mode",
           "allow_send_mail": "Allow sending e-mails",
-          "allow_delete": "Allow deleting events, contacts, e-mails and notes",
-          "max_results": "Default maximum number of results",
-          "account_label": "Account label (for tool names with several accounts)",
-          "from_address": "Sender address for outgoing e-mails",
-          "attachments_dir": "Attachment folder (empty = subfolder frieda in the media folder)"
+          "allow_delete": "Allow deleting",
+          "max_results": "Maximum results",
+          "account_label": "Account label",
+          "from_address": "Sender address",
+          "attachments_dir": "Attachment folder"
         },
         "data_description": {
-          "account_label": "Short name such as private or work. With more than one iCloud account the tools of further accounts get this as suffix, e.g. icloud_list_events_work. Default: local part of the Apple ID."
+          "account_label": "Short name such as private or work. With more than one iCloud account the tools of further accounts get this as suffix, e.g. icloud_list_events_work. Default: local part of the Apple ID.",
+          "read_only": "Hides all create, update, delete and send tools.",
+          "allow_delete": "Events, contacts, e-mails and notes.",
+          "max_results": "Default when a tool does not ask for a number.",
+          "from_address": "For outgoing e-mails.",
+          "attachments_dir": "Empty = subfolder frieda in the media folder."
         }
       },
       "security": {
         "title": "Security and guard rails",
         "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the change log of the “Frieda” panel and as the event friedafetch_action.",
         "data": {
-          "limit_mail_modify": "Mail moves/deletions/flag changes per hour (0 = unlimited)",
-          "limit_mail_send": "Sent e-mails per hour (0 = unlimited)",
-          "limit_item_delete": "Deleted events/contacts/notes per hour (0 = unlimited)",
+          "limit_mail_modify": "Mail changes per hour",
+          "limit_mail_send": "Sent e-mails per hour",
+          "limit_item_delete": "Deletions per hour",
           "send_policy": "Recipient policy for sending",
-          "send_allowlist": "Allowed addresses or domains (comma-separated)",
-          "send_max_recipients": "Maximum recipients per e-mail (0 = unlimited)",
+          "send_allowlist": "Allowed addresses/domains",
+          "send_max_recipients": "Max. recipients per e-mail",
           "send_allow_bcc": "Allow BCC",
           "protected_calendars": "Protected calendars (read-only)",
-          "protected_mailboxes": "Protected mailboxes (read-only, no rules)",
-          "hidden_mailboxes": "Hidden mailboxes (invisible to the AI)",
-          "endpoint_admin_only": "MCP endpoint only for administrator tokens",
-          "injection_lock": "Injection lock: after a suspicious message, sending and deleting need approval",
-          "injection_lock_minutes": "Injection lock duration (minutes)"
+          "protected_mailboxes": "Protected mailboxes",
+          "hidden_mailboxes": "Hidden mailboxes",
+          "endpoint_admin_only": "MCP endpoint for admins only",
+          "injection_lock": "Injection lock",
+          "injection_lock_minutes": "Lock duration (minutes)"
         },
         "data_description": {
           "send_policy": "“Any”: every address. “Contacts”: only addresses from the iCloud contacts or the allowlist. “Allowlist”: only the allowlist.",
-          "send_allowlist": "e.g. family@example.com, example.org",
+          "send_allowlist": "Comma-separated, e.g. family@example.com, example.org",
           "endpoint_admin_only": "Applies to the whole endpoint /api/friedafetch as soon as one account demands it. For experiments use the read-only path /api/friedafetch/readonly.",
-          "injection_lock": "When a tool returns content that looks like a prompt-injection attempt, the same client may not send, delete or create deleting rules for this time without approval (blocked if approvals are off)."
+          "injection_lock": "After a suspicious message, sending and deleting need approval. When a tool returns content that looks like a prompt-injection attempt, the same client may not send, delete or create deleting rules for this time without approval (blocked if approvals are off).",
+          "limit_mail_modify": "Moving, deleting and flagging. 0 = unlimited.",
+          "limit_mail_send": "0 = unlimited.",
+          "limit_item_delete": "Events, contacts and notes. 0 = unlimited.",
+          "send_max_recipients": "0 = unlimited.",
+          "protected_mailboxes": "Read-only, no rules.",
+          "hidden_mailboxes": "Invisible to the AI."
         }
       },
       "approvals": {
         "title": "Approvals (human in the loop)",
         "description": "Critical actions are not executed immediately but parked as an approval request: as a Home Assistant notification, optionally as a push with approve/deny buttons on your phone, and in the “Frieda” panel. After approval Home Assistant executes the action; the AI can query the outcome with icloud_approval_status.",
         "data": {
-          "approval_send": "Sending e-mails requires approval",
+          "approval_send": "Sending requires approval",
           "approval_delete": "Deleting requires approval",
-          "approval_mass": "Mail actions touching more than this many messages require approval (0 = off)",
-          "approval_notify": "Notify service for actionable push (optional)",
+          "approval_mass": "Approval above number of mails",
+          "approval_notify": "Push service (optional)",
           "approval_timeout": "Pending requests expire after (minutes)",
-          "send_delay": "Delay before sending (seconds)"
+          "send_delay": "Send delay (seconds)"
         },
         "data_description": {
-          "approval_notify": "e.g. mobile_app_iphone – requires the Home Assistant companion app.",
-          "send_delay": "E-mails from assistants wait this long and can be cancelled in the Frieda panel or the notification until then. 0 = send immediately. Without effect when sending needs approval anyway."
+          "approval_notify": "For notifications with buttons, e.g. mobile_app_iphone – requires the Home Assistant companion app.",
+          "send_delay": "E-mails from assistants wait this long and can be cancelled in the Frieda panel or the notification until then. 0 = send immediately. Without effect when sending needs approval anyway.",
+          "approval_mass": "Mail actions touching more messages than this need approval. 0 = off."
         }
       }
     },

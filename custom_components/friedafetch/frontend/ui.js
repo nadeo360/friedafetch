@@ -528,7 +528,7 @@ const WIDGET_STYLE = `
   .det pre { margin: 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--secondary-background-color, #f0f0f0); border-radius: 8px; padding: 8px 10px; }
   .nomatch { margin: 8px 0 0; }
   /* switch: outlined with a grey knob when off, filled with a white knob when on (both 3:1 against the card) */
-  input.switch { appearance: none; -webkit-appearance: none; flex: none; width: 32px; height: 18px; min-height: 0; border-radius: 9px; background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent); box-shadow: inset 0 0 0 1.5px var(--secondary-text-color); position: relative; cursor: pointer; margin: 0; padding: 0; border: none; transition: background .15s, box-shadow .15s; vertical-align: middle; }
+  input.switch, input[type=checkbox].switch { appearance: none; -webkit-appearance: none; flex: none; width: 32px; height: 18px; min-height: 0; border-radius: 9px; background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent); box-shadow: inset 0 0 0 1.5px var(--secondary-text-color); position: relative; cursor: pointer; margin: 0; padding: 0; border: none; transition: background .15s, box-shadow .15s; vertical-align: middle; }
   input.switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--secondary-text-color); transition: transform .15s, width .15s, height .15s, top .15s, left .15s; }
   input.switch:checked { background: var(--primary-color); box-shadow: none; }
   input.switch:checked::after { top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transform: translateX(14px); }
@@ -699,6 +699,8 @@ const BASE_STYLE = `
     .stat .v { font-size: 22px; }
     button { min-height: 40px; }
     button.small, button.link, button.morelink, a.btn { min-height: 34px; }
+    /* small outlined buttons become touch-sized pills instead of tall narrow boxes */
+    a.btn, button.small:not(.round):not(.link) { min-height: 36px; padding: 0 16px; font-size: 14px; border-radius: 18px; justify-content: center; }
     button.icon { min-width: 40px; }
     button.round { min-height: 0; width: 42px; height: 42px; }
     button.pill, .pill { height: 42px; border-radius: 21px; }

@@ -45,7 +45,9 @@ export const STYLE = `
     table.stack td { border: none; padding: 4px 0; white-space: normal !important; }
     table.stack td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 2px; }
     table.stack td[data-label=""]::before { display: none; }
-    table.stack td.actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+    table.stack td.actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+    table.stack td.actions:empty { display: none; }
+    table.stack td.actions button { flex: 1 1 0; border-radius: 18px; }
   }
   .ltable .c-ico { width: 36px; }
   .ltable .aico { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--primary-color) 12%, transparent); color: var(--primary-color); --mdc-icon-size: 16px; }
