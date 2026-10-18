@@ -47,7 +47,16 @@ async def test_static_panel_served(hass: HomeAssistant, mock_discover: AsyncMock
         assert resp.status == 200 and "export const" in await resp.text()
     # the design library that Frieda Postfach and later extensions import from here
     lib = await (await client.get("/friedafetch_static/ui.js")).text()
-    for name in ("UI_API", "UI_STYLE", "Layout", "renderWidgets", "columnMenu", "cardMenu", "renderConfirm", "frontend/set_user_data"):
+    for name in (
+        "UI_API",
+        "UI_STYLE",
+        "Layout",
+        "renderWidgets",
+        "columnMenu",
+        "cardMenu",
+        "renderConfirm",
+        "frontend/set_user_data",
+    ):
         assert name in lib
 
 
