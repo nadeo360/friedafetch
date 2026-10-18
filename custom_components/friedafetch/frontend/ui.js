@@ -7,7 +7,7 @@
    Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
    user to other devices. */
 
-export const UI_API = 3; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll()
+export const UI_API = 4; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll(); 4: infoTip()
 
 // ------------------------------------------------------------------ helpers
 const escape = (s) =>
@@ -252,6 +252,15 @@ export function donut(parts, { size = 44, center = "", title = "" } = {}) {
       <circle r="${r}" cx="21" cy="21" fill="none" stroke="var(--divider-color, #e0e0e0)" stroke-width="5.5"></circle>${rings}
       ${center !== "" ? `<text x="21" y="21" text-anchor="middle" dominant-baseline="central">${escape(center)}</text>` : ""}
     </svg>`;
+}
+
+// Info button with a popup on hover or keyboard focus (desktop). A click runs data-action, so phones can show the
+// same content another way (e.g. in the expanded row). body is HTML.
+export function infoTip(body, { label = "", action = "", data = {} } = {}) {
+  const attrs = Object.entries(data)
+    .map(([k, v]) => ` data-${k}="${escape(v)}"`)
+    .join("");
+  return `<span class="infotip"><button class="icon itip" ${action ? `data-action="${action}"` : ""}${attrs} aria-label="${escape(label)}">${ico("information-outline")}</button><span class="tip" role="tooltip">${body}</span></span>`;
 }
 
 // Rare card actions (clear, reset, …) in a small ⋮ menu instead of large header buttons.
@@ -515,6 +524,16 @@ const BASE_STYLE = `
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
   .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   svg.donut { flex: none; display: block; }
+  .infotip { position: relative; display: inline-flex; vertical-align: middle; }
+  .infotip .itip { padding: 2px; min-width: 0; min-height: 0; --mdc-icon-size: 17px; color: var(--secondary-text-color); }
+  .infotip .tip { display: none; position: absolute; z-index: 6; top: calc(100% + 6px); right: -8px; width: max-content; max-width: min(380px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--card-background-color, #fff); color: var(--primary-text-color); border: 1px solid var(--divider-color, #e0e0e0); box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 13px; text-align: left; white-space: normal; font-weight: 400; }
+  .infotip:hover .tip, .infotip:focus-within .tip { display: block; }
+  @media (hover: none) { .infotip:hover .tip, .infotip:focus-within .tip { display: none; } }
+  .tip-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .tip-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 8px; align-items: start; }
+  .tip-list li > ha-icon { --mdc-icon-size: 16px; color: var(--secondary-text-color); margin-top: 1px; }
+  .tip-list .t-subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tip-list .t-meta { grid-column: 2; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   svg.donut text { font-size: 10px; font-weight: 500; fill: var(--primary-text-color); }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--secondary-text-color); }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
