@@ -7,7 +7,7 @@
    Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
    user to other devices. */
 
-export const UI_API = 1;
+export const UI_API = 2; // 2: donut(), Layout.opt()/setOpt()
 
 // ------------------------------------------------------------------ helpers
 const escape = (s) =>
@@ -54,7 +54,7 @@ export function renderConfirm(c, t) {
 }
 
 // ------------------------------------------------------------------ widgets and tables
-const EMPTY = () => ({ v: 1, order: [], hidden: [], widths: {}, cols: {} });
+const EMPTY = () => ({ v: 1, order: [], hidden: [], widths: {}, cols: {}, opts: {} });
 
 export class Layout {
   // widgets: [{ id, width: "full" | "half" }] in default order; tables: { table: { column: visibleByDefault } }
@@ -147,6 +147,19 @@ export class Layout {
     this._save();
   }
 
+  // Small per-widget settings (e.g. whether charts are shown), stored with the layout.
+  opt(id, key, fallback = false) {
+    const v = this.data.opts?.[id]?.[key];
+    return v === undefined ? fallback : v;
+  }
+
+  setOpt(id, key, value) {
+    const opts = { ...(this.data.opts || {}) };
+    opts[id] = { ...(opts[id] || {}), [key]: value };
+    this.data.opts = opts;
+    this._save();
+  }
+
   reset() {
     this.data = EMPTY();
     this._save();
@@ -195,6 +208,30 @@ export function columnMenu(layout, table, cols, t) {
     )
     .join("");
   return `<details class="menu colmenu"><summary title="${escape(t.columns)}" aria-label="${escape(t.columns)}">${ico("view-column-outline")}<span class="lbl">${escape(t.columns)}</span></summary><div class="menu-list">${items}</div></details>`;
+}
+
+// Small donut chart. parts: [{ value, color, label }]; colors are CSS values (theme variables work).
+export function donut(parts, { size = 44, center = "", title = "" } = {}) {
+  const list = parts.filter((p) => Number(p.value) > 0);
+  const total = list.reduce((n, p) => n + Number(p.value), 0);
+  const r = 15.9155; // circumference 100
+  let offset = 25; // start at 12 o'clock
+  const rings = total
+    ? list
+        .map((p) => {
+          const share = (Number(p.value) / total) * 100;
+          const gap = list.length > 1 ? Math.min(1.2, share / 3) : 0;
+          const ring = `<circle r="${r}" cx="21" cy="21" fill="none" stroke="${p.color}" stroke-width="5.5" stroke-dasharray="${Math.max(share - gap, 0.01)} ${100 - share + gap}" stroke-dashoffset="${offset}"><title>${escape(p.label)}: ${escape(p.value)}</title></circle>`;
+          offset -= share;
+          return ring;
+        })
+        .join("")
+    : "";
+  const label = title || list.map((p) => `${p.label}: ${p.value}`).join(", ");
+  return `<svg class="donut" viewBox="0 0 42 42" width="${size}" height="${size}" role="img" aria-label="${escape(label)}">
+      <circle r="${r}" cx="21" cy="21" fill="none" stroke="var(--divider-color, #e0e0e0)" stroke-width="5.5"></circle>${rings}
+      ${center !== "" ? `<text x="21" y="21" text-anchor="middle" dominant-baseline="central">${escape(center)}</text>` : ""}
+    </svg>`;
 }
 
 // Rare card actions (clear, reset, …) in a small ⋮ menu instead of large header buttons.
@@ -448,6 +485,10 @@ const BASE_STYLE = `
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
   .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  svg.donut { flex: none; display: block; }
+  svg.donut text { font-size: 10px; font-weight: 500; fill: var(--primary-text-color); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--secondary-text-color); }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
   .fact ha-icon { --mdc-icon-size: 15px; opacity: .85; }
 
   /* inputs */
