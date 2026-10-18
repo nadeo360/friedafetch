@@ -281,7 +281,8 @@ Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen ⋮-Menü un
 Home-Assistant-Benutzer in Home Assistant gespeichert, übersteht also Neustarts und gilt auf allen Geräten.
 
 **Live:** Die Tabellen folgen Änderungen sofort (neue Einträge im Änderungsprotokoll, Freigaben, Ausführungen), ohne
-die Seite neu zu laden; neue Zeilen leuchten kurz auf.
+die Seite neu zu laden; neue Zeilen leuchten kurz auf. Nach einem Update bietet das Panel ein Neuladen an, wenn es noch den
+alten Code ausführt.
 
 **Frieda UI:** Beide Panels nutzen eine gemeinsame Design-Bibliothek (`/friedafetch_static/ui.js`): Farben aus dem
 Home-Assistant-Theme, Buttons, Chips, Tabellen, Menüs, Dialoge und Widgets. Frieda Postfach lädt sie von Frieda,

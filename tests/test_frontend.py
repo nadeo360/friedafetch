@@ -135,3 +135,15 @@ async def test_subscribe_sends_live_updates(
     await entry.runtime_data.audit.async_record(tool="icloud_move_mail", action="move", params={}, result="ok")
     await ws.send_json({"id": 3, "type": "ping"})
     assert (await ws.receive_json())["type"] == "pong"  # no event arrived in between
+
+
+async def test_accounts_report_the_served_version(
+    hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client: WebSocketGenerator
+) -> None:
+    """Open panels compare it with the code they loaded and offer a reload after an update."""
+    await _setup(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "friedafetch/accounts"})
+    result = (await ws.receive_json())["result"]
+    panel = hass.data[frontend.DATA_PANELS]["friedafetch"]
+    assert result["version"] and panel.config["_panel_custom"]["module_url"].endswith(f"?v={result['version']}")

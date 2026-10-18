@@ -297,8 +297,9 @@ class FriedaPanel extends HTMLElement {
   }
 
   async _loadAccounts() {
-    const { accounts } = await this._ws({ type: "friedafetch/accounts" });
+    const { accounts, version } = await this._ws({ type: "friedafetch/accounts" });
     this._s.accounts = accounts;
+    this._s.serverVersion = version || null;
     if (!accounts.some((a) => a.entry_id === this._s.entryId)) this._s.entryId = accounts[0]?.entry_id || null;
   }
 
@@ -380,6 +381,15 @@ class FriedaPanel extends HTMLElement {
     this._s.confirm = null;
     this._render();
     if (resolve) resolve(value);
+  }
+
+  // After an update Home Assistant keeps the old code of an open panel until it is reloaded.
+  _renderUpdateHint() {
+    const loaded = new URLSearchParams(VERSION_QUERY).get("v");
+    const server = this._s.serverVersion;
+    if (!loaded || !server || loaded === server) return "";
+    const t = this.t;
+    return `<div class="info update-hint" data-announce>${ico("update")}<span class="grow">${esc(t.updateReady)}</span><button class="small" data-action="reload">${esc(t.reloadNow)}</button></div>`;
   }
 
   _renderConfirm() {
@@ -809,6 +819,7 @@ class FriedaPanel extends HTMLElement {
       : !s.entryId
         ? `<div class="card"><p>${esc(t.noAccount)}</p></div>`
         : `
+      ${this._renderUpdateHint()}
       ${s.error ? `<div class="error" data-announce>${esc(s.error)}</div>` : ""}
       ${this._renderAccounts()}
       ${W.renderWidgets(
@@ -843,6 +854,7 @@ class FriedaPanel extends HTMLElement {
       const handler = {
         account: () => this._switchAccount(el.dataset.id),
         copy: () => this._copy(el.dataset.text, el),
+        reload: () => window.location.reload(),
         base: () => {
           this._s.baseUrl = el.dataset.v;
           this._render();

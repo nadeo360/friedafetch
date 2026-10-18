@@ -682,6 +682,10 @@ const BASE_STYLE = `
   .error { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--frieda-text-err); padding: 10px 12px; border-radius: 8px; }
   .ok { background: color-mix(in srgb, var(--success-color, #43a047) 12%, transparent); padding: 10px 12px; border-radius: 8px; }
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+  /* hint after an update: the open page still runs the old code */
+  .content.widgets > .update-hint { grid-column: 1 / -1; }
+  .update-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; --mdc-icon-size: 20px; }
+  .update-hint .grow { flex: 1 1 220px; }
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
   .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   /* work in progress: small spinner with a text */

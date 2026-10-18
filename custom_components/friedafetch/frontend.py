@@ -47,10 +47,12 @@ WEBCOMPONENT = "friedafetch-panel"
 POSTFACH_DOMAIN = "friedafetch_mail"
 HA_MCP_SERVER_DOMAIN = "mcp_server"
 DATA_FRONTEND: HassKey[bool] = HassKey(f"{DOMAIN}_frontend")
+DATA_VERSION: HassKey[str] = HassKey(f"{DOMAIN}_frontend_version")
 
 
 async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
     """Register static files, the sidebar panel and the websocket commands (once)."""
+    hass.data[DATA_VERSION] = version  # open panels compare it with the code they loaded
     if hass.data.get(DATA_FRONTEND):
         return
     hass.data[DATA_FRONTEND] = True
@@ -151,7 +153,7 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
                 "extensions": sorted(clients.extensions),
             }
         )
-    connection.send_result(msg["id"], {"accounts": accounts})
+    connection.send_result(msg["id"], {"accounts": accounts, "version": hass.data.get(DATA_VERSION)})
 
 
 def _base_urls(hass: HomeAssistant) -> list[dict[str, str]]:
