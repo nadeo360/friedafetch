@@ -13,6 +13,8 @@ export const STYLE = `
   .url { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; font-size: 13px; }
   .url .lbl { grid-column: 1 / -1; color: var(--secondary-text-color); font-size: 12px; }
   .url code { padding: 4px 6px; }
+  .tile .segs.bases { justify-self: start; max-width: 100%; }
+  .tile .segs.bases button.seg { padding: 4px 10px; font-size: 12.5px; }
   .line { font-size: 13px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
   .clients { display: grid; gap: 4px; }
   .client { display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }

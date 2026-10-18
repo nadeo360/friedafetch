@@ -91,3 +91,24 @@ async def test_websocket_requires_admin(
     await ws.send_json({"id": 1, "type": "friedafetch/accounts"})
     msg = await ws.receive_json()
     assert msg["success"] is False and msg["error"]["code"] == "unauthorized"
+
+
+async def test_base_urls_lists_local_external_and_cloud(hass: HomeAssistant) -> None:
+    """The overview offers every address of this instance once: local, external and Home Assistant Cloud."""
+    from custom_components.friedafetch.frontend import _base_urls  # noqa: PLC0415
+
+    hass.config.internal_url = "http://192.168.1.118:8123"
+    hass.config.external_url = "https://home.example.org"
+    with patch("homeassistant.helpers.network._get_cloud_url", return_value="https://abc.ui.nabu.casa"):
+        assert _base_urls(hass) == [
+            {"kind": "local", "url": "http://192.168.1.118:8123"},
+            {"kind": "external", "url": "https://home.example.org"},
+            {"kind": "cloud", "url": "https://abc.ui.nabu.casa"},
+        ]
+    # without an external address and Home Assistant Cloud only the local address remains
+    hass.config.external_url = None
+    assert _base_urls(hass) == [{"kind": "local", "url": "http://192.168.1.118:8123"}]
+    # an external address that is the Home Assistant Cloud address is listed once
+    hass.config.external_url = "https://abc.ui.nabu.casa"
+    with patch("homeassistant.helpers.network._get_cloud_url", return_value="https://abc.ui.nabu.casa"):
+        assert [u["kind"] for u in _base_urls(hass)] == ["local", "external"]

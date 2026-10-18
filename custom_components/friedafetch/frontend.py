@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.loader import IntegrationNotFound, async_get_integration
 from homeassistant.util.hass_dict import HassKey
 
@@ -150,6 +151,24 @@ async def ws_accounts(hass: HomeAssistant, connection: websocket_api.ActiveConne
     connection.send_result(msg["id"], {"accounts": accounts})
 
 
+def _base_urls(hass: HomeAssistant) -> list[dict[str, str]]:
+    """Addresses under which this Home Assistant is reachable: local, external and Home Assistant Cloud."""
+    variants = (
+        ("local", {"allow_external": False, "allow_cloud": False}),
+        ("external", {"allow_internal": False, "allow_cloud": False}),
+        ("cloud", {"allow_internal": False, "require_cloud": True}),
+    )
+    urls: list[dict[str, str]] = []
+    for kind, kwargs in variants:
+        try:
+            url = get_url(hass, **kwargs).rstrip("/")
+        except NoURLAvailableError:
+            continue
+        if all(u["url"] != url for u in urls):
+            urls.append({"kind": kind, "url": url})
+    return urls
+
+
 def _llm_api_ids(hass: HomeAssistant, clients: Any) -> list[str]:
     """Ids under which this account's tools are registered as LLM API (Assist, HA MCP server)."""
     return [api.id for api in llm.async_get_apis(hass) if getattr(api, "clients", None) is clients]
@@ -216,6 +235,7 @@ async def ws_overview(hass: HomeAssistant, connection: websocket_api.ActiveConne
                 "active": bool(mcp and mcp.registered),
                 "path": STREAMABLE_API,
                 "readonly_path": READONLY_API,
+                "base_urls": _base_urls(hass),
                 "admin_only": any(
                     e.options.get(CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY) for e in _loaded_entries(hass)
                 ),

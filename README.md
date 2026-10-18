@@ -200,14 +200,15 @@ is one call instead of one per message.
 The integration adds **"Frieda"** to the Home Assistant sidebar (admins only, German/English following the HA
 language):
 
-- **Overview:** whether the MCP endpoint is active (both URLs to copy, number of reading and writing tools, token
-  rule), the MCP clients that connected recently (name and version from the MCP handshake), whether the LLM API is
+- **Overview:** whether the MCP endpoint is active (both URLs to copy – for the local address and, if set up, the
+  external address and Home Assistant Cloud –, number of reading and writing tools, token rule), the MCP clients that connected recently (name and version from the MCP handshake), whether the LLM API is
   exposed by Home Assistant's own MCP server, and the state of **Frieda Postfach** (running, installed but not linked,
   not installed).
 - **Usage:** tool calls today, in 7 and 30 days and in total, split into reading and writing, a 14-day chart, the most
   used tools, where the calls came from (Frieda endpoint, HA MCP server, Assist agents) and the hourly quotas. Only
   counters are stored, never arguments or results.
-- **Approvals:** pending and decided requests (approve or deny with one tap, also from the companion app).
+- **Approvals:** pending and decided requests (approve or deny with one tap, also from the companion app; the request
+  shows "Sending …" until the result is in).
 - **Change log:** everything Frieda changed in iCloud as a table grouped by day (e.g. "Mail moved · 3 messages ·
   → Archive"), with search, filters for area and trigger, a result switch and selectable columns; a click on a row
   shows the error and the raw parameters.

@@ -153,6 +153,41 @@ export function announce(root, text, delay = 100) {
   root.__liveTimer = setTimeout(() => (live.textContent = text), delay);
 }
 
+// Copies text to the clipboard. Plain http:// (e.g. the local IP) has no Clipboard API, so a hidden text field is
+// used there. Returns whether it worked; the focus goes back to `restore` (e.g. the copy button).
+export async function copyText(text, restore = null) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    /* fall back below */
+  }
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
+  document.body.appendChild(field);
+  field.select();
+  field.setSelectionRange(0, text.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch (err) {
+    ok = false;
+  }
+  field.remove();
+  restore?.focus?.({ preventScroll: true });
+  return ok;
+}
+
+// Short confirmation in Home Assistant's own toast at the bottom of the screen (also read out by screen readers).
+export function toast(host, message) {
+  host.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+  if (host.shadowRoot) announce(host.shadowRoot, message);
+}
+
 // Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
 export function renderConfirm(c, t) {
   if (!c) return "";
@@ -636,6 +671,11 @@ const BASE_STYLE = `
   .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
   .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
   .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  /* work in progress: small spinner with a text */
+  .working { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--primary-text-color); min-height: 36px; }
+  .spinner { flex: none; width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--primary-color) 25%, transparent); border-top-color: var(--primary-color); animation: frieda-spin .8s linear infinite; }
+  @keyframes frieda-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
   svg.donut { flex: none; display: block; }
   /* select that looks like a chip (inline choice in tables) */
   label.chipsel { position: relative; display: inline-flex; align-items: center; max-width: 100%; border-radius: 12px; background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); cursor: pointer; transition: background .15s; }

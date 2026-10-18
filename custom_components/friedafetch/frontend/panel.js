@@ -259,11 +259,30 @@ class FriedaPanel extends HTMLElement {
     this._s.quota = res.quota || {};
   }
 
+  // Approving can take a few seconds (the mail is sent right away): the row shows the progress until the result is in.
   async _decide(requestId, decision) {
-    await this._call(async () => {
-      await this._ws({ type: "friedafetch/approvals/decide", entry_id: this._s.entryId, request_id: requestId, decision });
-      await this._reload();
-    });
+    const t = this.t;
+    if (this._s.deciding) return;
+    this._s.deciding = { id: requestId, decision };
+    this._s.error = null;
+    this._render();
+    try {
+      const res = await this._ws({ type: "friedafetch/approvals/decide", entry_id: this._s.entryId, request_id: requestId, decision });
+      const req = res?.request || {};
+      const sent = req.tool === "icloud_send_mail";
+      const message = {
+        executed: sent ? t.toastSent : t.toastDone,
+        failed: fmt(t.toastFailed, req.error || ""),
+        denied: t.toastDenied,
+        cancelled: t.toastCancelled,
+      }[req.status];
+      if (message) W.toast(this, message);
+    } catch (err) {
+      this._s.error = err.message || String(err);
+    }
+    this._s.deciding = null;
+    await this._reload().catch(() => null);
+    this._render();
   }
 
   async _clearAudit() {
@@ -312,15 +331,23 @@ class FriedaPanel extends HTMLElement {
     await this._call(() => this._reload());
   }
 
+  // Copies an address: Home Assistant's toast confirms it; if the browser refuses, the address is selected instead.
   async _copy(text, btn) {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await W.copyText(text, btn)) {
+      W.toast(this, this.t.copiedToast);
       const old = btn.textContent;
       btn.textContent = this.t.copied;
       setTimeout(() => (btn.textContent = old), 1500);
-    } catch (err) {
-      window.prompt("", text);
+      return;
     }
+    const code = btn.parentElement?.querySelector("code");
+    if (code) {
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+    }
+    W.toast(this, this.t.copyFailed);
   }
 
   _account() {
@@ -362,6 +389,22 @@ class FriedaPanel extends HTMLElement {
     if (!o || !a) return "";
     const ep = o.endpoint || {};
     const origin = window.location.origin;
+    // addresses of this Home Assistant: local, external, Home Assistant Cloud (and the one in use, if different)
+    const bases = [...(ep.base_urls || [])];
+    if (!bases.some((b) => b.url === origin)) bases.unshift({ kind: "current", url: origin });
+    const base = bases.find((b) => b.url === this._s.baseUrl) || bases.find((b) => b.url === origin) || bases[0];
+    const baseIcon = { local: "lan", external: "web", cloud: "cloud-outline", current: "monitor" };
+    const baseLabel = { local: t.baseLocal, external: t.baseExternal, cloud: t.baseCloud, current: t.baseCurrent };
+    const basePicker =
+      bases.length > 1
+        ? `<div class="segs bases" role="group" aria-label="${esc(t.baseGroup)}">${bases
+            .map(
+              (b) =>
+                `<button class="seg ${b === base ? "on" : ""}" data-action="base" data-v="${esc(b.url)}" aria-pressed="${b === base}">${ico(baseIcon[b.kind] || "web")}${esc(baseLabel[b.kind] || b.kind)}</button>`
+            )
+            .join("")}</div>${base.kind === "external" || base.kind === "cloud" ? `<div class="line muted">${esc(t.basePublicHint)}</div>` : ""}`
+        : "";
+    const url = (path) => base.url + path;
     const last = o.usage?.last;
     const accountBadges = [
       a.read_only ? `<span class="badge warn">${esc(t.accountReadOnly)}</span>` : "",
@@ -371,8 +414,9 @@ class FriedaPanel extends HTMLElement {
     ].join("");
     const endpointTile = `<div class="tile">
         <div class="head"><span class="dot ${ep.active ? "" : "off"}"></span><ha-icon icon="mdi:connection"></ha-icon><span>${esc(t.endpoint)}</span><span class="state">${esc(ep.active ? t.endpointOn : t.endpointOff)}</span></div>
-        <div class="url"><span class="lbl">${esc(t.endpointFull)}</span><code>${esc(origin + ep.path)}</code><button class="link small" data-action="copy" data-text="${esc(origin + ep.path)}">${esc(t.copy)}</button></div>
-        <div class="url"><span class="lbl">${esc(t.endpointRo)}</span><code>${esc(origin + ep.readonly_path)}</code><button class="link small" data-action="copy" data-text="${esc(origin + ep.readonly_path)}">${esc(t.copy)}</button></div>
+        ${basePicker}
+        <div class="url"><span class="lbl">${esc(t.endpointFull)}</span><code>${esc(url(ep.path))}</code><button class="link small" data-action="copy" data-text="${esc(url(ep.path))}">${esc(t.copy)}</button></div>
+        <div class="url"><span class="lbl">${esc(t.endpointRo)}</span><code>${esc(url(ep.readonly_path))}</code><button class="link small" data-action="copy" data-text="${esc(url(ep.readonly_path))}">${esc(t.copy)}</button></div>
         <div class="line muted">${esc(fmt(t.toolsCount, ep.tools, ep.tools_readonly, ep.tools_write))} · ${esc(ep.admin_only ? t.adminOnly : t.anyToken)}</div>
         ${accountBadges ? `<div class="badges">${accountBadges}</div>` : ""}
         <div class="line"><span class="muted">${esc(t.lastRequest)}:</span>${
@@ -497,6 +541,19 @@ class FriedaPanel extends HTMLElement {
   }
 
   // ------------------------------------------------------------ approvals
+  // Approve/deny buttons, or the progress while a decision is being carried out.
+  _decideButtons(r) {
+    const t = this.t;
+    const d = this._s.deciding;
+    if (d && d.id === r.id) {
+      const sent = r.tool === "icloud_send_mail";
+      const label = d.decision === "approve" ? (sent ? t.sending : t.executing) : r.reason === "delay" ? t.cancelling : t.denying;
+      return `<span class="working" role="status"><span class="spinner" aria-hidden="true"></span>${esc(label)}</span>`;
+    }
+    const off = this._s.busy || d ? "disabled" : "";
+    return `<button data-action="approve" data-id="${esc(r.id)}" ${off}>${esc(r.reason === "delay" ? t.sendNow : t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${off}>${esc(r.reason === "delay" ? t.cancelSend : t.deny)}</button>`;
+  }
+
   _renderApprovals() {
     const t = this.t;
     const a = this._s.approvals;
@@ -512,7 +569,7 @@ class FriedaPanel extends HTMLElement {
         <td>${esc(this._toolLabel(r.tool))}<div class="muted">${reason(r.reason)}</div></td>
         <td>${esc(r.summary)}${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
         <td>${status(r.status)}${withButtons ? `<div class="muted">${esc(r.reason === "delay" ? t.sendsAt : t.validUntil)} ${esc(fmtClock(r.expires))}</div>` : r.decided_by ? `<div class="muted">${esc(t.decidedBy)} ${esc(r.decided_by === "delay" ? t.decidedByDelay : r.decided_by === "restart" ? t.decidedByRestart : r.decided_by)}</div>` : ""}</td>
-        <td class="actions" style="white-space:nowrap">${withButtons ? `<button data-action="approve" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(r.reason === "delay" ? t.sendNow : t.approve)}</button> <button class="danger" data-action="deny" data-id="${esc(r.id)}" ${this._s.busy ? "disabled" : ""}>${esc(r.reason === "delay" ? t.cancelSend : t.deny)}</button>` : ""}</td>
+        <td class="actions" style="white-space:nowrap">${withButtons ? this._decideButtons(r) : ""}</td>
       </tr>`;
     const labels = [t.colTime, t.colWho, t.colTool, t.colDetails, t.colResult, ""];
     const table = (rows) => `<div class="scroll"><table class="stack"><thead><tr>${labels.map((l) => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${withLabels(rows, labels)}</tbody></table></div>`;
@@ -715,6 +772,10 @@ class FriedaPanel extends HTMLElement {
       const handler = {
         account: () => this._switchAccount(el.dataset.id),
         copy: () => this._copy(el.dataset.text, el),
+        base: () => {
+          this._s.baseUrl = el.dataset.v;
+          this._render();
+        },
         approve: () => this._decide(el.dataset.id, "approve"),
         deny: () => this._decide(el.dataset.id, "deny"),
         "audit-clear": () => this._clearAudit(),

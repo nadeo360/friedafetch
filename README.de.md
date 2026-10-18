@@ -261,14 +261,15 @@ Termine verwenden Datumsangaben (`YYYY-MM-DD`), das Enddatum ist dabei **inklusi
 Die Integration legt in der Seitenleiste von Home Assistant den Eintrag **„Frieda“** an (nur für Admins; Deutsch
 oder Englisch je nach HA-Sprache):
 
-- **Überblick:** ob der MCP-Endpunkt aktiv ist (beide URLs zum Kopieren, Zahl der lesenden und schreibenden Tools,
-  Token-Regel), welche MCP-Clients sich zuletzt verbunden haben (Name und Version aus dem MCP-Handshake), ob der
+- **Überblick:** ob der MCP-Endpunkt aktiv ist (beide URLs zum Kopieren – für die lokale Adresse und, falls
+  eingerichtet, die externe Adresse und Home Assistant Cloud –, Zahl der lesenden und schreibenden Tools, Token-Regel), welche MCP-Clients sich zuletzt verbunden haben (Name und Version aus dem MCP-Handshake), ob der
   MCP-Server von Home Assistant die LLM-API freigibt, und der Zustand von **Frieda Postfach** (läuft, installiert aber
   nicht verbunden, nicht installiert).
 - **Nutzung:** Tool-Aufrufe heute, in 7 und 30 Tagen und insgesamt, getrennt nach lesend und schreibend, ein
   14-Tage-Diagramm, die häufigsten Tools, die Herkunft der Aufrufe (Frieda-Endpunkt, HA-MCP-Server, Assist-Agenten)
   und die Kontingente der letzten Stunde. Gespeichert werden nur Zähler, nie Argumente oder Ergebnisse.
-- **Freigaben:** offene und entschiedene Anfragen (freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App).
+- **Freigaben:** offene und entschiedene Anfragen (freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App;
+  bis das Ergebnis da ist, zeigt die Anfrage „Wird gesendet …“).
 - **Änderungsprotokoll:** alles, was Frieda in iCloud verändert hat, als Tabelle nach Tagen gruppiert (z. B.
   „Mails verschoben · 3 Mails · → Archiv“), mit Suche, Filtern nach Bereich und Auslöser, Ergebnis-Umschalter und
   wählbaren Spalten; ein Klick auf die Zeile zeigt Fehler und Rohparameter.
