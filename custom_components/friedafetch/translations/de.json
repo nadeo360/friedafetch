@@ -65,7 +65,7 @@
       },
       "security": {
         "title": "Sicherheit und Leitplanken",
-        "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Aktivitätsprotokoll des Panels „Frieda“ und als Ereignis friedafetch_action.",
+        "description": "Kontingente gelten je Konto und gleitender Stunde. Geschützte Bereiche sind für KI-Clients nur lesbar; verborgene Postfächer werden gar nicht angeboten. Alle schreibenden Aktionen erscheinen im Änderungsprotokoll des Panels „Frieda“ und als Ereignis friedafetch_action.",
         "data": {
           "limit_mail_modify": "Mails verschieben/löschen/markieren pro Stunde (0 = unbegrenzt)",
           "limit_mail_send": "Gesendete Mails pro Stunde (0 = unbegrenzt)",
@@ -77,12 +77,15 @@
           "protected_calendars": "Geschützte Kalender (nur lesen)",
           "protected_mailboxes": "Geschützte Postfächer (nur lesen, keine Regeln)",
           "hidden_mailboxes": "Verborgene Postfächer (für die KI unsichtbar)",
-          "endpoint_admin_only": "MCP-Endpunkt nur für Admin-Tokens"
+          "endpoint_admin_only": "MCP-Endpunkt nur für Admin-Tokens",
+          "injection_lock": "Injection-Sperre: nach einer verdächtigen Mail Senden und Löschen nur mit Freigabe",
+          "injection_lock_minutes": "Dauer der Injection-Sperre (Minuten)"
         },
         "data_description": {
           "send_policy": "„Beliebig“: jede Adresse. „Kontakte“: nur Adressen aus den iCloud-Kontakten oder der Allowlist. „Allowlist“: nur die Allowlist.",
           "send_allowlist": "z. B. familie@example.com, example.org",
-          "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/friedafetch, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/friedafetch/readonly."
+          "endpoint_admin_only": "Gilt für den gesamten Endpunkt /api/friedafetch, sobald ein Konto es verlangt. Für Experimente eignet sich der Nur-Lese-Pfad /api/friedafetch/readonly.",
+          "injection_lock": "Liefert ein Tool Inhalte, die nach einem Prompt-Injection-Versuch aussehen, darf derselbe Client für diese Zeit nicht senden, löschen oder löschende Regeln anlegen, ohne dass du es freigibst (ohne aktivierte Freigaben wird es blockiert)."
         }
       },
       "approvals": {

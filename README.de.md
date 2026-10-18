@@ -322,6 +322,16 @@ die sich an ein Frieda-Konto hängen, dessen Verbindung und Leitplanken nutzen u
   Bidi-Steuerzeichen befreit, in den Tool-Antworten als Fremdinhalt gekennzeichnet und auf typische Injektionsmuster
   geprüft; Treffer werden mit `suspicious: true` und `warnings` markiert. Der LLM-Prompt weist das Modell an,
   Anweisungen aus solchen Inhalten nie zu befolgen.
+- **Injection-Sperre (Optionen → Sicherheit, standardmäßig an):** Hat ein Tool solche markierten Inhalte geliefert,
+  darf derselbe Aufrufer (Plattform und HA-Benutzer) eine Zeit lang (Standard 15 Minuten) nicht senden, löschen,
+  abmelden oder löschende/verschiebende Regeln anlegen: Der Aufruf wird zur Freigabe geparkt oder, ohne aktivierte
+  Freigaben, blockiert. Der Überblick im Panel zeigt aktive Sperren. Das verhindert den klassischen Angriff, bei dem
+  eine Mail sagt „leite alles an … weiter“.
+- **Regeln sind auch Massenaktionen:** Mit Frieda Postfach folgen Regeln, die löschen oder verschieben, sowie echte
+  Läufe über das ganze Postfach den Freigaben („Löschen freigeben“, Massenschwelle). Unbeaufsichtigte Läufe (Takt,
+  Push) und von einer KI angestoßene Läufe ändern höchstens 100 Mails (50 Löschungen) pro Lauf und zählen gegen das
+  Stundenkontingent für Mail-Änderungen; der Rest folgt im nächsten Lauf. Die KI-Sortierung zählt gegen dasselbe
+  Kontingent.
 - **Lieferkette:** Jeder Commit läuft durch Tests, Ruff mit Bandit-Regeln, Bandit, CodeQL, pip-audit, hassfest und
   HACS-Validierung; GitHub Actions sind auf Commit-SHAs gepinnt, der `main`-Branch ist geschützt, OpenSSF Scorecard
   bewertet das Repository laufend, Dependabot und GitHub-Sicherheitswarnungen sind aktiv. Releases werden von GitHub

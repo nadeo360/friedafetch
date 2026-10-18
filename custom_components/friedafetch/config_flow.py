@@ -51,6 +51,8 @@ from .const import (
     CONF_ENDPOINT_ADMIN_ONLY,
     CONF_FROM_ADDRESS,
     CONF_HIDDEN_MAILBOXES,
+    CONF_INJECTION_LOCK,
+    CONF_INJECTION_LOCK_MINUTES,
     CONF_LIMIT_ITEM_DELETE,
     CONF_LIMIT_MAIL_MODIFY,
     CONF_LIMIT_MAIL_SEND,
@@ -73,6 +75,8 @@ from .const import (
     DEFAULT_ENABLE_MAIL,
     DEFAULT_ENABLE_NOTES,
     DEFAULT_ENDPOINT_ADMIN_ONLY,
+    DEFAULT_INJECTION_LOCK,
+    DEFAULT_INJECTION_LOCK_MINUTES,
     DEFAULT_LIMIT_ITEM_DELETE,
     DEFAULT_LIMIT_MAIL_MODIFY,
     DEFAULT_LIMIT_MAIL_SEND,
@@ -84,6 +88,7 @@ from .const import (
     DOMAIN,
     IMAP_HOST,
     IMAP_PORT,
+    MAX_INJECTION_LOCK_MINUTES,
     MAX_RESULTS_LIMIT,
     REQUEST_TIMEOUT,
     SEND_POLICIES,
@@ -291,14 +296,20 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 vol.Required(CONF_MAX_RESULTS, default=opts.get(CONF_MAX_RESULTS, DEFAULT_MAX_RESULTS)): NumberSelector(
                     NumberSelectorConfig(min=1, max=MAX_RESULTS_LIMIT, step=1, mode=NumberSelectorMode.BOX)
                 ),
-                vol.Optional(CONF_ACCOUNT_LABEL, default=opts.get(CONF_ACCOUNT_LABEL, "")): TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.TEXT)
-                ),
+                vol.Optional(
+                    CONF_ACCOUNT_LABEL, description={"suggested_value": opts.get(CONF_ACCOUNT_LABEL, "")}
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
                 vol.Optional(
                     CONF_FROM_ADDRESS,
-                    default=opts.get(CONF_FROM_ADDRESS) or data.get(CONF_FROM_ADDRESS) or data[CONF_APPLE_ID],
+                    description={
+                        "suggested_value": opts.get(CONF_FROM_ADDRESS)
+                        or data.get(CONF_FROM_ADDRESS)
+                        or data[CONF_APPLE_ID]
+                    },
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL)),
-                vol.Optional(CONF_ATTACHMENTS_DIR, default=opts.get(CONF_ATTACHMENTS_DIR) or ""): TextSelector(),
+                vol.Optional(
+                    CONF_ATTACHMENTS_DIR, description={"suggested_value": opts.get(CONF_ATTACHMENTS_DIR) or ""}
+                ): TextSelector(),
             }
         )
         return self.async_show_form(step_id="tools", data_schema=schema, errors=errors)
@@ -329,6 +340,13 @@ class ICloudMcpOptionsFlow(OptionsFlow):
         if user_input is not None:
             for key in (CONF_LIMIT_MAIL_MODIFY, CONF_LIMIT_MAIL_SEND, CONF_LIMIT_ITEM_DELETE, CONF_SEND_MAX_RECIPIENTS):
                 user_input[key] = int(user_input.get(key, 0) or 0)
+            user_input[CONF_INJECTION_LOCK_MINUTES] = int(
+                user_input.get(CONF_INJECTION_LOCK_MINUTES, DEFAULT_INJECTION_LOCK_MINUTES)
+                or DEFAULT_INJECTION_LOCK_MINUTES
+            )
+            # cleared optional fields are left out by the frontend: store them as empty
+            for key in (CONF_PROTECTED_CALENDARS, CONF_PROTECTED_MAILBOXES, CONF_HIDDEN_MAILBOXES):
+                user_input[key] = list(user_input.get(key) or [])
             raw_allow = user_input.get(CONF_SEND_ALLOWLIST) or ""
             user_input[CONF_SEND_ALLOWLIST] = [
                 a.strip().lower() for a in str(raw_allow).replace(";", ",").replace("\n", ",").split(",") if a.strip()
@@ -339,11 +357,13 @@ class ICloudMcpOptionsFlow(OptionsFlow):
         calendars = await self._calendar_options()
 
         def multi(options: list, current: list) -> SelectSelector:
-            known = {o["value"] if isinstance(o, dict) else o for o in options}
-            extra = [{"value": v, "label": v} for v in current if v not in known]
+            # one shape for all entries: mixing plain strings with {value, label} is rejected by the selector
+            items = [o if isinstance(o, dict) else {"value": o, "label": o} for o in options]
+            known = {o["value"] for o in items}
+            extra = [{"value": v, "label": v} for v in current if v not in known]  # e.g. a mailbox that is gone
             return SelectSelector(
                 SelectSelectorConfig(
-                    options=[*options, *extra], multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN
+                    options=[*items, *extra], multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN
                 )
             )
 
@@ -363,9 +383,9 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                         options=list(SEND_POLICIES), translation_key="send_policy", mode=SelectSelectorMode.DROPDOWN
                     )
                 ),
-                vol.Optional(CONF_SEND_ALLOWLIST, default=", ".join(opts.get(CONF_SEND_ALLOWLIST) or [])): TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.TEXT)
-                ),
+                vol.Optional(
+                    CONF_SEND_ALLOWLIST, description={"suggested_value": ", ".join(opts.get(CONF_SEND_ALLOWLIST) or [])}
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
                 vol.Required(
                     CONF_SEND_MAX_RECIPIENTS,
                     default=opts.get(CONF_SEND_MAX_RECIPIENTS, DEFAULT_SEND_MAX_RECIPIENTS),
@@ -374,17 +394,28 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                     CONF_SEND_ALLOW_BCC, default=opts.get(CONF_SEND_ALLOW_BCC, DEFAULT_SEND_ALLOW_BCC)
                 ): BooleanSelector(),
                 vol.Required(
+                    CONF_INJECTION_LOCK, default=opts.get(CONF_INJECTION_LOCK, DEFAULT_INJECTION_LOCK)
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_INJECTION_LOCK_MINUTES,
+                    default=opts.get(CONF_INJECTION_LOCK_MINUTES, DEFAULT_INJECTION_LOCK_MINUTES),
+                ): NumberSelector(
+                    NumberSelectorConfig(min=1, max=MAX_INJECTION_LOCK_MINUTES, step=1, mode=NumberSelectorMode.BOX)
+                ),
+                vol.Required(
                     CONF_ENDPOINT_ADMIN_ONLY, default=opts.get(CONF_ENDPOINT_ADMIN_ONLY, DEFAULT_ENDPOINT_ADMIN_ONLY)
                 ): BooleanSelector(),
-                vol.Optional(CONF_PROTECTED_CALENDARS, default=list(opts.get(CONF_PROTECTED_CALENDARS) or [])): multi(
-                    calendars, list(opts.get(CONF_PROTECTED_CALENDARS) or [])
-                ),
-                vol.Optional(CONF_PROTECTED_MAILBOXES, default=list(opts.get(CONF_PROTECTED_MAILBOXES) or [])): multi(
-                    mailboxes, list(opts.get(CONF_PROTECTED_MAILBOXES) or [])
-                ),
-                vol.Optional(CONF_HIDDEN_MAILBOXES, default=list(opts.get(CONF_HIDDEN_MAILBOXES) or [])): multi(
-                    mailboxes, list(opts.get(CONF_HIDDEN_MAILBOXES) or [])
-                ),
+                vol.Optional(
+                    CONF_PROTECTED_CALENDARS,
+                    description={"suggested_value": list(opts.get(CONF_PROTECTED_CALENDARS) or [])},
+                ): multi(calendars, list(opts.get(CONF_PROTECTED_CALENDARS) or [])),
+                vol.Optional(
+                    CONF_PROTECTED_MAILBOXES,
+                    description={"suggested_value": list(opts.get(CONF_PROTECTED_MAILBOXES) or [])},
+                ): multi(mailboxes, list(opts.get(CONF_PROTECTED_MAILBOXES) or [])),
+                vol.Optional(
+                    CONF_HIDDEN_MAILBOXES, description={"suggested_value": list(opts.get(CONF_HIDDEN_MAILBOXES) or [])}
+                ): multi(mailboxes, list(opts.get(CONF_HIDDEN_MAILBOXES) or [])),
             }
         )
         return self.async_show_form(step_id="security", data_schema=schema)
@@ -415,7 +446,7 @@ class ICloudMcpOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_APPROVAL_MASS, default=opts.get(CONF_APPROVAL_MASS, DEFAULT_APPROVAL_MASS)
                 ): NumberSelector(NumberSelectorConfig(min=0, max=10000, step=1, mode=NumberSelectorMode.BOX)),
-                vol.Optional(CONF_APPROVAL_NOTIFY, default=current): SelectSelector(
+                vol.Optional(CONF_APPROVAL_NOTIFY, description={"suggested_value": current}): SelectSelector(
                     SelectSelectorConfig(options=options, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
                 ),
                 vol.Required(

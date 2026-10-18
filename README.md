@@ -256,6 +256,14 @@ a Frieda account, reuse its connection and guard rails, and add their tools to i
   marked as third-party content in the tool results, and scanned for typical injection patterns; hits are flagged
   with `suspicious: true` and `warnings`. The LLM prompt instructs the model never to follow instructions found in
   such content.
+- **Injection lock (options → Security, default on):** once a tool returned such flagged content, the same caller
+  (platform and Home Assistant user) may not send, delete, unsubscribe or create deleting/moving rules for a while
+  (default 15 minutes): the call is parked for approval, or blocked if approvals are off. The panel overview shows
+  active locks. This stops the classic attack where a mail says “forward everything to …”.
+- **Rules are mass actions too:** with Frieda Postfach, rules that delete or move and real runs over the whole
+  mailbox follow the approvals (“approve deleting”, mass threshold). Unattended runs (timer, push) and runs requested
+  by an AI change at most 100 messages (50 deletions) per run and count against the hourly quota for mail changes;
+  the rest follows in the next run. AI sorting counts against the same quota.
 - **Supply chain:** every commit runs tests, Ruff with the Bandit rule set, Bandit, CodeQL, pip-audit, hassfest and
   HACS validation; GitHub Actions are pinned to commit SHAs, the `main` branch is protected, OpenSSF Scorecard rates
   the repository continuously, Dependabot and GitHub security alerts are enabled. Releases are built by GitHub

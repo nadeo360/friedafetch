@@ -65,7 +65,7 @@
       },
       "security": {
         "title": "Security and guard rails",
-        "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the activity log of the “Frieda” panel and as the event friedafetch_action.",
+        "description": "Quotas apply per account and sliding hour. Protected areas are read-only for AI clients; hidden mailboxes are not offered at all. Every writing action appears in the change log of the “Frieda” panel and as the event friedafetch_action.",
         "data": {
           "limit_mail_modify": "Mail moves/deletions/flag changes per hour (0 = unlimited)",
           "limit_mail_send": "Sent e-mails per hour (0 = unlimited)",
@@ -77,12 +77,15 @@
           "protected_calendars": "Protected calendars (read-only)",
           "protected_mailboxes": "Protected mailboxes (read-only, no rules)",
           "hidden_mailboxes": "Hidden mailboxes (invisible to the AI)",
-          "endpoint_admin_only": "MCP endpoint only for administrator tokens"
+          "endpoint_admin_only": "MCP endpoint only for administrator tokens",
+          "injection_lock": "Injection lock: after a suspicious message, sending and deleting need approval",
+          "injection_lock_minutes": "Injection lock duration (minutes)"
         },
         "data_description": {
           "send_policy": "“Any”: every address. “Contacts”: only addresses from the iCloud contacts or the allowlist. “Allowlist”: only the allowlist.",
           "send_allowlist": "e.g. family@example.com, example.org",
-          "endpoint_admin_only": "Applies to the whole endpoint /api/friedafetch as soon as one account demands it. For experiments use the read-only path /api/friedafetch/readonly."
+          "endpoint_admin_only": "Applies to the whole endpoint /api/friedafetch as soon as one account demands it. For experiments use the read-only path /api/friedafetch/readonly.",
+          "injection_lock": "When a tool returns content that looks like a prompt-injection attempt, the same client may not send, delete or create deleting rules for this time without approval (blocked if approvals are off)."
         }
       },
       "approvals": {

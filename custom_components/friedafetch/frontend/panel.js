@@ -143,6 +143,9 @@ const I18N = {
     reason_send: "E-Mail senden",
     reason_delete: "Löschen",
     reason_mass: "Massenaktion",
+    reason_rule: "Regel mit Lösch- oder Massenwirkung",
+    reason_injection: "kurz zuvor verdächtige Mail gelesen",
+    injectionLock: "Injection-Sperre für {0} bis {1}: Senden und Löschen nur mit Freigabe oder gesperrt (ausgelöst durch {2})",
     colTime: "Zeit",
     colWho: "Client / Benutzer",
     colTool: "Tool",
@@ -176,6 +179,7 @@ const I18N = {
     triggerAuto: "automatisch",
     triggerManual: "manuell",
     triggerPush: "Push",
+    triggerAssistant: "KI-Client",
     checkedMatched: "{0} geprüft, {1} Treffer",
     ratedApplied: "{0} bewertet, {1} einsortiert",
     details: "Details",
@@ -274,6 +278,9 @@ const I18N = {
     reason_send: "send e-mail",
     reason_delete: "delete",
     reason_mass: "mass action",
+    reason_rule: "rule that deletes or affects many messages",
+    reason_injection: "a suspicious message was read just before",
+    injectionLock: "Injection lock for {0} until {1}: sending and deleting only with approval or blocked (triggered by {2})",
     colTime: "Time",
     colWho: "Client / user",
     colTool: "Tool",
@@ -306,6 +313,7 @@ const I18N = {
     triggerAuto: "automatic",
     triggerManual: "manual",
     triggerPush: "push",
+    triggerAssistant: "AI client",
     checkedMatched: "{0} checked, {1} matched",
     ratedApplied: "{0} rated, {1} sorted",
     details: "Details",
@@ -741,6 +749,13 @@ class FriedaPanel extends HTMLElement {
             : `<div class="muted">${esc(t.noClients)}</div>`
         }
         ${(o.llm_api || []).length ? `<div class="line muted">${esc(fmt(t.assistApi, o.llm_api.join(", ")))}</div>` : ""}
+        ${(o.injection_locks || [])
+          .map((l) => {
+            const [platform, user] = String(l.source).split(":");
+            const who = this._source(platform);
+            return `<div class="line"><span class="dot warn"></span><span>${esc(fmt(t.injectionLock, who, fmtClock(l.until), this._toolLabel(l.tool)))}</span></div>`;
+          })
+          .join("")}
         ${ha.installed ? `<div class="line"><span class="dot ${ha.selected ? "" : "off"}"></span><span class="muted">${esc(ha.selected ? t.haMcpOn : t.haMcpOff)}</span></div>` : ""}
       </div>`;
     return `<div class="card"><h2><span class="grow">${esc(t.overview)}</span><span class="muted">${esc(a.apple_id || a.title)}</span></h2>
@@ -873,12 +888,12 @@ class FriedaPanel extends HTMLElement {
     const t = this.t;
     if (this._isRuleEntry(e)) {
       const trig = e.details?.trigger || e.params?.trigger || (e.client === "rules (auto)" ? "auto" : e.client === "rules (push)" ? "push" : "manual");
-      const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : t.triggerManual;
+      const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : trig === "assistant" ? t.triggerAssistant : t.triggerManual;
       return { key: "rules", text: [`${t.srcRules} (${trigText})`, e.user].filter(Boolean).join(" · ") };
     }
     if (e.tool === "friedafetch_mail_ai_sort") {
       const trig = e.details?.trigger || e.params?.trigger;
-      const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : t.triggerManual;
+      const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : trig === "assistant" ? t.triggerAssistant : t.triggerManual;
       return { key: "ai", text: `${t.srcAi} (${trigText})` };
     }
     const src = e.client || "unknown";

@@ -91,6 +91,8 @@ class ApprovalManager:
                 "reason_send": "E-Mail senden",
                 "reason_delete": "Löschen",
                 "reason_mass": "Massenaktion",
+                "reason_rule": "Regel mit Lösch- oder Massenwirkung",
+                "reason_injection": "kurz zuvor verdächtige Mail gelesen",
             },
             "en": {
                 "title": "Frieda: approval required",
@@ -100,6 +102,8 @@ class ApprovalManager:
                 "reason_send": "send e-mail",
                 "reason_delete": "delete",
                 "reason_mass": "mass action",
+                "reason_rule": "rule that deletes or affects many messages",
+                "reason_injection": "a suspicious message was read just before",
             },
         }
         return texts[self._lang][key].format(**kw)
@@ -162,7 +166,11 @@ class ApprovalManager:
         }
 
     async def _announce(self, req: ApprovalRequest) -> None:
-        reason = self._t(f"reason_{req.reason}") if req.reason in ("send", "delete", "mass") else req.reason
+        reason = (
+            self._t(f"reason_{req.reason}")
+            if req.reason in ("send", "delete", "mass", "rule", "injection")
+            else req.reason
+        )
         expires_local = datetime.fromisoformat(req.expires).astimezone().strftime("%H:%M")
         body = self._t(
             "body",

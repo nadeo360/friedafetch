@@ -228,6 +228,7 @@ async def ws_overview(hass: HomeAssistant, connection: websocket_api.ActiveConne
             "postfach": await _postfach(hass, entry),
             "usage": usage.summary(entry.entry_id),
             "clients": usage.clients(),
+            "injection_locks": clients.lock_status(),
         },
     )
 

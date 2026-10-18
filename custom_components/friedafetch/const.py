@@ -84,6 +84,13 @@ MOBILE_ACTION_EVENT = "mobile_app_notification_action"
 
 # MCP endpoint
 CONF_ENDPOINT_ADMIN_ONLY = "endpoint_admin_only"
+# Injection lock: after a client read a message that looks like a prompt-injection attempt, sending and
+# deleting (and destructive rule changes) by that client need approval (or are blocked) for a while.
+CONF_INJECTION_LOCK = "injection_lock"
+CONF_INJECTION_LOCK_MINUTES = "injection_lock_minutes"
+DEFAULT_INJECTION_LOCK = True
+DEFAULT_INJECTION_LOCK_MINUTES = 15
+MAX_INJECTION_LOCK_MINUTES = 240
 DEFAULT_ENDPOINT_ADMIN_ONLY = False
 
 # Attachments (option)
