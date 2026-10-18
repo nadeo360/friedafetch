@@ -409,6 +409,9 @@ const WIDGET_STYLE = `
   table.dtable th, table.dtable td { text-align: left; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
   table.dtable thead th { position: sticky; top: 0; z-index: 1; background: var(--card-background-color, #fff); color: var(--secondary-text-color); font-size: 12px; font-weight: 500; letter-spacing: .02em; white-space: nowrap; padding: 6px 8px; vertical-align: bottom; }
   table.dtable td { padding: 7px 8px; vertical-align: middle; }
+  /* one typography for all tables: main and number columns 14px, secondary columns (time, sender, purpose, …) 13px grey */
+  table.dtable td { font-size: 14px; }
+  table.dtable td.dim, table.dtable td.dim .fact { font-size: 13px; color: var(--secondary-text-color); }
   table.dtable tbody tr[data-search]:hover > td { background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
   table.dtable tr.open > td { border-bottom-color: transparent; background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
   table.dtable tr.detail > td { background: color-mix(in srgb, var(--primary-color) 5%, transparent); padding: 2px 12px 12px; }

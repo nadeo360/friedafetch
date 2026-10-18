@@ -642,10 +642,10 @@ class FriedaPanel extends HTMLElement {
           : "";
         return `${head}<tr data-search="" class="lrow ${e.result} ${open ? "open" : ""}">
             <td class="c-ico"><span class="aico">${ico((AREA_ICON[x.area] || AREA_ICON.other).replace("mdi:", ""))}</span></td>
-            <td class="c-time num" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</td>
+            <td class="c-time num dim" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</td>
             <td class="c-what"><button class="rname" data-action="audit-open" data-i="${x.idx}" aria-expanded="${open}">${ico("chevron-right")}<span class="nm"><strong>${esc(x.what)}</strong>${x.chips.length ? `<small>${esc(x.chips.join(" · "))}</small>` : ""}</span></button></td>
-            <td class="c-who">${esc(x.who.text)}</td>
-            <td class="c-area">${esc(t[`area_${x.area}`] || x.area)}</td>
+            <td class="c-who dim">${esc(x.who.text)}</td>
+            <td class="c-area dim">${esc(t[`area_${x.area}`] || x.area)}</td>
             <td class="c-res"><span class="fact res" title="${esc(e.error || x.res)}">${ico(resIcon[e.result] || "alert-circle-outline")}${esc(x.res)}</span></td>
           </tr>${detail}`;
       })
