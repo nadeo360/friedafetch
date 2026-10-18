@@ -40,6 +40,7 @@ const TOOLS = {
   icloud_delete_rule: ["rules", "Regel löschen", "Delete rule", "Regel gelöscht", "Rule deleted"],
   icloud_run_rules: ["rules", "Regeln anwenden", "Run rules", "Regeln angewendet", "Rules applied"],
   icloud_daily_overview: ["rules", "Tagesüberblick", "Daily overview"],
+  friedafetch_mail_ai_sort: ["rules", "KI-Sortierung", "AI sorting", "Mails von KI einsortiert", "Mails sorted by AI"],
 };
 
 const AREA_ICON = {
@@ -171,10 +172,12 @@ const I18N = {
     resBlocked: "blockiert",
     countOf: "{0} von {1}",
     srcRules: "Postfach-Regel",
+    srcAi: "KI-Sortierung",
     triggerAuto: "automatisch",
     triggerManual: "manuell",
     triggerPush: "Push",
     checkedMatched: "{0} geprüft, {1} Treffer",
+    ratedApplied: "{0} bewertet, {1} einsortiert",
     details: "Details",
     nMails: "{0} Mails",
     oneMail: "1 Mail",
@@ -299,10 +302,12 @@ const I18N = {
     resBlocked: "blocked",
     countOf: "{0} of {1}",
     srcRules: "Inbox rule",
+    srcAi: "AI sorting",
     triggerAuto: "automatic",
     triggerManual: "manual",
     triggerPush: "push",
     checkedMatched: "{0} checked, {1} matched",
+    ratedApplied: "{0} rated, {1} sorted",
     details: "Details",
     nMails: "{0} messages",
     oneMail: "1 message",
@@ -871,6 +876,11 @@ class FriedaPanel extends HTMLElement {
       const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : t.triggerManual;
       return { key: "rules", text: [`${t.srcRules} (${trigText})`, e.user].filter(Boolean).join(" · ") };
     }
+    if (e.tool === "friedafetch_mail_ai_sort") {
+      const trig = e.details?.trigger || e.params?.trigger;
+      const trigText = trig === "auto" ? t.triggerAuto : trig === "push" ? t.triggerPush : t.triggerManual;
+      return { key: "ai", text: `${t.srcAi} (${trigText})` };
+    }
     const src = e.client || "unknown";
     return { key: src, text: [this._source(src), e.user].filter(Boolean).join(" · ") };
   }
@@ -894,7 +904,8 @@ class FriedaPanel extends HTMLElement {
     if (p.seen === false) chips.push(this.lang === "de" ? "ungelesen" : "unread");
     if (p.flagged === true) chips.push(this.lang === "de" ? "markiert" : "flagged");
     if (p.flagged === false) chips.push(this.lang === "de" ? "Markierung entfernt" : "unflagged");
-    if (d.matched !== undefined) chips.push(fmt(t.checkedMatched, d.checked ?? 0, d.matched));
+    if (d.matched !== undefined)
+      chips.push(fmt(e.tool === "friedafetch_mail_ai_sort" ? t.ratedApplied : t.checkedMatched, d.checked ?? 0, d.matched));
     return chips;
   }
 
@@ -932,7 +943,8 @@ class FriedaPanel extends HTMLElement {
     );
     const opt = (val, label, cur) => `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(label)}</option>`;
     const areas = [...new Set(entries.map((x) => x.area))];
-    const sources = [...new Map(entries.map((x) => [x.who.key, x.who.key === "rules" ? t.srcRules : this._source(x.who.key)])).entries()];
+    const srcName = (k) => (k === "rules" ? t.srcRules : k === "ai" ? t.srcAi : this._source(k));
+    const sources = [...new Map(entries.map((x) => [x.who.key, srcName(x.who.key)])).entries()];
     const filters = entries.length
       ? `<div class="fbar">
           <input type="text" data-filter="q" value="${esc(f.q)}" placeholder="${esc(t.search)}" aria-label="${esc(t.search)}">
