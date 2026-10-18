@@ -412,6 +412,9 @@ const WIDGET_STYLE = `
   /* one typography for all tables: main and number columns 14px, secondary columns (time, sender, purpose, …) 13px grey */
   table.dtable td { font-size: 14px; }
   table.dtable td.dim, table.dtable td.dim .fact { font-size: 13px; color: var(--secondary-text-color); }
+  /* row tints: failed entries rosé, blocked ones amber (also in the compact layout) */
+  table.dtable tbody tr.row-err > td { background: color-mix(in srgb, var(--error-color, #db4437) 7%, transparent); }
+  table.dtable tbody tr.row-warn > td { background: color-mix(in srgb, var(--warning-color, #ffa600) 9%, transparent); }
   table.dtable tbody tr[data-search]:hover > td { background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
   table.dtable tr.open > td { border-bottom-color: transparent; background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
   table.dtable tr.detail > td { background: color-mix(in srgb, var(--primary-color) 5%, transparent); padding: 2px 12px 12px; }
@@ -455,6 +458,9 @@ const WIDGET_STYLE = `
     table.dtable tr.dayrow, table.dtable tr.dayrow > td { display: block; }
     table.dtable tr.open, table.dtable tr.detail { background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
     table.dtable tr.open > td, table.dtable tr.detail > td, table.dtable tbody tr:hover > td { background: none !important; }
+    table.dtable tbody tr.row-err > td, table.dtable tbody tr.row-warn > td { background: none !important; }
+    table.dtable tbody tr.row-err { background: color-mix(in srgb, var(--error-color, #db4437) 7%, transparent); border-radius: 10px; padding-left: 4px; padding-right: 4px; }
+    table.dtable tbody tr.row-warn { background: color-mix(in srgb, var(--warning-color, #ffa600) 9%, transparent); border-radius: 10px; padding-left: 4px; padding-right: 4px; }
     table.dtable tr.open { border-radius: 10px 10px 0 0; padding-left: 4px; padding-right: 4px; }
     table.dtable tr.detail { display: block; border-radius: 0 0 10px 10px; padding: 0 4px 4px; margin-bottom: 6px; }
     table.dtable tr.detail > td { display: block; border: none; }

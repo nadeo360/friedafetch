@@ -640,7 +640,8 @@ class FriedaPanel extends HTMLElement {
               ${params ? `<div><div class="lbl">${esc(t.details)}</div><pre>${esc(params)}</pre></div>` : ""}
             </div></td></tr>`
           : "";
-        return `${head}<tr data-search="" class="lrow ${e.result} ${open ? "open" : ""}">
+        const tint = e.result === "error" ? "row-err" : e.result === "blocked" ? "row-warn" : "";
+        return `${head}<tr data-search="" class="lrow res-${esc(e.result)} ${tint} ${open ? "open" : ""}">
             <td class="c-ico"><span class="aico">${ico((AREA_ICON[x.area] || AREA_ICON.other).replace("mdi:", ""))}</span></td>
             <td class="c-time num dim" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</td>
             <td class="c-what"><button class="rname" data-action="audit-open" data-i="${x.idx}" aria-expanded="${open}">${ico("chevron-right")}<span class="nm"><strong>${esc(x.what)}</strong>${x.chips.length ? `<small>${esc(x.chips.join(" · "))}</small>` : ""}</span></button></td>
