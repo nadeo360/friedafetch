@@ -56,28 +56,17 @@ const AREA_ICON = {
 // Texts and styles live in their own modules; they are loaded with the same ?v= as this file so that
 // a browser never combines a new panel with old texts after an update.
 const VERSION_QUERY = new URL(import.meta.url).search;
-const [{ I18N }, { STYLE }] = await Promise.all([import(`./i18n.js${VERSION_QUERY}`), import(`./styles.js${VERSION_QUERY}`)]);
+const [{ I18N }, { STYLE }, W] = await Promise.all([
+  import(`./i18n.js${VERSION_QUERY}`),
+  import(`./styles.js${VERSION_QUERY}`),
+  import(`./ui.js${VERSION_QUERY}`),
+]);
+// shared design library (also used by Frieda Postfach)
+const { ico, esc, fmt, parseTime, fmtDateTime, fmtDate, fmtClock, fmtNum } = W;
 
-const fmt = (str, ...args) => String(str).replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
-
-const esc = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-
-// Parses ISO timestamps, including offsets without colon (+0200) that Safari rejects.
-const parseTime = (iso) => (iso ? new Date(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) : null);
-const fmtDateTime = (iso) => {
-  const d = parseTime(iso);
-  return d && !isNaN(d) ? d.toLocaleString() : "–";
-};
-const fmtDate = (iso) => {
-  const d = parseTime(iso);
-  return d && !isNaN(d) ? d.toLocaleDateString() : "–";
-};
-const fmtClock = (iso) => {
-  const d = parseTime(iso);
-  return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
-};
-const fmtNum = (n) => Number(n || 0).toLocaleString();
+// Widgets and the optional columns of the change log (true = shown by default).
+const WIDGETS = [{ id: "overview" }, { id: "approvals" }, { id: "usage" }, { id: "activity" }];
+const TABLE_COLUMNS = { audit: { time: true, who: true, area: false, res: true } };
 
 // Adds data-label attributes to the cells of each row so the CSS can stack tables on phones.
 const withLabels = (rowsHtml, labels) =>
@@ -95,6 +84,7 @@ class FriedaPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._layout = new W.Layout("friedafetch_panel", WIDGETS, TABLE_COLUMNS);
     this._s = {
       accounts: [],
       entryId: null,
@@ -107,6 +97,7 @@ class FriedaPanel extends HTMLElement {
       filter: { q: "", area: "", result: "", source: "" },
       busy: false,
       loaded: false,
+      auditOpen: null,
     };
   }
 
@@ -125,12 +116,18 @@ class FriedaPanel extends HTMLElement {
       if (document.visibilityState === "visible") this._autoRefresh();
     };
     document.addEventListener("visibilitychange", this._onVisible);
+    this._onDocClick = (ev) => {
+      const menu = this.shadowRoot.querySelector("details.menu[open]");
+      if (menu && !ev.composedPath().includes(menu)) menu.removeAttribute("open");
+    };
+    document.addEventListener("click", this._onDocClick);
     this._timer = setInterval(() => this._autoRefresh(), 30000);
   }
 
   disconnectedCallback() {
     clearInterval(this._timer);
     document.removeEventListener("visibilitychange", this._onVisible);
+    document.removeEventListener("click", this._onDocClick);
   }
 
   async _autoRefresh() {
@@ -138,7 +135,7 @@ class FriedaPanel extends HTMLElement {
     if (!this._hass || !s.loaded || !s.entryId || s.busy || s.confirm || document.visibilityState !== "visible") return;
     const active = this.shadowRoot.activeElement;
     if (active && ["SELECT", "INPUT", "TEXTAREA"].includes(active.tagName)) return;
-    if (this.shadowRoot.querySelector(".ev details[open]")) return;
+    if (this.shadowRoot.querySelector("details[open]")) return;
     try {
       await this._reload();
       this._render();
@@ -214,7 +211,7 @@ class FriedaPanel extends HTMLElement {
   async _init() {
     this._render();
     try {
-      await this._loadAccounts();
+      await Promise.all([this._loadAccounts(), this._layout.load(this._hass)]);
       if (this._s.entryId) await this._reload();
     } catch (err) {
       this._s.error = err.message || String(err);
@@ -307,16 +304,7 @@ class FriedaPanel extends HTMLElement {
   }
 
   _renderConfirm() {
-    const c = this._s.confirm;
-    if (!c) return "";
-    const t = this.t;
-    return `<div class="modal-backdrop" data-action="confirm-no"></div>
-      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
-        <div class="modal-head"><span class="modal-icon"><ha-icon icon="mdi:alert-outline"></ha-icon></span><h3 id="confirm-title">${esc(c.title)}</h3></div>
-        <p id="confirm-text">${esc(c.text)}</p>
-        ${c.irreversible ? `<p class="modal-warn">${esc(t.irreversible)}</p>` : ""}
-        <div class="modal-actions"><button class="secondary" data-action="confirm-no">${esc(t.cancel)}</button><button class="danger" data-action="confirm-yes">${esc(c.ok)}</button></div>
-      </div>`;
+    return W.renderConfirm(this._s.confirm, this.t);
   }
 
   async _switchAccount(entryId) {
@@ -468,7 +456,7 @@ class FriedaPanel extends HTMLElement {
     const stat = (label, b, sub) => `<div class="stat"><div class="k">${esc(label)}</div><div class="v">${esc(fmtNum(b.read + b.write))}</div>
         <div class="s">${esc(fmtNum(b.read))} ${esc(t.reads)} · ${esc(fmtNum(b.write))} ${esc(t.writes)}${b.error ? ` · ${esc(fmtNum(b.error))} ${esc(t.errors)}` : ""}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ""}</div>`;
     const total = u.total.read + u.total.write;
-    const header = `<h2><span class="grow">${esc(t.usage)}</span>${total ? `<button class="link small" data-action="usage-reset" ${this._s.busy ? "disabled" : ""}>${esc(t.resetUsage)}</button>` : ""}</h2>
+    const header = `<h2><span class="grow">${esc(t.usage)}</span>${W.cardMenu([total && { action: "usage-reset", icon: "restart", label: t.resetUsage, danger: true, disabled: this._s.busy }], t)}</h2>
       <p class="muted" style="margin:0 0 12px">${esc(t.usageHint)}</p>`;
     const quotaHtml = quota ? `<div class="badges" style="margin-top:12px"><span class="muted">${esc(t.quota)}:</span>${quota}</div>` : "";
     if (!total) return `<div class="card">${header}<p class="muted">${esc(t.noUsage)}</p>${quotaHtml}</div>`;
@@ -597,63 +585,83 @@ class FriedaPanel extends HTMLElement {
     const t = this.t;
     const s = this._s;
     const f = s.filter;
-    const entries = s.audit.map((e) => {
+    const entries = s.audit.map((e, idx) => {
       const who = this._who(e);
       const area = this._area(e.tool);
       const chips = this._chips(e);
       const res = e.result === "ok" ? t.resOk : e.result === "blocked" ? t.resBlocked : t.resError;
       const what = this._toolLabel(e.tool, e.result === "ok");
       const text = [what, e.tool, who.text, ...chips, e.error || "", res].join(" ").toLowerCase();
-      return { e, who, area, chips, res, what, text };
+      return { e, idx, who, area, chips, res, what, text };
     });
-    const visible = entries.filter(
-      (x) =>
-        (!f.q || x.text.includes(f.q.toLowerCase().trim())) &&
-        (!f.area || x.area === f.area) &&
-        (!f.result || x.e.result === f.result) &&
-        (!f.source || x.who.key === f.source)
-    );
+    const matches = (x, withResult = true) =>
+      (!f.q || x.text.includes(f.q.toLowerCase().trim())) &&
+      (!f.area || x.area === f.area) &&
+      (!f.source || x.who.key === f.source) &&
+      (!withResult || !f.result || x.e.result === f.result);
+    const visible = entries.filter((x) => matches(x));
     const opt = (val, label, cur) => `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(label)}</option>`;
     const areas = [...new Set(entries.map((x) => x.area))];
     const srcName = (k) => (k === "rules" ? t.srcRules : k === "ai" ? t.srcAi : this._source(k));
     const sources = [...new Map(entries.map((x) => [x.who.key, srcName(x.who.key)])).entries()];
-    const filters = entries.length
-      ? `<div class="fbar">
-          <input type="text" data-filter="q" value="${esc(f.q)}" placeholder="${esc(t.search)}" aria-label="${esc(t.search)}">
-          <select data-filter="area" aria-label="${esc(t.allAreas)}">${opt("", t.allAreas, f.area)}${areas.map((a) => opt(a, t[`area_${a}`] || a, f.area)).join("")}</select>
-          ${sources.length > 1 ? `<select data-filter="source" aria-label="${esc(t.allSources)}">${opt("", t.allSources, f.source)}${sources.map(([k, l]) => opt(k, l, f.source)).join("")}</select>` : ""}
-          <select data-filter="result" aria-label="${esc(t.allResults)}">${opt("", t.allResults, f.result)}${opt("ok", t.resOk, f.result)}${opt("error", t.resError, f.result)}${opt("blocked", t.resBlocked, f.result)}</select>
-          ${visible.length !== entries.length ? `<span class="muted count">${esc(fmt(t.countOf, visible.length, entries.length))}</span>` : ""}
-        </div>`
+    const count = (r) => entries.filter((x) => matches(x, false) && (!r || x.e.result === r)).length;
+    const seg = (val, icon, label) =>
+      `<button class="seg ${f.result === val ? "on" : ""}" data-action="audit-result" data-v="${val}" aria-pressed="${f.result === val}">${ico(icon)}${esc(label)}<span class="n">${count(val)}</span></button>`;
+    const cols = [
+      { key: "time", label: t.colTime },
+      { key: "who", label: t.colWho },
+      { key: "area", label: t.colArea },
+      { key: "res", label: t.colResult },
+    ];
+    const tbar = entries.length
+      ? `<div class="tbar">
+          <label class="search">${ico("magnify")}<input type="search" data-filter="q" value="${esc(f.q)}" placeholder="${esc(t.search)}" aria-label="${esc(t.search)}"></label>
+          <select class="fsel" data-filter="area" aria-label="${esc(t.allAreas)}">${opt("", t.allAreas, f.area)}${areas.map((a) => opt(a, t[`area_${a}`] || a, f.area)).join("")}</select>
+          ${sources.length > 1 ? `<select class="fsel" data-filter="source" aria-label="${esc(t.allSources)}">${opt("", t.allSources, f.source)}${sources.map(([k, l]) => opt(k, l, f.source)).join("")}</select>` : ""}
+          <div class="segs" role="group">${seg("", "format-list-bulleted", t.allResultsShort)}${seg("ok", "check-circle-outline", t.resOk)}${seg("error", "alert-circle-outline", t.resError)}${seg("blocked", "cancel", t.resBlocked)}</div>
+          <span class="grow"></span>${W.columnMenu(this._layout, "audit", cols, t)}
+        </div>${W.columnStyle(this._layout, "audit", cols)}`
       : "";
+    const resIcon = { ok: "check-circle-outline", blocked: "cancel" };
     let lastDay = null;
-    const list = visible
+    const rows = visible
       .map((x) => {
         const e = x.e;
         const day = this._dayLabel(e.time);
-        const head = day !== lastDay ? `<div class="day">${esc(day)}</div>` : "";
+        const head = day !== lastDay ? `<tr class="dayrow"><td colspan="6">${esc(day)}</td></tr>` : "";
         lastDay = day;
-        const bad = e.result !== "ok";
+        const open = s.auditOpen === x.idx;
         const params = Object.keys(e.params || {}).length ? JSON.stringify(e.params, null, 2) : "";
-        return `${head}<div class="ev ${bad ? "bad" : ""}">
-          <div class="ico"><ha-icon icon="${AREA_ICON[x.area] || AREA_ICON.other}"></ha-icon></div>
-          <div class="what">${esc(x.what)} ${x.chips.map((c) => `<span class="chip">${esc(c)}</span>`).join("")}</div>
-          <div class="when" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</div>
-          <div class="who">${esc(x.who.text)}</div>
-          <div class="side">${bad ? `<span class="badge ${e.result === "blocked" ? "warn" : "err"}">${esc(x.res)}</span>` : ""}</div>
-          ${e.error ? `<div class="errtext">${esc(e.error)}</div>` : ""}
-          ${params ? `<details><summary>${esc(t.details)}</summary><div class="muted"><code>${esc(e.tool)}</code></div><pre>${esc(params)}</pre></details>` : ""}
-        </div>`;
+        const detail = open
+          ? `<tr class="detail"><td colspan="6"><div class="det">
+              ${e.error ? `<div class="errtext">${ico("alert-circle-outline")} ${esc(e.error)}</div>` : ""}
+              ${x.chips.length ? `<div>${x.chips.map((c) => `<span class="chip">${esc(c)}</span>`).join("")}</div>` : ""}
+              <div class="muted">${esc([fmtDateTime(e.time), x.who.text, t[`area_${x.area}`] || x.area].join(" · "))} · <code>${esc(e.tool)}</code></div>
+              ${params ? `<div><div class="lbl">${esc(t.details)}</div><pre>${esc(params)}</pre></div>` : ""}
+            </div></td></tr>`
+          : "";
+        return `${head}<tr data-search="" class="lrow ${e.result} ${open ? "open" : ""}">
+            <td class="c-ico"><span class="aico">${ico((AREA_ICON[x.area] || AREA_ICON.other).replace("mdi:", ""))}</span></td>
+            <td class="c-time num" title="${esc(fmtDateTime(e.time))}">${esc(fmtClock(e.time))}</td>
+            <td class="c-what"><button class="rname" data-action="audit-open" data-i="${x.idx}" aria-expanded="${open}">${ico("chevron-right")}<span class="nm"><strong>${esc(x.what)}</strong>${x.chips.length ? `<small>${esc(x.chips.join(" · "))}</small>` : ""}</span></button></td>
+            <td class="c-who">${esc(x.who.text)}</td>
+            <td class="c-area">${esc(t[`area_${x.area}`] || x.area)}</td>
+            <td class="c-res"><span class="fact res" title="${esc(e.error || x.res)}">${ico(resIcon[e.result] || "alert-circle-outline")}${esc(x.res)}</span></td>
+          </tr>${detail}`;
       })
       .join("");
     const more = s.audit.length >= s.auditLimit && s.auditLimit < 500;
+    const table = `<div class="scroll"><table class="dtable ltable" data-table="audit"><thead><tr>
+        <th class="c-ico"><span class="vh">${esc(t.colArea)}</span></th><th class="c-time num">${esc(t.colTime)}</th><th>${esc(t.colAction)}</th><th class="c-who">${esc(t.colWho)}</th><th class="c-area">${esc(t.colArea)}</th><th class="c-res">${esc(t.colResult)}</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
     return `<div class="card">
       <h2><span class="grow">${esc(t.activity)}</span>
-        <button class="link small" data-action="audit-clear" ${s.busy || !s.audit.length ? "disabled" : ""}>${esc(t.clearLog)}</button></h2>
+        ${W.cardMenu([s.audit.length && { action: "audit-clear", icon: "delete-sweep-outline", label: t.clearLog, danger: true, disabled: s.busy }], t)}</h2>
       <p class="muted" style="margin:0 0 10px">${esc(t.activityHint)}</p>
-      ${filters}
-      ${entries.length ? (visible.length ? `<div>${list}</div>` : `<p class="muted">${esc(t.noMatch)}</p>`) : `<p class="muted">${esc(t.noActivity)}</p>`}
-      ${more ? `<div style="margin-top:10px"><button class="secondary small" data-action="audit-more" ${s.busy ? "disabled" : ""}>${esc(t.showMore)}</button></div>` : ""}
+      ${tbar}
+      ${entries.length ? (visible.length ? table : `<p class="muted">${esc(t.noMatch)}</p>`) : `<p class="muted">${esc(t.noActivity)}</p>`}
+      ${visible.length !== entries.length && entries.length ? `<p class="muted" style="margin:8px 0 0">${esc(fmt(t.countOf, visible.length, entries.length))}</p>` : ""}
+      ${more ? `<button class="morelink" data-action="audit-more" ${s.busy ? "disabled" : ""}>${ico("chevron-down")}${esc(t.showMore)}</button>` : ""}
     </div>`;
   }
 
@@ -669,19 +677,26 @@ class FriedaPanel extends HTMLElement {
         : `
       ${s.error ? `<div class="error">${esc(s.error)}</div>` : ""}
       ${this._renderAccounts()}
-      ${this._renderOverview()}
-      ${this._renderApprovals()}
-      ${this._renderUsage()}
-      ${this._renderActivity()}`;
-    this.shadowRoot.innerHTML = `<style>${STYLE}</style>
-      <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span></div>
-      <div class="content">${body}</div>${this._renderConfirm()}`;
+      ${W.renderWidgets(
+        this._layout,
+        {
+          overview: { title: t.overview, html: this._renderOverview() },
+          approvals: { title: t.approvals, html: this._renderApprovals() },
+          usage: { title: t.usage, html: this._renderUsage() },
+          activity: { title: t.activity, html: this._renderActivity() },
+        },
+        t
+      )}`;
+    this.shadowRoot.innerHTML = `<style>${W.UI_STYLE}${STYLE}</style>
+      <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${s.loaded && s.entryId ? W.layoutButton(this._layout, t) : ""}</div>
+      <div class="content widgets">${body}</div>${this._renderConfirm()}`;
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {
       menu.hass = this._hass;
       menu.narrow = this._narrow;
     }
     this._bind();
+    W.bindWidgets(this.shadowRoot, this._layout, () => this._render());
     if (focus) {
       const el = this.shadowRoot.querySelector(`[data-filter="${focus}"]`);
       if (el) {
@@ -704,6 +719,15 @@ class FriedaPanel extends HTMLElement {
         "usage-reset": () => this._resetUsage(),
         "confirm-yes": () => this._confirmDone(true),
         "confirm-no": () => this._confirmDone(false),
+        "audit-open": () => {
+          const i = Number(el.dataset.i);
+          this._s.auditOpen = this._s.auditOpen === i ? null : i;
+          this._render();
+        },
+        "audit-result": () => {
+          this._s.filter = { ...this._s.filter, result: el.dataset.v };
+          this._render();
+        },
         "audit-more": () => {
           this._s.auditLimit = Math.min(500, this._s.auditLimit + 100);
           this._call(() => this._loadAudit());

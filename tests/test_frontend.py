@@ -42,9 +42,13 @@ async def test_static_panel_served(hass: HomeAssistant, mock_discover: AsyncMock
     body = await resp.text()
     assert "friedafetch-panel" in body
     assert "friedafetch/approvals/decide" in body
-    for module in ("i18n.js", "styles.js"):  # loaded by panel.js with the same version query
+    for module in ("i18n.js", "styles.js", "ui.js"):  # loaded by panel.js with the same version query
         resp = await client.get(f"/friedafetch_static/{module}?v=1")
         assert resp.status == 200 and "export const" in await resp.text()
+    # the design library that Frieda Postfach and later extensions import from here
+    lib = await (await client.get("/friedafetch_static/ui.js")).text()
+    for name in ("UI_API", "UI_STYLE", "Layout", "renderWidgets", "columnMenu", "cardMenu", "renderConfirm", "frontend/set_user_data"):
+        assert name in lib
 
 
 async def test_websocket_accounts(hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client) -> None:

@@ -208,8 +208,18 @@ language):
   used tools, where the calls came from (Frieda endpoint, HA MCP server, Assist agents) and the hourly quotas. Only
   counters are stored, never arguments or results.
 - **Approvals:** pending and decided requests (approve or deny with one tap, also from the companion app).
-- **Change log:** everything Frieda changed in iCloud, as readable entries grouped by day (e.g. "Mail moved · 3
-  messages · → Archive"), with search and filters for area, trigger and result; the raw parameters are one click away.
+- **Change log:** everything Frieda changed in iCloud as a table grouped by day (e.g. "Mail moved · 3 messages ·
+  → Archive"), with search, filters for area and trigger, a result switch and selectable columns; a click on a row
+  shows the error and the raw parameters.
+
+**Widgets:** the cards are widgets. **Arrange** in the title bar lets you drag them by the handle (or move them with
+the arrows), switch them between full and half width and hide them; tables offer a **Columns** menu. Rare actions
+such as clearing the log sit in a small ⋮ menu and always ask for confirmation. The layout is stored per Home
+Assistant user in Home Assistant itself, so it survives restarts and follows you to other devices.
+
+**Frieda UI:** both panels use one shared design library (`/friedafetch_static/ui.js`): colours from the Home
+Assistant theme, buttons, chips, tables, menus, dialogs and widgets. Frieda Postfach loads it from Frieda, so every
+module looks and behaves the same.
 
 The panel has no external dependencies and talks to the integration via WebSocket commands (`friedafetch/accounts`,
 `friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`).

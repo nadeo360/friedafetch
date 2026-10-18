@@ -194,6 +194,7 @@ flowchart TB
 | `usage.py` | Zähler pro Konto (Tag, Tool, Herkunft) und bekannte MCP-Clients – nur Zahlen. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Freie Zeiten, Geburtstage, Dubletten, Postfach-Statistik; Ein-Klick-Abmeldung nach RFC 8058 mit SSRF-Schutz; sichere Anhang-Ablage. |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Konten, Überblick, Nutzung, Protokoll, Freigaben) und das Web-Component-Panel; Texte und Styles sind eigene Module, geladen mit der Versionsangabe des Panels. |
+| `frontend/ui.js` | **Frieda UI**, die gemeinsame Design-Bibliothek aller Panels: Hilfsfunktionen, Grundbausteine, Datentabellen, Menüs, Bestätigungsdialog, verschiebbare Widgets und Spaltenauswahl; Anordnung pro HA-Benutzer gespeichert (ADR-21/22). |
 | `config_flow.py`, `install_check.py`, `diagnostics.py` | Einrichtung/Optionen (Menü: Tools, Sicherheit, Freigaben), Erkennung veralteter Kopien, geschwärzte Diagnosedaten. |
 
 ### 5.3 Ebene 2 – Frieda Postfach
@@ -450,6 +451,9 @@ sich eine Schnittstelle ändert.
 | ADR-18 | Verzögertes Senden als selbst freigebende Anfrage | Nutzt Benachrichtigungen, Panel-Karte, Status-Tool und Protokoll der Freigaben; eine Stelle zum Abbrechen | Standardmäßig aus; Freigabe hat Vorrang, wenn Senden freigegeben werden muss |
 | ADR-19 | Postfachliste zwischen den Verbindungen eines Kontos teilen; ungenutzte Verbindungen im Hintergrund schließen | Mit ADR-14 ist die Tool-Verbindung oft ungenutzt, und das Warten auf das Abmelden einer toten Verbindung verzögerte Panels und Formulare | Panels und Optionsformulare warten nicht mehr auf ungenutzte Verbindungen |
 | ADR-20 | Ereignisse und Sensoren in Frieda Postfach | Automationen sollen auf Regeltreffer und KI-Bewertungen reagieren, ohne das Panel abzufragen | Ereignisse tragen Betreff und Absender lokal auf dem HA-Bus; höchstens 25 Regel-Ereignisse pro Lauf |
+| ADR-21 | Gemeinsame Design-Bibliothek „Frieda UI“, ausgeliefert von Frieda (`/friedafetch_static/ui.js`) | Panels mehrerer Module sollen gleich aussehen und sich gleich bedienen; eine Quelle statt Kopien | Frieda Postfach braucht ein Frieda mit Bibliothek (`UI_API`), sonst erscheint ein Update-Hinweis; der Cache-Schlüssel enthält beide Versionen |
+| ADR-22 | Panel-Anordnung (Reihenfolge, Breite, ausgeblendete Widgets, Tabellenspalten) in den Frontend-Benutzerdaten von Home Assistant | Muss Neustarts überstehen und dem Benutzer auf alle Geräte folgen, ohne eigenen Speicher oder Backend-Code | Pro HA-Benutzer gespeichert (`frontend/set_user_data`, Schlüssel `friedafetch_panel`, `friedafetch_mail_panel`) |
+| ADR-23 | Container Queries für Tabellen | Widgets können halb breit sein; Tabellen wechseln nach Widget-Breite ins Kompaktlayout, nicht nach Bildschirmbreite | Setzt einen aktuellen Browser voraus (Container Queries), wie Home Assistant selbst |
 
 ---
 

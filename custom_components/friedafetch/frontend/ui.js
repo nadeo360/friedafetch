@@ -1,0 +1,505 @@
+/* Frieda UI – the shared design library of the Frieda panels.
+
+   Frieda serves it at /friedafetch_static/ui.js; Frieda Postfach (and future extensions) import it from there, so
+   every panel uses the same tokens, components, tables, menus, dialogs and widgets. Colours come from the Home
+   Assistant theme variables. Bump UI_API when an export changes incompatibly.
+
+   Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
+   user to other devices. */
+
+export const UI_API = 1;
+
+// ------------------------------------------------------------------ helpers
+const escape = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+export const esc = escape;
+export const fmt = (str, ...args) => String(str).replace(/\{(\d+)\}/g, (_, i) => args[Number(i)]);
+// Parses ISO timestamps, including offsets without colon (+0200) that Safari rejects.
+export const parseTime = (iso) => (iso ? new Date(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) : null);
+export const fmtDateTime = (iso) => {
+  const d = parseTime(iso);
+  return d && !isNaN(d) ? d.toLocaleString() : "–";
+};
+export const fmtDate = (iso) => {
+  const d = parseTime(iso);
+  return d && !isNaN(d) ? d.toLocaleDateString() : "–";
+};
+export const fmtClock = (iso) => {
+  const d = parseTime(iso);
+  return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
+};
+// Short time for lists: only the time today, otherwise date and time.
+export const fmtShort = (iso) => {
+  const d = parseTime(iso);
+  if (!d || isNaN(d)) return "–";
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString([], { day: "2-digit", month: "2-digit" })} ${time}`;
+};
+export const fmtNum = (n) => Number(n || 0).toLocaleString();
+
+// Material Design Icons from Home Assistant's own icon set.
+export const ico = (name, title = "") =>
+  `<ha-icon icon="mdi:${name}"${title ? ` title="${escape(title)}"` : ""} aria-hidden="${title ? "false" : "true"}"></ha-icon>`;
+
+// Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
+export function renderConfirm(c, t) {
+  if (!c) return "";
+  return `<div class="modal-backdrop" data-action="confirm-no"></div>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="modal-head"><span class="modal-icon">${ico("alert-outline")}</span><h3 id="confirm-title">${escape(c.title)}</h3></div>
+      <p id="confirm-text">${escape(c.text)}</p>
+      ${c.irreversible ? `<p class="modal-warn">${escape(t.irreversible)}</p>` : ""}
+      <div class="modal-actions"><button class="secondary" data-action="confirm-no">${escape(t.cancel)}</button><button class="danger" data-action="confirm-yes">${escape(c.ok)}</button></div>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ widgets and tables
+const EMPTY = () => ({ v: 1, order: [], hidden: [], widths: {}, cols: {} });
+
+export class Layout {
+  // widgets: [{ id, width: "full" | "half" }] in default order; tables: { table: { column: visibleByDefault } }
+  constructor(key, widgets, tables = {}) {
+    this.key = key;
+    this.defaults = widgets;
+    this.tables = tables;
+    this.data = EMPTY();
+    this.editing = false;
+    this._hass = null;
+    this._timer = null;
+  }
+
+  async load(hass) {
+    this._hass = hass;
+    try {
+      const res = await hass.callWS({ type: "frontend/get_user_data", key: this.key });
+      const v = res?.value;
+      if (v && typeof v === "object") this.data = { ...EMPTY(), ...v };
+    } catch (err) {
+      /* no stored layout (or an older Home Assistant): defaults */
+    }
+  }
+
+  _save() {
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => {
+      this._hass?.callWS({ type: "frontend/set_user_data", key: this.key, value: this.data }).catch(() => {});
+    }, 300);
+  }
+
+  ids() {
+    const known = this.defaults.map((w) => w.id);
+    const saved = (this.data.order || []).filter((id) => known.includes(id));
+    return [...saved, ...known.filter((id) => !saved.includes(id))];
+  }
+
+  isHidden(id) {
+    return (this.data.hidden || []).includes(id);
+  }
+
+  setHidden(id, hidden) {
+    const set = new Set(this.data.hidden || []);
+    if (hidden) set.add(id);
+    else set.delete(id);
+    this.data.hidden = [...set];
+    this._save();
+  }
+
+  // Moves a widget past its next shown neighbour (widgets without content are skipped).
+  move(id, delta, shown) {
+    const order = this.ids();
+    const visible = order.filter((x) => shown.includes(x));
+    const pos = visible.indexOf(id);
+    const other = visible[pos + delta];
+    if (pos < 0 || !other) return;
+    const a = order.indexOf(id);
+    const b = order.indexOf(other);
+    [order[a], order[b]] = [order[b], order[a]];
+    this.data.order = order;
+    this._save();
+  }
+
+  moveBefore(id, target) {
+    const order = this.ids().filter((x) => x !== id);
+    const at = order.indexOf(target);
+    order.splice(at < 0 ? order.length : at, 0, id);
+    this.data.order = order;
+    this._save();
+  }
+
+  width(id) {
+    return this.data.widths?.[id] || this.defaults.find((w) => w.id === id)?.width || "full";
+  }
+
+  toggleWidth(id) {
+    this.data.widths = { ...(this.data.widths || {}), [id]: this.width(id) === "full" ? "half" : "full" };
+    this._save();
+  }
+
+  colVisible(table, col) {
+    const own = this.data.cols?.[table]?.[col];
+    return own === undefined ? this.tables[table]?.[col] !== false : !!own;
+  }
+
+  toggleCol(table, col) {
+    const cols = { ...(this.data.cols || {}) };
+    cols[table] = { ...(cols[table] || {}), [col]: !this.colVisible(table, col) };
+    this.data.cols = cols;
+    this._save();
+  }
+
+  reset() {
+    this.data = EMPTY();
+    this._save();
+  }
+}
+
+// Wraps the panel's cards. widgets: { id: { title, html } }; an empty html means "nothing to show right now".
+export function renderWidgets(layout, widgets, t) {
+  const shown = layout.ids().filter((id) => widgets[id]?.html);
+  const visible = shown.filter((id) => !layout.isHidden(id));
+  const edit = layout.editing;
+  const items = visible
+    .map((id, i) => {
+      const w = layout.width(id);
+      const bar = edit
+        ? `<div class="wbar"><span class="grip" title="${escape(t.widgetDrag)}">${ico("drag")}</span><span class="wtitle">${escape(widgets[id].title)}</span><span class="grow"></span>
+            <button class="icon" data-action="w-up" data-w="${id}" ${i === 0 ? "disabled" : ""} title="${escape(t.widgetUp)}" aria-label="${escape(t.widgetUp)}">${ico("arrow-up")}</button>
+            <button class="icon" data-action="w-down" data-w="${id}" ${i === visible.length - 1 ? "disabled" : ""} title="${escape(t.widgetDown)}" aria-label="${escape(t.widgetDown)}">${ico("arrow-down")}</button>
+            <button class="icon wide-only" data-action="w-width" data-w="${id}" title="${escape(w === "full" ? t.widgetHalf : t.widgetFull)}" aria-label="${escape(w === "full" ? t.widgetHalf : t.widgetFull)}">${ico(w === "full" ? "arrow-collapse-horizontal" : "arrow-expand-horizontal")}</button>
+            <button class="icon" data-action="w-hide" data-w="${id}" title="${escape(t.widgetHide)}" aria-label="${escape(t.widgetHide)}">${ico("eye-off-outline")}</button></div>`
+        : "";
+      return `<section class="widget w-${w} ${edit ? "editing" : ""}" data-widget="${id}">${bar}${widgets[id].html}</section>`;
+    })
+    .join("");
+  const hidden = shown.filter((id) => layout.isHidden(id));
+  const tray = edit
+    ? `<section class="widget w-full wtray"><div class="wtray-head">${ico("view-dashboard-edit-outline")}<span>${escape(t.layoutHint)}</span><span class="grow"></span>
+          <button class="secondary ib" data-action="w-reset">${ico("restore")}${escape(t.layoutReset)}</button></div>
+        ${hidden.length ? `<div class="wtray-hidden"><span class="muted">${escape(t.hiddenWidgets)}:</span>${hidden.map((id) => `<button class="secondary ib" data-action="w-show" data-w="${id}">${ico("eye-outline")}${escape(widgets[id].title)}</button>`).join("")}</div>` : ""}
+      </section>`
+    : "";
+  return `${tray}${items}`;
+}
+
+// Toolbar button that switches the arrange mode.
+export function layoutButton(layout, t) {
+  return `<button class="tbtn ${layout.editing ? "on" : ""}" data-action="w-edit" aria-pressed="${layout.editing}" title="${escape(layout.editing ? t.layoutDone : t.layoutEdit)}">${ico(layout.editing ? "check" : "view-dashboard-edit-outline")}<span>${escape(layout.editing ? t.layoutDone : t.layoutEdit)}</span></button>`;
+}
+
+// Menu to show or hide the optional columns of a table. cols: [{ key, label }]
+export function columnMenu(layout, table, cols, t) {
+  const items = cols
+    .map(
+      (c) =>
+        `<label class="colitem"><input type="checkbox" class="switch" data-col-table="${table}" data-col="${c.key}" ${layout.colVisible(table, c.key) ? "checked" : ""}><span>${escape(c.label)}</span></label>`
+    )
+    .join("");
+  return `<details class="menu colmenu"><summary title="${escape(t.columns)}" aria-label="${escape(t.columns)}">${ico("view-column-outline")}<span class="lbl">${escape(t.columns)}</span></summary><div class="menu-list">${items}</div></details>`;
+}
+
+// Rare card actions (clear, reset, …) in a small ⋮ menu instead of large header buttons.
+// items: [{ action, icon, label, danger, disabled }]; falsy items are skipped.
+export function cardMenu(items, t) {
+  const list = items.filter(Boolean);
+  if (!list.length) return "";
+  const entry = (i) =>
+    `<button class="${i.danger ? "danger-item" : ""}" data-action="${i.action}" ${i.disabled ? "disabled" : ""}>${ico(i.icon)}<span class="mi"><span>${escape(i.label)}</span></span></button>`;
+  return `<details class="menu rowmenu cardmenu"><summary aria-label="${escape(t.moreActions)}" title="${escape(t.moreActions)}">${ico("dots-vertical")}</summary><div class="menu-list">${list.map(entry).join("")}</div></details>`;
+}
+
+// CSS that hides the switched-off columns (cells carry the class c-<column>).
+export function columnStyle(layout, table, cols) {
+  const off = cols.filter((c) => !layout.colVisible(table, c.key)).map((c) => `table[data-table="${table}"] .c-${c.key}`);
+  return off.length ? `<style>${off.join(", ")} { display: none !important; }</style>` : "";
+}
+
+// Wires the arrange mode, drag and drop and the column switches. rerender() draws the panel again.
+export function bindWidgets(root, layout, rerender) {
+  const shown = [...root.querySelectorAll("section.widget[data-widget]")].map((s) => s.dataset.widget);
+  const act = {
+    "w-edit": () => {
+      layout.editing = !layout.editing;
+      rerender();
+    },
+    "w-up": (el) => (layout.move(el.dataset.w, -1, shown), rerender()),
+    "w-down": (el) => (layout.move(el.dataset.w, 1, shown), rerender()),
+    "w-width": (el) => (layout.toggleWidth(el.dataset.w), rerender()),
+    "w-hide": (el) => (layout.setHidden(el.dataset.w, true), rerender()),
+    "w-show": (el) => (layout.setHidden(el.dataset.w, false), rerender()),
+    "w-reset": () => (layout.reset(), rerender()),
+  };
+  root.querySelectorAll("[data-action^='w-']").forEach((el) => {
+    const fn = act[el.dataset.action];
+    if (fn) el.addEventListener("click", () => fn(el));
+  });
+  // choosing an entry closes its menu
+  root.querySelectorAll("details.menu .menu-list button").forEach((b) => b.addEventListener("click", () => b.closest("details")?.removeAttribute("open")));
+  root.querySelectorAll("[data-col-table]").forEach((el) =>
+    el.addEventListener("change", () => {
+      layout.toggleCol(el.dataset.colTable, el.dataset.col);
+      const keep = el.closest("details.colmenu");
+      const table = el.dataset.colTable;
+      rerender();
+      // keep the column menu open while switching several columns
+      const again = [...root.querySelectorAll("details.colmenu")].find((d) => d.querySelector(`[data-col-table="${table}"]`));
+      if (keep && again) again.open = true;
+    })
+  );
+  if (!layout.editing) return;
+  // drag and drop: only from the grip, so text and buttons inside a widget keep working
+  root.querySelectorAll("section.widget[data-widget]").forEach((sec) => {
+    const grip = sec.querySelector(".grip");
+    grip?.addEventListener("pointerdown", () => sec.setAttribute("draggable", "true"));
+    sec.addEventListener("dragstart", (ev) => {
+      ev.dataTransfer.setData("text/plain", sec.dataset.widget);
+      ev.dataTransfer.effectAllowed = "move";
+      sec.classList.add("dragging");
+    });
+    sec.addEventListener("dragend", () => {
+      sec.removeAttribute("draggable");
+      sec.classList.remove("dragging");
+      root.querySelectorAll(".dropto").forEach((n) => n.classList.remove("dropto"));
+    });
+    sec.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      sec.classList.add("dropto");
+    });
+    sec.addEventListener("dragleave", () => sec.classList.remove("dropto"));
+    sec.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const id = ev.dataTransfer.getData("text/plain");
+      if (id && id !== sec.dataset.widget) {
+        layout.moveBefore(id, sec.dataset.widget);
+        rerender();
+      }
+    });
+  });
+}
+
+const WIDGET_STYLE = `
+  ha-icon { --mdc-icon-size: 18px; display: inline-flex; flex: none; }
+  .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  tr[hidden] { display: none !important; }
+
+  /* widgets */
+  .content.widgets { max-width: 1280px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .widget { min-width: 0; display: grid; }
+  .widget > .card { min-width: 0; }
+  .widget.editing { border-radius: var(--ha-card-border-radius, 12px); outline: 2px dashed color-mix(in srgb, var(--primary-color) 45%, transparent); outline-offset: 3px; }
+  .widget.dragging { opacity: .45; }
+  .widget.dropto { outline-color: var(--primary-color); outline-style: solid; }
+  .wbar { display: flex; align-items: center; gap: 4px; padding: 0 2px 6px; color: var(--secondary-text-color); font-size: 13px; }
+  .wbar .grip { cursor: grab; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; --mdc-icon-size: 20px; }
+  .wbar .grip:active { cursor: grabbing; }
+  .wbar .wtitle { font-weight: 500; color: var(--primary-text-color); }
+  .wbar .grow, .wtray-head .grow { flex: 1; }
+  .wtray { background: color-mix(in srgb, var(--primary-color) 8%, transparent); border-radius: var(--ha-card-border-radius, 12px); padding: 12px 14px; gap: 10px; }
+  .wtray-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+  .wtray-hidden { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar .tbtn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px; background: transparent; color: inherit; font-size: 14px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+  .toolbar .tbtn.on { background: var(--primary-color); color: var(--text-primary-color, #fff); border-color: transparent; }
+  @media (min-width: 1100px) {
+    .content.widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .widget.w-full, .widget.wtray { grid-column: 1 / -1; }
+  }
+  @media (max-width: 1099px) {
+    .wbar .wide-only { display: none; }
+  }
+
+  /* table toolbar: search, filter segments, column menu */
+  .tbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 8px; }
+  .tbar .grow { flex: 1; }
+  .tbar .segs { margin-top: 0; }
+  label.search { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 220px; max-width: 360px; height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); }
+  label.search input { flex: 1; min-width: 0; border: none; background: transparent; color: var(--primary-text-color); font: inherit; font-size: 14px; outline: none; padding: 0; box-shadow: none; min-height: 0; }
+  label.search:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 45%, transparent); }
+  select.fsel { height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: none; background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); font-size: 13px; max-width: 220px; }
+  .segs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); }
+  button.seg { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--secondary-text-color); padding: 5px 12px; border-radius: 8px; font-size: 13px; min-height: 0; border: none; }
+  button.seg ha-icon { --mdc-icon-size: 16px; }
+  button.seg .n { font-size: 11px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent); }
+  button.seg.on { background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .chip.ic { display: inline-flex; align-items: center; gap: 4px; }
+  .chip.ic ha-icon { --mdc-icon-size: 14px; }
+
+  /* menus (run menu, row menu, column menu) */
+  details.menu { position: relative; }
+  details.menu > summary { list-style: none; cursor: pointer; user-select: none; }
+  details.menu > summary::-webkit-details-marker { display: none; }
+  details.menu .menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 220px; background: var(--card-background-color, #fff); border: 1px solid var(--divider-color, #e0e0e0); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; text-align: left; }
+  details.menu .menu-list button { background: none; color: var(--primary-text-color); text-align: left; display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 400; line-height: 1.35; min-height: 0; border: none; }
+  details.menu .menu-list button ha-icon { --mdc-icon-size: 20px; color: var(--secondary-text-color); margin-top: 1px; }
+  details.menu .menu-list button:hover:not(:disabled) { background: var(--secondary-background-color, #f0f0f0); }
+  details.menu .menu-list .mi { display: grid; gap: 2px; }
+  details.menu .menu-list .mi > span { font-weight: 500; }
+  details.menu .menu-list button small { color: var(--secondary-text-color); font-size: 12px; }
+  details.menu .menu-list hr { border: none; border-top: 1px solid var(--divider-color, #e0e0e0); margin: 4px 2px; }
+  details.menu .menu-list button.danger-item, details.menu .menu-list button.danger-item ha-icon { color: var(--error-color, #db4437); }
+  details.menu.rowmenu, details.menu.colmenu { display: inline-block; }
+  details.menu.rowmenu > summary { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary-text-color); --mdc-icon-size: 20px; }
+  details.menu.colmenu > summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); color: var(--secondary-text-color); font-size: 13px; }
+  details.menu.rowmenu > summary:hover, details.menu.rowmenu[open] > summary, details.menu.colmenu[open] > summary { background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); filter: none; }
+  details.menu.colmenu .menu-list { min-width: 200px; }
+  .card h2 details.cardmenu { flex: none; margin-right: -6px; }
+  .card h2 details.cardmenu .menu-list { font-size: 14px; font-weight: 400; }
+  button.morelink { background: none; color: var(--primary-color); padding: 6px 4px; font-size: 13px; min-height: 0; border: none; display: inline-flex; align-items: center; gap: 4px; }
+  label.colitem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--primary-text-color); }
+  label.colitem:hover { background: var(--secondary-background-color, #f0f0f0); }
+  .scroll.menus { overflow: visible; }
+
+  /* data tables: one line per item, details on click, row menu */
+  table.dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.dtable th, table.dtable td { text-align: left; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+  table.dtable thead th { position: sticky; top: 0; z-index: 1; background: var(--card-background-color, #fff); color: var(--secondary-text-color); font-size: 12px; font-weight: 500; letter-spacing: .02em; white-space: nowrap; padding: 6px 8px; vertical-align: bottom; }
+  table.dtable td { padding: 7px 8px; vertical-align: middle; }
+  table.dtable tbody tr[data-search]:hover > td { background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
+  table.dtable tr.open > td { border-bottom-color: transparent; background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
+  table.dtable tr.detail > td { background: color-mix(in srgb, var(--primary-color) 5%, transparent); padding: 2px 12px 12px; }
+  table.dtable tr.dayrow > td { padding: 14px 8px 4px; font-size: 12px; font-weight: 500; color: var(--secondary-text-color); border-bottom: none; text-transform: none; }
+  table.dtable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th button.sort { display: inline-flex; align-items: center; gap: 3px; background: none; color: inherit; font: inherit; padding: 0; min-height: 0; border: none; }
+  th button.sort ha-icon { --mdc-icon-size: 14px; opacity: .45; }
+  th button.sort.on { color: var(--primary-text-color); }
+  th button.sort.on ha-icon { opacity: 1; }
+  th.num button.sort { flex-direction: row-reverse; }
+  button.rname { display: flex; align-items: center; gap: 6px; width: 100%; background: none; color: inherit; padding: 0; text-align: left; font: inherit; min-height: 0; border: none; }
+  button.rname > ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); transition: transform .15s; }
+  tr.open button.rname > ha-icon { transform: rotate(90deg); }
+  .nm { display: grid; min-width: 0; }
+  .nm strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nm small { font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .det { display: grid; gap: 10px; }
+  .det .lbl { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 3px; }
+  .det pre { margin: 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--secondary-background-color, #f0f0f0); border-radius: 8px; padding: 8px 10px; }
+  .nomatch { margin: 8px 0 0; }
+  input.switch { appearance: none; -webkit-appearance: none; flex: none; width: 32px; height: 18px; min-height: 0; border-radius: 9px; background: color-mix(in srgb, var(--secondary-text-color) 35%, transparent); position: relative; cursor: pointer; margin: 0; padding: 0; border: none; transition: background .15s; vertical-align: middle; }
+  input.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+  input.switch:checked { background: var(--primary-color); }
+  input.switch:checked::after { transform: translateX(14px); }
+  input.switch:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+
+  @media (max-width: 760px) {
+    .toolbar .tbtn span { display: none; }
+    .toolbar .tbtn { width: 40px; padding: 0; justify-content: center; }
+    details.menu.colmenu > summary .lbl { display: none; }
+    details.menu .menu-list { right: 0; left: auto; min-width: min(260px, calc(100vw - 48px)); }
+  }
+  /* narrow widgets (phones, or half width): rows become compact entries; each table places its cells with grid areas */
+  .widget { container-type: inline-size; }
+  @container (max-width: 720px) {
+    label.search { max-width: none; flex-basis: 100%; }
+    table.dtable thead { display: none; }
+    table.dtable, table.dtable tbody { display: block; }
+    table.dtable tbody tr[data-search] { display: grid; align-items: center; column-gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+    table.dtable tbody tr[data-search] > td { display: block; border: none; padding: 1px 0; max-width: none; min-width: 0; }
+    table.dtable tr.dayrow, table.dtable tr.dayrow > td { display: block; }
+    table.dtable tr.open, table.dtable tr.detail { background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
+    table.dtable tr.open > td, table.dtable tr.detail > td, table.dtable tbody tr:hover > td { background: none !important; }
+    table.dtable tr.open { border-radius: 10px 10px 0 0; padding-left: 4px; padding-right: 4px; }
+    table.dtable tr.detail { display: block; border-radius: 0 0 10px 10px; padding: 0 4px 4px; margin-bottom: 6px; }
+    table.dtable tr.detail > td { display: block; border: none; }
+    .scroll { overflow: visible; }
+  }
+`;
+
+// ------------------------------------------------------------------ styles
+const BASE_STYLE = `
+  :host { display: block; height: 100%; color: var(--primary-text-color); background: var(--primary-background-color); }
+  .toolbar { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; background: var(--app-header-background-color, var(--primary-color)); color: var(--app-header-text-color, #fff); font-size: 20px; }
+  .toolbar .grow { flex: 1; }
+  .toolbar img { width: 28px; height: 28px; border-radius: 7px; }
+  .content { padding: 16px; max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+  .card { background: var(--card-background-color, #fff); border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0 2px 2px rgba(0,0,0,.14)); border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0)); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .card h2 .grow { flex: 1; }
+  h3 { font-size: 13px; font-weight: 500; margin: 14px 0 8px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
+
+  /* buttons: primary (default), secondary, danger, link, small, icon, ib (icon + text), round, pill */
+  button { font: inherit; font-size: 14px; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; background: var(--primary-color); color: var(--text-primary-color, #fff); }
+  button.secondary { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
+  button.danger { background: var(--error-color, #db4437); }
+  button.secondary.danger { background: transparent; color: var(--error-color, #db4437); border-color: color-mix(in srgb, var(--error-color, #db4437) 60%, transparent); }
+  button.link { background: none; color: var(--primary-color); padding: 2px 4px; min-height: 0; }
+  button.small { padding: 3px 9px; font-size: 12.5px; }
+  button.icon { display: inline-grid; place-items: center; background: transparent; color: var(--secondary-text-color); padding: 4px 6px; border-radius: 8px; }
+  button.icon:hover:not(:disabled) { background: var(--secondary-background-color, #f0f0f0); color: var(--primary-text-color); }
+  button.ib { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px; }
+  button.round { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 22px; line-height: 1; display: inline-grid; place-items: center; flex: none; }
+  button.round.small { width: 28px; height: 28px; font-size: 18px; }
+  button.pill, .pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px 0 12px; border-radius: 18px; font-size: 14px; font-weight: 500; }
+  button.morelink { background: none; color: var(--primary-color); padding: 6px 4px; font-size: 13px; min-height: 0; display: inline-flex; align-items: center; gap: 4px; }
+  button:disabled { opacity: .5; cursor: default; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; border-radius: 6px; padding: 3px 9px; font-size: 12.5px; color: var(--primary-color); border: 1px solid var(--primary-color); width: max-content; }
+
+  /* text, chips, badges, dots, notices */
+  .muted { color: var(--secondary-text-color); font-size: 13px; }
+  code { font-size: 12px; background: var(--secondary-background-color, #f0f0f0); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--secondary-background-color, #f0f0f0); font-size: 12px; margin: 2px 4px 2px 0; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 8px; background: var(--secondary-background-color, #eee); color: var(--secondary-text-color); white-space: nowrap; }
+  .badge.warn { background: color-mix(in srgb, var(--warning-color, #ffa600) 20%, transparent); color: var(--primary-text-color); }
+  .badge.err { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--primary-text-color); }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--success-color, #43a047); display: inline-block; flex: none; }
+  .dot.off { background: var(--disabled-text-color, #bdbdbd); }
+  .dot.warn { background: var(--warning-color, #ffa600); }
+  .dot.err { background: var(--error-color, #db4437); }
+  .error { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); color: var(--error-color, #db4437); padding: 10px 12px; border-radius: 8px; }
+  .ok { background: color-mix(in srgb, var(--success-color, #43a047) 12%, transparent); padding: 10px 12px; border-radius: 8px; }
+  .info { background: color-mix(in srgb, var(--primary-color) 10%, transparent); padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+  .empty { text-align: center; padding: 18px 8px; display: grid; gap: 10px; justify-items: center; }
+  .fact { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .fact ha-icon { --mdc-icon-size: 15px; opacity: .85; }
+
+  /* inputs */
+  input[type=text], input[type=search], select { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 6px; background: var(--card-background-color, #fff); color: var(--primary-text-color); }
+
+  /* plain tables */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--divider-color, #e0e0e0); vertical-align: top; }
+  th { color: var(--secondary-text-color); font-weight: 500; }
+  .scroll { overflow-x: auto; }
+
+  /* key figures */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--secondary-background-color, #f5f5f5); border-radius: 10px; padding: 10px 12px; }
+  .stat .k { font-size: 12px; color: var(--secondary-text-color); }
+  .stat .v { font-size: 24px; font-weight: 500; line-height: 1.25; }
+  .stat .v small { font-size: 12px; font-weight: 400; }
+  .stat .s { font-size: 12px; color: var(--secondary-text-color); }
+
+  /* account tabs */
+  .tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tab { flex: 1 1 240px; text-align: left; background: var(--card-background-color, #fff); color: var(--primary-text-color); border: 2px solid var(--divider-color, #e0e0e0); border-radius: var(--ha-card-border-radius, 12px); padding: 12px 14px; display: grid; gap: 4px; cursor: pointer; }
+  .tab.active { border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent); }
+  .tab .label { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .tab .meta { color: var(--secondary-text-color); font-size: 12.5px; }
+
+  /* confirmation dialog */
+  .modal-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.45); }
+  .modal { position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 20px; background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: var(--ha-dialog-border-radius, 16px); box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .modal-head { display: flex; align-items: center; gap: 12px; }
+  .modal-head h3 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.3; text-transform: none; letter-spacing: normal; color: var(--primary-text-color); }
+  .modal-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--error-color, #db4437); --mdc-icon-size: 22px; }
+  .modal p { margin: 14px 0 0; font-size: 14px; line-height: 1.45; }
+  .modal .modal-warn { margin-top: 8px; color: var(--error-color, #db4437); font-size: 13px; font-weight: 500; }
+  .modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .modal-actions button { font-size: 14px; padding: 8px 18px; border-radius: 18px; }
+  .modal button:focus-visible, .modal button:focus { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+
+  @media (max-width: 760px) {
+    .toolbar { height: 52px; padding: 0 10px; font-size: 18px; }
+    .content { padding: 10px; gap: 10px; }
+    .card { padding: 12px; }
+    .card h2 { font-size: 17px; }
+    .tabs .tab { flex-basis: 100%; }
+    .stat .v { font-size: 22px; }
+    button { min-height: 40px; }
+    button.small, button.link, button.morelink, a.btn { min-height: 34px; }
+    button.icon { min-width: 40px; }
+    button.round { min-height: 0; width: 42px; height: 42px; }
+    button.pill, .pill { height: 42px; border-radius: 21px; }
+    input[type=text], input[type=search], select { font-size: 16px; min-height: 42px; }
+  }
+`;
+
+export const UI_STYLE = BASE_STYLE + WIDGET_STYLE;

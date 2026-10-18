@@ -269,9 +269,18 @@ oder Englisch je nach HA-Sprache):
   14-Tage-Diagramm, die häufigsten Tools, die Herkunft der Aufrufe (Frieda-Endpunkt, HA-MCP-Server, Assist-Agenten)
   und die Kontingente der letzten Stunde. Gespeichert werden nur Zähler, nie Argumente oder Ergebnisse.
 - **Freigaben:** offene und entschiedene Anfragen (freigeben oder ablehnen mit einem Tipp, auch aus der Companion-App).
-- **Änderungsprotokoll:** alles, was Frieda in iCloud verändert hat, als lesbare Einträge nach Tagen gruppiert (z. B.
-  „Mails verschoben · 3 Mails · → Archiv“), mit Suche und Filtern nach Bereich, Auslöser und Ergebnis; die
-  Rohparameter sind einen Klick entfernt.
+- **Änderungsprotokoll:** alles, was Frieda in iCloud verändert hat, als Tabelle nach Tagen gruppiert (z. B.
+  „Mails verschoben · 3 Mails · → Archiv“), mit Suche, Filtern nach Bereich und Auslöser, Ergebnis-Umschalter und
+  wählbaren Spalten; ein Klick auf die Zeile zeigt Fehler und Rohparameter.
+
+**Widgets:** Die Karten sind Widgets. Mit **Anordnen** in der Titelleiste lassen sie sich am Griff ziehen (oder per
+Pfeil verschieben), zwischen voller und halber Breite umschalten und ausblenden; Tabellen haben ein Menü **Spalten**.
+Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen ⋮-Menü und fragen immer nach. Die Anordnung wird pro
+Home-Assistant-Benutzer in Home Assistant gespeichert, übersteht also Neustarts und gilt auf allen Geräten.
+
+**Frieda UI:** Beide Panels nutzen eine gemeinsame Design-Bibliothek (`/friedafetch_static/ui.js`): Farben aus dem
+Home-Assistant-Theme, Buttons, Chips, Tabellen, Menüs, Dialoge und Widgets. Frieda Postfach lädt sie von Frieda,
+damit alle Module gleich aussehen und sich gleich bedienen.
 
 Das Panel kommt ohne externe Bibliotheken aus und spricht über WebSocket-Befehle (`friedafetch/accounts`,
 `friedafetch/overview`, `friedafetch/usage/reset`, `friedafetch/approvals/*`, `friedafetch/audit/*`) mit der
