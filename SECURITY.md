@@ -86,6 +86,10 @@ Release assets are built by GitHub Actions and carry a signed build provenance a
 gh attestation verify friedafetch.zip --repo nadeo360/friedafetch
 ```
 
+The signature also comes with the release: `friedafetch.zip.sigstore.json` (Sigstore bundle, for offline checks with
+`gh attestation verify friedafetch.zip --repo nadeo360/friedafetch --bundle friedafetch.zip.sigstore.json`) and
+`friedafetch.zip.intoto.jsonl` (the SLSA provenance).
+
 A CycloneDX SBOM (`sbom.cdx.json`) listing the runtime dependencies is attached to every release.
 
 ---
@@ -176,5 +180,8 @@ Release-Artefakte werden von GitHub Actions gebaut und tragen eine signierte Bui
 ```bash
 gh attestation verify friedafetch.zip --repo nadeo360/friedafetch
 ```
+
+Die Signatur liegt auch am Release: `friedafetch.zip.sigstore.json` (Sigstore-Bundle, für die Prüfung ohne Netz mit
+`--bundle friedafetch.zip.sigstore.json`) und `friedafetch.zip.intoto.jsonl` (die SLSA-Provenance).
 
 Jedem Release liegt eine CycloneDX-SBOM (`sbom.cdx.json`) der Laufzeitabhängigkeiten bei.

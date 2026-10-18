@@ -71,4 +71,6 @@ jobs:
         # (cosign verify-blob-attestation / gh attestation verify --bundle) and is visible to OpenSSF Scorecard
         run: |
           cp "$BUNDLE" friedafetch.zip.sigstore.json
-          gh release upload "$TAG" friedafetch.zip friedafetch.zip.sha256 friedafetch.zip.sigstore.json sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"
+          # the SLSA provenance itself (the DSSE envelope of the bundle), in the usual *.intoto.jsonl form
+          python3 -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1]))['dsseEnvelope']))" "$BUNDLE" > friedafetch.zip.intoto.jsonl
+          gh release upload "$TAG" friedafetch.zip friedafetch.zip.sha256 friedafetch.zip.sigstore.json friedafetch.zip.intoto.jsonl sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"
