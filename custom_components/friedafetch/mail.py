@@ -23,6 +23,7 @@ import aiosmtplib
 from .util import UNTRUSTED_NOTICE, detect_injection, html_to_text, sanitize_text, text_to_html
 
 _LOGGER = logging.getLogger(__name__)
+_UIDVALIDITY_RE = re.compile(r"UIDVALIDITY (\d+)", re.IGNORECASE)
 
 _FETCH_START_RE = re.compile(rb"^\*?\s*(\d+) FETCH \((.*)$", re.DOTALL)
 _LITERAL_RE = re.compile(rb"\{(\d+)\}\s*$")
@@ -399,6 +400,7 @@ class ICloudMail:
         self._last_used = 0.0
         self._lock = asyncio.Lock()
         self._mailboxes: list[dict[str, Any]] | None = None
+        self._uidvalidity: dict[str, int] = {}
 
     # ---------------------------------------------------------- connection
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
@@ -478,6 +480,13 @@ class ICloudMail:
             self._selected = None
             raise MailboxNotFound(f"Mailbox '{mailbox}' not found or cannot be opened")
         self._selected = mailbox
+        for line in response.lines:
+            match = _UIDVALIDITY_RE.search(
+                bytes(line).decode(errors="replace") if isinstance(line, (bytes, bytearray)) else str(line)
+            )
+            if match:
+                self._uidvalidity[mailbox] = int(match.group(1))
+                break
 
     # ---------------------------------------------------------- mailboxes
     async def async_mailboxes(self, force: bool = False) -> list[dict[str, Any]]:
@@ -670,6 +679,21 @@ class ICloudMail:
             return sorted(set(uids))
 
         return await self._run(op)
+
+    async def async_new_uids(self, mailbox: str, after_uid: int) -> list[int]:
+        """UIDs above ``after_uid`` – asks the server only for the new range instead of every message."""
+        uids = await self.async_search_uids(mailbox, ["UID", f"{max(0, int(after_uid)) + 1}:*"])
+        # "n:*" always includes the highest message, even when its uid is below n
+        return [u for u in uids if u > after_uid]
+
+    async def async_last_uid(self, mailbox: str) -> int:
+        """Highest UID of a mailbox (0 when empty) – a cheap starting point for 'only new mail'."""
+        uids = await self.async_search_uids(mailbox, ["UID", "*"])
+        return max(uids) if uids else 0
+
+    def uidvalidity(self, mailbox: str) -> int | None:
+        """UIDVALIDITY seen when the mailbox was last opened; a change means all UIDs were renumbered."""
+        return self._uidvalidity.get(mailbox)
 
     async def async_summaries(self, mailbox: str, uids: list[int]) -> list[dict[str, Any]]:
         """Return header summaries for the given uids."""

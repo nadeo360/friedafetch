@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote, urlsplit
 from xml.sax.saxutils import escape as xml_escape
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .dav import NS_CARDDAV, NS_CS, NS_DAV, DavClient, DavError, DavResponse
 from .vcard import VCard, escape_text
@@ -40,14 +43,52 @@ class AddressBookInfo:
     last_sync: float = 0.0
 
 
-@dataclass
+class _Sealer:
+    """AES-256-GCM for cached contacts with a random key that exists only in this process.
+
+    The key is created at start-up and never stored, so cached contacts cannot leak in readable form through
+    diagnostics, logs, pickles or memory dumps of single objects. It does not protect against an attacker who can
+    read the whole running process (the key lives there too); nothing of the cache is ever written to disk.
+    """
+
+    def __init__(self) -> None:
+        self._aes = AESGCM(AESGCM.generate_key(bit_length=256))
+
+    def seal(self, text: str, aad: bytes) -> bytes:
+        nonce = os.urandom(12)
+        return nonce + self._aes.encrypt(nonce, text.encode(), aad)
+
+    def open(self, blob: bytes, aad: bytes) -> str:
+        return self._aes.decrypt(blob[:12], blob[12:], aad).decode()
+
+
+@dataclass(eq=False)
 class ContactRecord:
-    """A vCard resource with its server location."""
+    """A vCard resource with its server location; the vCard itself is kept encrypted (see ``_Sealer``)."""
 
     href: str
     etag: str | None
-    vcard: VCard
     addressbook: AddressBookInfo
+    sealer: _Sealer = field(repr=False)
+    uid: str | None = None  # random identifier, kept readable for fast lookups
+    _sealed: bytes = field(default=b"", repr=False)
+
+    @classmethod
+    def create(
+        cls, *, href: str, etag: str | None, vcard_text: str, addressbook: AddressBookInfo, sealer: _Sealer
+    ) -> ContactRecord:
+        record = cls(href=href, etag=etag, addressbook=addressbook, sealer=sealer)
+        record.store(vcard_text)
+        return record
+
+    def store(self, vcard_text: str) -> None:
+        self._sealed = self.sealer.seal(vcard_text, self.href.encode())
+        self.uid = self.vcard.uid
+
+    @property
+    def vcard(self) -> VCard:
+        """A fresh, decrypted copy (changes must be written back with ``store``)."""
+        return VCard.parse(self.sealer.open(self._sealed, self.href.encode()))
 
     def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         data = self.vcard.to_dict(include_raw=include_raw)
@@ -125,6 +166,7 @@ class ICloudCardDav:
     """Async CardDAV access with an ETag-based local cache."""
 
     def __init__(self, dav: DavClient, base_url: str) -> None:
+        self._sealer = _Sealer()
         self._dav = dav
         self._base_url = base_url
         self._principal: str | None = None
@@ -225,25 +267,34 @@ class ICloudCardDav:
             if not data:
                 continue
             try:
-                vcard = VCard.parse(data)
+                VCard.parse(data)  # only well-formed cards are kept
             except ValueError:
                 continue
-            book.records[resp.href] = ContactRecord(href=resp.href, etag=resp.etag, vcard=vcard, addressbook=book)
+            book.records[resp.href] = ContactRecord.create(
+                href=resp.href, etag=resp.etag, vcard_text=data, addressbook=book, sealer=self._sealer
+            )
 
     # --------------------------------------------------------------- read
     async def async_search(self, query: str | None, limit: int = 50) -> list[dict[str, Any]]:
         records = await self.async_sync()
         q = (query or "").strip()
-        matches = [r for r in records if r.vcard.matches(q)] if q else list(records)
-        matches.sort(key=lambda r: (r.vcard.full_name or "").lower())
-        return [r.to_dict() for r in matches[:limit]]
+        cards = [(r, r.vcard) for r in records]  # decrypt each card once per search
+        matches = [(r, v) for r, v in cards if v.matches(q)] if q else cards
+        matches.sort(key=lambda rv: (rv[1].full_name or "").lower())
+        out = []
+        for record, vcard in matches[:limit]:
+            data = vcard.to_dict()
+            data["etag"] = record.etag
+            data["addressbook_id"] = record.addressbook.id
+            out.append(data)
+        return out
 
     async def _find(self, uid: str) -> ContactRecord:
         wanted = uid.strip()
         for attempt in (False, True):
             records = await self.async_sync(force=attempt)
             for rec in records:
-                if rec.vcard.uid and rec.vcard.uid.lower() == wanted.lower():
+                if rec.uid and rec.uid.lower() == wanted.lower():
                     return rec
         raise ContactNotFound(f"Contact '{uid}' not found")
 
@@ -263,23 +314,25 @@ class ICloudCardDav:
         vcard.set_single("UID", uid)
         apply_contact_fields(vcard, fields)
         href = f"{book.href}{quote(uid, safe='')}.vcf"
-        etag = await self._dav.put(href, vcard.serialize(), "text/vcard; charset=utf-8", create=True)
-        record = ContactRecord(href=href, etag=etag, vcard=vcard, addressbook=book)
+        text = vcard.serialize()
+        etag = await self._dav.put(href, text, "text/vcard; charset=utf-8", create=True)
+        record = ContactRecord.create(href=href, etag=etag, vcard_text=text, addressbook=book, sealer=self._sealer)
         book.records[href] = record
         book.ctag = None  # force re-check on next sync
         return record.to_dict()
 
     async def async_update(self, uid: str, fields: dict[str, Any]) -> dict[str, Any]:
         record = await self._find(uid)
-        apply_contact_fields(record.vcard, fields)
+        vcard = record.vcard
+        apply_contact_fields(vcard, fields)
+        text = vcard.serialize()
         try:
-            etag = await self._dav.put(
-                record.href, record.vcard.serialize(), "text/vcard; charset=utf-8", etag=record.etag
-            )
+            etag = await self._dav.put(record.href, text, "text/vcard; charset=utf-8", etag=record.etag)
         except DavError:
             record.addressbook.ctag = None
             raise
         record.etag = etag
+        record.store(text)
         record.addressbook.ctag = None
         return record.to_dict()
 

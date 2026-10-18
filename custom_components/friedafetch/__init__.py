@@ -114,24 +114,31 @@ def build_clients(hass: HomeAssistant, entry: ConfigEntry) -> ICloudClients:
     session = async_get_clientsession(hass)
     dav = DavClient(session, apple_id, password, timeout=REQUEST_TIMEOUT)
     tz = dt_util.get_default_time_zone()
-    mail = ICloudMail(
-        apple_id,
-        password,
-        from_address=entry.options.get(CONF_FROM_ADDRESS) or entry.data.get(CONF_FROM_ADDRESS) or apple_id,
-        imap_host=IMAP_HOST,
-        imap_port=IMAP_PORT,
-        smtp_host=SMTP_HOST,
-        smtp_port=SMTP_PORT,
-        timeout=REQUEST_TIMEOUT,
-        ssl_context=client_context(),
-    )
-    return ICloudClients(
+
+    def new_mail() -> ICloudMail:
+        """A further, independent IMAP/SMTP client for the same account (e.g. for background automation)."""
+        return ICloudMail(
+            apple_id,
+            password,
+            from_address=entry.options.get(CONF_FROM_ADDRESS) or entry.data.get(CONF_FROM_ADDRESS) or apple_id,
+            imap_host=IMAP_HOST,
+            imap_port=IMAP_PORT,
+            smtp_host=SMTP_HOST,
+            smtp_port=SMTP_PORT,
+            timeout=REQUEST_TIMEOUT,
+            ssl_context=client_context(),
+        )
+
+    mail = new_mail()
+    clients = ICloudClients(
         caldav=ICloudCalDav(dav, CALDAV_URL, tz),
         carddav=ICloudCardDav(dav, CARDDAV_URL),
         mail=mail,
         notes=ICloudNotes(mail, NOTES_MAILBOX),
         options=dict(entry.options),
     )
+    clients.mail_factory = new_mail
+    return clients
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bool:

@@ -105,6 +105,8 @@ class ICloudClients:
         self.extensions: dict[str, Any] = {}
         self.entry_id: str | None = None
         self.usage: Any | None = None  # usage.UsageStats, set up by the integration
+        # factory for further connections of the same account (extensions use it for background work)
+        self.mail_factory: Callable[[], ICloudMail] | None = None
         # injection lock per caller (platform:user): until when, and which tool returned the suspicious content
         self._locks: dict[str, dict[str, Any]] = {}
 
