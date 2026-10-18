@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.3, Frieda Postfach 1.0.5 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.5, Frieda Postfach 1.0.7 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -29,7 +29,8 @@ Frieda Postfach ist der optionale Teil, der **selbstständig handelt**:
 - **Posteingangsregeln** (Bedingungen → Aktionen) für neue Mails per Push (IMAP IDLE) oder Takt sowie auf Abruf.
 - **KI-Sortierung** (Opt-in): Eine AI-Task-Entität bewertet neue Mails (Kategorie, Wichtigkeit, Begründung) und darf
   sie auf Wunsch einsortieren.
-- **Tagesüberblick**, **Geburtstags-Sensor**, Ablage von Anhängen (Belegen) per Regel.
+- **Tagesüberblick**, **Sensoren und Ereignisse** für Automationen (ungelesene Mails, Regeltreffer, Push-Status,
+  wichtige Mails, KI-Nutzung, Geburtstage), Ablage von Anhängen (Belegen) per Regel.
 
 ### 1.2 Qualitätsziele
 
@@ -118,7 +119,7 @@ flowchart LR
 | IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); mit Frieda Postfach zusätzlich eine Sitzung für Hintergrundarbeit und eine IDLE-Sitzung für Push | ebenso |
 | SMTP | `smtp.mail.me.com:587` (STARTTLS, aiosmtplib) | ebenso |
 | AI Task | `ai_task.async_generate_data` / Dienst `ai_task.generate_data` | HA-intern; der Anbieter der Entität verwaltet eigene Zugangsdaten |
-| Ereignisse | `friedafetch_action` (jede schreibende Aktion), Mobile-Action-Ereignisse für Freigaben | HA-Event-Bus |
+| Ereignisse | `friedafetch_action` (jede schreibende Aktion), Mobile-Action-Ereignisse für Freigaben; mit Frieda Postfach `friedafetch_mail_rule_matched`, `friedafetch_mail_rated`, `friedafetch_mail_important` | HA-Event-Bus |
 
 ---
 
@@ -172,22 +173,23 @@ flowchart TB
 | Baustein | Verantwortung |
 |---|---|
 | **Frieda** | Verbindung zu einem iCloud-Konto pro Config Entry, alle Tools, beide Zugänge, Leitplanken, Panel „Frieda“ (Überblick, Nutzung, Freigaben, Änderungsprotokoll). Keine Hintergrundjobs, keine eigenen Dateischreibvorgänge (außer der optionalen Anhang-Ablage). |
-| **Frieda Postfach** | Hängt sich an ein Frieda-Konto, ergänzt Regeln, Push, KI-Sortierung, Überblick, Sensor und das Panel „Frieda Postfach“. Keine eigenen Zugangsdaten. |
+| **Frieda Postfach** | Hängt sich an ein Frieda-Konto, ergänzt Regeln, Push, KI-Sortierung, Überblick, Sensoren, Ereignisse und das Panel „Frieda Postfach“. Keine eigenen Zugangsdaten. |
 | **Erweiterungs-Schnittstelle** | `ICloudClients.extensions[name]` enthält ein Objekt mit optionalen `tool_classes`, `rule_matcher(mailbox)` und `status()`; Signale `friedafetch_account_ready` / `friedafetch_account_unloaded`. |
 
 ### 5.2 Ebene 2 – Frieda
 
 | Modul | Inhalt |
 |---|---|
-| `__init__.py` | Einrichtung pro Config Entry: Clients, Guard, Protokoll, Freigaben, Anhang-Ablage, Registrierung der LLM-API, MCP-Endpunkt, Panel, Signale, Reparaturmeldungen. |
-| `tool_base.py` | `ICloudClients` (Container pro Konto inkl. `mail_factory` für weitere Verbindungen), Basisklasse `ICloudTool` (Freigabe → Injection-Sperre → Ausführung → Protokoll → Zählung, Fehler als `code`). |
+| `__init__.py` | Einrichtung pro Config Entry: Clients (eine gemeinsame Postfachliste für alle IMAP-Verbindungen des Kontos), gespeicherter Zustand (Kontingente, Sperren, Freigaben), Guard, Protokoll, Freigaben, Anhang-Ablage, Registrierung der LLM-API, MCP-Endpunkt, Panel, Signale, Reparaturmeldungen. |
+| `tool_base.py` | `ICloudClients` (Container pro Konto inkl. `mail_factory` für weitere Verbindungen, Injection-Sperren, Sendeverzögerung), Basisklasse `ICloudTool` (Freigabe → Injection-Sperre → verzögertes Senden → Ausführung → Protokoll → Zählung, Fehler als `code`). |
 | `tools_calendar.py`, `tools_contacts.py`, `tools_mail.py`, `tools_notes.py`, `tools_insights.py` | Die ca. 30 Tools, ein Modul pro Bereich. |
 | `llm_api.py` | Tool-Liste, Options-Filter (`tool_allowed`, `build_tools`), Prompt und die LLM-API von Home Assistant; exportiert die öffentlichen Namen weiter. |
 | `mcp_http.py` | Zustandsloser Streamable-HTTP-MCP-Server (MCP-SDK); Profile *voll* und *nur lesen*; Namenszusätze bei mehreren Konten; merkt sich Client-Namen aus `initialize`. |
 | `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV über aiohttp, iCalendar mit `icalendar`, eigener vCard-Parser; Kontakte-Cache (ETag/CTag) verschlüsselt im Speicher. |
-| `mail.py`, `notes.py` | IMAP (aioimaplib, eigene Verbindungsverwaltung, `BODY.PEEK`), Versand per SMTP, Notizen über das IMAP-Postfach „Notes“. |
+| `mail.py`, `notes.py` | IMAP (aioimaplib, eigene Verbindungsverwaltung, `BODY.PEEK`; ungenutzte Verbindungen werden sofort ersetzt und im Hintergrund abgemeldet), Versand per SMTP, Notizen über das IMAP-Postfach „Notes“. |
 | `guard.py` | Stundenkontingente, Empfänger-Richtlinie (alle / Kontakte / Positivliste), geschützte und verborgene Kalender/Postfächer. |
-| `approvals.py` | Parkt kritische Aufrufe (Senden, Löschen, Massenaktionen), benachrichtigt (persistent + mobile Benachrichtigung mit Aktionen), führt nach Freigabe aus, verfällt nach einer Frist. |
+| `approvals.py` | Parkt kritische Aufrufe (Senden, Löschen, Massenaktionen), benachrichtigt (persistent + mobile Benachrichtigung mit Aktionen), führt nach Freigabe aus, verfällt nach einer Frist; verzögertes Senden als Anfrage, die sich nach Ablauf der Verzögerung selbst ausführt. |
+| `state.py` | Speicher pro Konto für Kontingent-Verbrauch, Injection-Sperren und die Freigabeliste (kurz nach jeder Änderung und beim Entladen geschrieben). |
 | `audit.py` | Ringpuffer (500) schreibender Aktionen pro Konto, Ereignis `friedafetch_action`. |
 | `usage.py` | Zähler pro Konto (Tag, Tool, Herkunft) und bekannte MCP-Clients – nur Zahlen. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Freie Zeiten, Geburtstage, Dubletten, Postfach-Statistik; Ein-Klick-Abmeldung nach RFC 8058 mit SSRF-Schutz; sichere Anhang-Ablage. |
@@ -199,13 +201,13 @@ flowchart TB
 | Modul | Inhalt |
 |---|---|
 | `__init__.py` | An den Frieda-Eintrag anhängen (wartet darauf), eigene IMAP-Verbindung für Hintergrundarbeit öffnen (`mail_factory`), Regel-Engine und KI-Sortierer anlegen, Takt, Push-Wächter, Zeitplan des Tagesüberblicks, Dienst `send_digest`, Neuverbinden nach Neuladen von Frieda. |
-| `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status. |
+| `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status, Ereignis `friedafetch_mail_rule_matched` (max. 25 pro Lauf). |
 | `idle.py` | `MailWatcher`: eigene IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen. |
-| `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur, Killswitch (`blocked_reasons`), Kategorie-Aktionen, Korrekturen als Beispiele, Nutzungsprotokoll. |
+| `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur, Killswitch (`blocked_reasons`), Kategorie-Aktionen, Korrekturen als Beispiele, Nutzungsprotokoll, Ereignisse `friedafetch_mail_rated` und `friedafetch_mail_important`. |
 | `digest.py` | Sammelt ungelesene Mails, Regelaktivität, Termine, Geburtstage; optional Formulierung durch einen AI Task (mit Killswitch). |
 | `tools.py`, `link.py` | Regel-Tools für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`. |
-| `sensor.py` | Sensor für den nächsten Geburtstag. |
-| `frontend.py`, `frontend/panel.js` | WebSocket-Befehle (Regeln, Läufe, Verlauf, KI) und das Panel. |
+| `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status, wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), nächster Geburtstag. |
+| `frontend.py`, `frontend/panel.js` | WebSocket-Befehle (Regeln, Läufe, Verlauf, KI) und das Panel; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. |
 
 ---
 
@@ -228,6 +230,10 @@ sequenceDiagram
   alt Freigabe erforderlich
     A-->>C: geparkt (Anfrage-ID, wartet)
     Note over A: Benachrichtigung mit Freigeben/Ablehnen,<br/>Ausführung nach Freigabe
+  else Senden mit Verzögerung (Option)
+    T->>G: Kontingente und Empfänger sofort prüfen
+    A-->>C: geplant (Anfrage-ID, send_at)
+    Note over A: Jetzt senden / Abbrechen in Panel und Benachrichtigung,<br/>sendet nach Ablauf selbst (prüft erneut)
   else direkt erlaubt
     T->>G: Kontingente, Empfänger-Richtlinie, geschützte Bereiche
     G-->>T: ok oder PolicyError (code "blocked")
@@ -280,9 +286,12 @@ Sicherheitsnetz, wenn Push gestört ist.
 
 ### 6.4 Freigabe
 
-Ein gesperrter Aufruf wird im Speicher als wartende Anfrage mit einer Funktion zum Ausführen abgelegt. Eine Freigabe
-im Panel oder per Handy-Aktion führt ihn aus und schreibt das Ergebnis ins Änderungsprotokoll; Ablehnung oder
-Ablauf (Standard 15 Min.) verwerfen ihn.
+Ein gesperrter Aufruf wird zur wartenden Anfrage mit einer Funktion zum Ausführen. Eine Freigabe im Panel oder per
+Handy-Aktion führt ihn aus und schreibt das Ergebnis ins Änderungsprotokoll; Ablehnung oder Ablauf (Standard
+15 Min.) verwerfen ihn. Verzögertes Senden nutzt denselben Anfragetyp umgekehrt: Nach Ablauf der Verzögerung führt
+er sich selbst aus, „Abbrechen“ verwirft ihn. Die Liste wird gespeichert (`friedafetch.state.<entry>`), die
+Funktionen nicht: Eine beim Neustart noch offene Anfrage wird als abgelaufen geschlossen (eine verzögerte Mail als
+abgebrochen) und nie nachträglich ausgeführt.
 
 ---
 
@@ -319,6 +328,7 @@ flowchart LR
 | `core.config_entries` | Apple-ID, App-Passwort (Frieda), Optionen beider Integrationen |
 | `friedafetch.audit.<entry>` | Änderungsprotokoll (max. 500 Einträge) |
 | `friedafetch.usage` | Nutzungszähler pro Konto und bekannte MCP-Clients |
+| `friedafetch.state.<entry>` | Kontingent-Verbrauch der letzten Stunde, aktive Injection-Sperren, Freigabe-Anfragen (Parameter gekürzt wie im Änderungsprotokoll) |
 | `friedafetch.rules.<frieda-entry>` | Regeln, letzte UIDs, letzter Lauf, Verlauf (genutzt von Frieda Postfach) |
 | `friedafetch_mail.ai.<frieda-entry>` | Kategorien, Bewertungen (200), Korrekturen (30), Stundenbudget, KI-Nutzungsprotokoll (300) |
 | Anhang-Ordner (optional) | Gespeicherte Anhänge unterhalb eines erlaubten Pfads (`allowlist_external_dirs`) |
@@ -361,6 +371,7 @@ flowchart LR
 |---|---|
 | Änderungsprotokoll (`audit.py`, Panel „Frieda“) | Jede schreibende Aktion inkl. Regelläufen und KI-Sortierung, mit Ergebnis und Parametern (ohne Mail-Inhalte) |
 | Ereignis `friedafetch_action` | Dieselben Daten für Automationen (z. B. Alarm bei Massenlöschung) |
+| Ereignisse und Sensoren von Frieda Postfach | Regeltreffer und KI-Bewertungen als Ereignisse; ungelesene Mails, Treffer heute, Push-Status, wichtige Mails und KI-Nutzung als Sensoren |
 | Nutzung (`usage.py`) | Tool-Aufrufe pro Tag/Tool/Herkunft, lesend vs. schreibend, Fehler, verbundene MCP-Clients |
 | „An KI übermittelt“ (`ai.py`) | Jede Übermittlung an eine KI (Zweck, Entität, Felder, Zeichen) und jede zurückgehaltene Mail mit allen Gründen |
 | Verlauf (`rules.py`) | Manuelle, automatische und Push-Läufe; leere automatische Läufe zusammengefasst |
@@ -369,8 +380,11 @@ flowchart LR
 ### 8.3 Persistenz
 
 Home-Assistant-`Store` (JSON in `.storage`) mit verzögertem Speichern; Ringpuffer begrenzen das Wachstum.
-Kontingente und wartende Freigaben liegen nur im Speicher (siehe Risiken). Der Kontakte-Cache liegt nur im Speicher
-und hält jede vCard verschlüsselt (AES-256-GCM, zufälliger Schlüssel pro Prozess, Chiffrat an den Datensatz gebunden).
+Kontingent-Verbrauch, Injection-Sperren und die Freigabeliste werden pro Konto gespeichert und beim Entladen
+geschrieben; Neustarts und Neuladen behalten sie (die monotonen Kontingent-Zeiten werden dafür in Uhrzeiten
+umgerechnet). Der Kontakte-Cache liegt nur im Speicher und hält jede vCard verschlüsselt (AES-256-GCM, zufälliger
+Schlüssel pro Prozess, Chiffrat an den Datensatz gebunden). Die Postfachliste wird einmal pro Konto zwischengespeichert
+und von allen IMAP-Verbindungen des Kontos geteilt.
 
 Die Mail-Automatik fragt beim Server nur neue UIDs ab (`UID n:*`) und speichert UIDVALIDITY pro Postfach; vergibt
 der Server die UIDs neu, wird nichts verarbeitet und der Startpunkt neu gesetzt.
@@ -396,7 +410,7 @@ READMEs, SECURITY.md und dieses Dokument.
 
 ### 8.7 Test und Qualitätssicherung
 
-pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 146 Tests, Frieda Postfach ca. 63 Tests; die
+pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 156 Tests, Frieda Postfach ca. 68 Tests; die
 Postfach-Tests laufen gegen Friedas `main`), eigenschaftsbasierte Tests mit Hypothesis für alles, was Fremddaten
 verarbeitet (vCard, MIME, FETCH-Antworten, modifiziertes UTF-7, Datumsangaben, Abmelde-Links, Bereinigung,
 Injection-Erkennung, Regel-Bedingungen, Regex-Sicherheit, Killswitch; 200 Beispiele pro Test in der CI), Ruff (Lint/Format/Sicherheitsregeln), hassfest, HACS-Prüfung,
@@ -477,6 +491,8 @@ flowchart LR
 | Q6 | Besitzer leert die Killswitch-Liste in den Optionen | Wird leer gespeichert; keine alten Werte kehren zurück |
 | Q7 | Neues Home-Assistant-Release ändert eine Helfer-API | CI gegen die festgelegte HA-Version schlägt vor dem Release fehl; Zwischenschichten (z. B. probatio) kapseln die Änderung |
 | Q8 | Ein Nutzer will wissen, was die KI heute getan hat | Panel „Frieda“: Nutzung und Änderungsprotokoll; Panel „Frieda Postfach“: Bewertungen und „An KI übermittelt“ |
+| Q9 | Home Assistant startet neu, nachdem eine KI das Sende-Kontingent verbraucht und die Injection-Sperre ausgelöst hat | Kontingent und Sperre gelten weiter; eine offene Freigabe erscheint als abgelaufen und wird nie ausgeführt |
+| Q10 | Ein Assistent sendet versehentlich eine Mail, die Sendeverzögerung ist 60 s | Die Mail steht mit „Abbrechen“ in der Liste; im Panel oder in der Benachrichtigung abgebrochen, geht sie nie raus |
 
 ---
 
@@ -486,7 +502,7 @@ flowchart LR
 |---|---|---|
 | Das App-Passwort öffnet das gesamte iCloud-Mail-/Kalender-/Kontaktkonto | Hoch, wenn HA kompromittiert ist | Nur im Config Entry gespeichert, in Diagnosedaten geschwärzt; Leitplanken; im Zweifel bei Apple widerrufen |
 | Apple ändert oder beschränkt CalDAV/CardDAV/IMAP | Funktionen fallen aus | Schlanke Protokoll-Clients, Tests pro Protokoll; keine Abhängigkeit von CloudKit |
-| Wartende Freigaben und Kontingente nur im Speicher | Gehen bei einem HA-Neustart verloren (Anfragen verschwinden, Kontingente starten neu) | Derzeit akzeptiert; spätere Persistenz möglich |
+| Geparkte Aufrufe überstehen keinen Neustart (der Aufruf selbst wird nicht gespeichert) | Offene Freigaben und verzögerte Mails werden beim Neustart geschlossen und müssen neu angefragt werden | Kontingente, Sperren und die Freigabeliste werden gespeichert (ADR-17); die geschlossenen Anfragen bleiben als abgelaufen/abgebrochen sichtbar |
 | Prompt Injection bleibt grundsätzlich möglich | Falsche Sortierung, irreführende Zusammenfassungen | Keine Werkzeuge für die KI, beschränkte Aktionen, Freigaben, Killswitch, Injection-Erkennung |
 | Push deckt nur den Posteingang ab | Andere Postfächer nur alle N Minuten | Dokumentiert; Takt als Rückfallebene |
 | HACS-Listen-Icon nur aus dem Brands-CDN von HA | Platzhalter-Icon in HACS-Listen | Ohne Brands-Repository nicht lösbar; das Logo in der Integration wirkt in HA |
@@ -508,6 +524,7 @@ flowchart LR
 | **Freigabe** | Bestätigung eines geparkten Tool-Aufrufs durch einen Menschen (Human in the Loop) |
 | **Änderungsprotokoll** | Protokoll aller schreibenden Aktionen (`friedafetch_action`) |
 | **Killswitch** | Gesperrte Absender/Domains und Begriffe, die eine Mail von jeder KI fernhalten |
+| **Verzögertes Senden** | Mails von Assistenten warten eine eingestellte Zeit und lassen sich bis dahin abbrechen |
 | **Probelauf** | Regellauf, der nur meldet, was passieren würde |
 | **Startpunkt (Baseline)** | Höchste UID beim ersten Lauf; automatisch verarbeitet werden nur neuere Mails |
 | **HACS** | Home Assistant Community Store, installiert Custom Integrations aus GitHub-Releases |
