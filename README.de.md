@@ -279,6 +279,9 @@ Pfeil verschieben), zwischen voller und halber Breite umschalten und ausblenden;
 Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen ⋮-Menü und fragen immer nach. Die Anordnung wird pro
 Home-Assistant-Benutzer in Home Assistant gespeichert, übersteht also Neustarts und gilt auf allen Geräten.
 
+**Live:** Die Tabellen folgen Änderungen sofort (neue Einträge im Änderungsprotokoll, Freigaben, Ausführungen), ohne
+die Seite neu zu laden; neue Zeilen leuchten kurz auf.
+
 **Frieda UI:** Beide Panels nutzen eine gemeinsame Design-Bibliothek (`/friedafetch_static/ui.js`): Farben aus dem
 Home-Assistant-Theme, Buttons, Chips, Tabellen, Menüs, Dialoge und Widgets. Frieda Postfach lädt sie von Frieda,
 damit alle Module gleich aussehen und sich gleich bedienen. Sie sorgt auch für Barrierefreiheit: Der Fokus bleibt

@@ -190,6 +190,7 @@ flowchart TB
 | `approvals.py` | Parks critical calls (send, delete, mass actions), notifies (persistent + actionable mobile notification), executes on approval, expires after a timeout; delayed sending as a request that executes itself when the delay is over. |
 | `state.py` | Per-account store for quota usage, injection locks and the approval list (written shortly after each change and on unload). |
 | `audit.py` | Ring buffer (500) of writing actions per account, event `friedafetch_action`. |
+| `live.py` | Live-update signal for the panels (account + topic), forwarded by the websocket subscription. |
 | `usage.py` | Counters per account (day, tool, source) and known MCP clients – counts only. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Free slots, birthdays, duplicates, mailbox statistics; RFC 8058 one-click unsubscribe with SSRF protection; safe attachment storage. |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (accounts, overview, usage, audit, approvals) and the web-component panel; texts and styles are separate modules loaded with the panel's version query. |
@@ -392,8 +393,14 @@ errors and continue; the AI sorter keeps the UID of a failed call for the next r
 ### 8.5 User interface
 
 Panels are plain web components (no build step, no external libraries), theme-aware via HA CSS variables, mobile
-layouts with stacked tables, 30-second self refresh, German/English by the HA language. Options flows use menus;
+layouts with stacked tables, live updates (see below), German/English by the HA language. Options flows use menus;
 optional fields use `suggested_value` so that cleared fields stay empty.
+
+Live updates: whatever changes an account's data (change log, approvals, counters, quotas, locks in Frieda; rules,
+runs and AI sorting in Frieda Postfach) sends a dispatcher signal with the account and a topic (`live.py`). Open
+panels subscribe through `friedafetch/subscribe` and `friedafetch_mail/subscribe` and reload only that part, a moment
+later and only when no menu, dialog, editor or input is in use. New rows light up once. A 60-second timer remains for
+relative times and as fallback.
 
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
@@ -452,6 +459,7 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-22 | Panel layout (widget order, width, hidden widgets, table columns) in Home Assistant's frontend user data | Must survive restarts and follow the user across devices without own storage or backend code | Stored per HA user (`frontend/set_user_data`, keys `friedafetch_panel`, `friedafetch_mail_panel`) |
 | ADR-23 | Container queries for tables | Widgets can be half width; tables must switch to the compact layout by widget width, not screen width | Requires a current browser (container queries), as Home Assistant itself does |
 | ADR-24 | One run-history entry per pass of rules and AI sorting | Both act on the same new mail one after the other; showing them apart hid what happened to a message | Timer and push write the entry after the AI step; AI-only passes (no rules, "rate newest") get their own entry; up to 20 messages per pass are kept locally |
+| ADR-25 | Panels update live through Home Assistant's websocket, not through polling or an external broker | Tables lagged up to 30 s behind; a message broker (e.g. Kafka) would add a server without benefit for one instance | Dispatcher signal per change, websocket subscription per open panel, reload of the changed part only; 60-s timer as fallback |
 
 ---
 

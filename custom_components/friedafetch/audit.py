@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import AUDIT_EVENT, AUDIT_MAX_ENTRIES, DOMAIN
+from .live import async_notify
 
 _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
@@ -105,6 +106,7 @@ class AuditLog:
         self._hass.bus.async_fire(
             AUDIT_EVENT, {k: v for k, v in entry.items() if k != "details"} | {"details": details or {}}
         )
+        async_notify(self._hass, self._entry_id, "audit")
         return entry
 
     def entries(self, limit: int = 100, result: str | None = None) -> list[dict[str, Any]]:
@@ -115,3 +117,4 @@ class AuditLog:
         await self.async_load()
         self._entries = []
         await self._store.async_save(self._data())
+        async_notify(self._hass, self._entry_id, "audit")

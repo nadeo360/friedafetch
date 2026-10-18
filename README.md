@@ -218,6 +218,9 @@ the arrows), switch them between full and half width and hide them; tables offer
 such as clearing the log sit in a small ⋮ menu and always ask for confirmation. The layout is stored per Home
 Assistant user in Home Assistant itself, so it survives restarts and follows you to other devices.
 
+**Live:** the tables follow changes right away (new change-log entries, approvals, runs), without reloading the page;
+new rows light up briefly.
+
 **Frieda UI:** both panels use one shared design library (`/friedafetch_static/ui.js`): colours from the Home
 Assistant theme, buttons, chips, tables, menus, dialogs and widgets. Frieda Postfach loads it from Frieda, so every
 module looks and behaves the same. It also covers accessibility: the focus stays in place when a panel redraws,

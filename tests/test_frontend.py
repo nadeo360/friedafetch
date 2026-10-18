@@ -112,3 +112,26 @@ async def test_base_urls_lists_local_external_and_cloud(hass: HomeAssistant) -> 
     hass.config.external_url = "https://abc.ui.nabu.casa"
     with patch("homeassistant.helpers.network._get_cloud_url", return_value="https://abc.ui.nabu.casa"):
         assert [u["kind"] for u in _base_urls(hass)] == ["local", "external"]
+
+
+async def test_subscribe_sends_live_updates(
+    hass: HomeAssistant, mock_discover: AsyncMock, hass_ws_client: WebSocketGenerator
+) -> None:
+    """Open panels learn which part of which account changed, and stop hearing about it after unsubscribing."""
+    entry = await _setup(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "friedafetch/subscribe"})
+    assert (await ws.receive_json())["success"]
+
+    await entry.runtime_data.audit.async_record(tool="icloud_move_mail", action="move", params={}, result="ok")
+    event = await ws.receive_json()
+    assert event["id"] == 1 and event["event"] == {"entry_id": entry.entry_id, "topic": "audit"}
+
+    await entry.runtime_data.usage.async_record(entry.entry_id, "icloud_list_events", write=False, ok=True, source=None)
+    assert (await ws.receive_json())["event"]["topic"] == "usage"
+
+    await ws.send_json({"id": 2, "type": "unsubscribe_events", "subscription": 1})
+    assert (await ws.receive_json())["success"]
+    await entry.runtime_data.audit.async_record(tool="icloud_move_mail", action="move", params={}, result="ok")
+    await ws.send_json({"id": 3, "type": "ping"})
+    assert (await ws.receive_json())["type"] == "pong"  # no event arrived in between

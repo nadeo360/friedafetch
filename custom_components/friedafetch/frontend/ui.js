@@ -560,6 +560,9 @@ const WIDGET_STYLE = `
   table.dtable tr.open > td { border-bottom-color: transparent; background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
   table.dtable tr.detail > td { background: color-mix(in srgb, var(--primary-color) 5%, transparent); padding: 2px 12px 12px; }
   table.dtable tr.dayrow > td { padding: 14px 8px 4px; font-size: 12px; font-weight: 500; color: var(--secondary-text-color); border-bottom: none; text-transform: none; }
+  /* rows that just arrived through a live update light up once */
+  table.dtable tbody tr.fresh > td { animation: frieda-fresh 2.4s ease-out; }
+  @keyframes frieda-fresh { from { background-color: color-mix(in srgb, var(--primary-color) 18%, transparent); } }
   table.dtable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   th button.sort { display: inline-flex; align-items: center; gap: 3px; background: none; color: inherit; font: inherit; padding: 0; min-height: 0; border: none; }
   th button.sort ha-icon { --mdc-icon-size: 14px; opacity: .45; }
@@ -601,6 +604,8 @@ const WIDGET_STYLE = `
     table.dtable tr.open, table.dtable tr.detail { background: color-mix(in srgb, var(--primary-color) 5%, transparent); }
     table.dtable tr.open > td, table.dtable tr.detail > td, table.dtable tbody tr:hover > td { background: none !important; }
     table.dtable tbody tr.row-err > td, table.dtable tbody tr.row-warn > td { background: none !important; }
+    table.dtable tbody tr.fresh { animation: frieda-fresh 2.4s ease-out; }
+    table.dtable tbody tr.fresh > td { animation: none; }
     table.dtable tbody tr.row-err { background: color-mix(in srgb, var(--error-color, #db4437) 7%, transparent); border-radius: 10px; padding-left: 4px; padding-right: 4px; }
     table.dtable tbody tr.row-warn { background: color-mix(in srgb, var(--warning-color, #ffa600) 9%, transparent); border-radius: 10px; padding-left: 4px; padding-right: 4px; }
     table.dtable tr.open { border-radius: 10px 10px 0 0; padding-left: 4px; padding-right: 4px; }
@@ -611,6 +616,9 @@ const WIDGET_STYLE = `
     .ilist .i-sub { grid-row: 2; }
     .ilist .i-chip { grid-column: 2; grid-row: 3; justify-self: start; margin-top: 4px; }
     .ilist .i-ic { grid-row: 1 / span 3; align-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    table.dtable tbody tr.fresh, table.dtable tbody tr.fresh > td { animation: none; }
   }
 `;
 

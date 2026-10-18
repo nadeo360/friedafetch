@@ -16,6 +16,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.hass_dict import HassKey
 
 from .const import DOMAIN
+from .live import async_notify
 
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.usage"
@@ -37,6 +38,7 @@ class UsageStats:
     """Counters for all accounts of this instance."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {"accounts": {}, "clients": {}}
         self._loaded = False
@@ -83,6 +85,7 @@ class UsageStats:
         for key in [d for d in acc["days"] if d < cutoff]:
             del acc["days"][key]
         self._save()
+        async_notify(self._hass, entry_id, "usage")
 
     async def async_note_client(self, name: str, version: str | None, profile: str) -> None:
         """Remember an MCP client that initialised a session on the Frieda endpoint."""
@@ -95,6 +98,7 @@ class UsageStats:
         if len(clients) > MAX_CLIENTS:
             del clients[min(clients, key=lambda n: clients[n].get("last_seen") or "")]
         self._save()
+        async_notify(self._hass, None, "overview")
 
     def clients(self) -> list[dict[str, Any]]:
         items = [{"name": name, **info} for name, info in self._data["clients"].items()]
@@ -147,6 +151,7 @@ class UsageStats:
         await self.async_load()
         self._data["accounts"].pop(entry_id, None)
         self._save()
+        async_notify(self._hass, entry_id, "usage")
 
 
 async def async_get_usage(hass: HomeAssistant) -> UsageStats:

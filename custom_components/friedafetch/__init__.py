@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
@@ -67,6 +68,7 @@ from .dav import DavAuthError, DavClient, DavError
 from .frontend import async_remove_frontend, async_setup_frontend
 from .guard import Guard
 from .install_check import async_check_install
+from .live import async_notify
 from .llm_api import ICloudClients, ICloudLLMAPI
 from .mail import ICloudMail
 from .mcp_http import STREAMABLE_API
@@ -166,12 +168,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
     # quotas, injection locks and approvals survive restarts and reloads
     state = AccountState(hass, entry.entry_id)
     stored = await state.async_load()
+
+    def changed(topic: str) -> Callable[[], None]:
+        """Persist the state and tell open panels which part changed."""
+
+        @callback
+        def _changed() -> None:
+            state.changed()
+            async_notify(hass, entry.entry_id, topic)
+
+        return _changed
+
     clients.guard = Guard(dict(opts))
     clients.guard.restore(stored.get("quotas"))
-    clients.guard.on_change = state.changed
+    clients.guard.on_change = changed("usage")
     state.register("quotas", clients.guard.export)
     clients.restore_locks(stored.get("locks"))
-    clients.on_change = state.changed
+    clients.on_change = changed("overview")
     state.register("locks", clients.export_locks)
     entry.async_on_unload(state.async_flush)
     audit = AuditLog(hass, entry.entry_id, entry.data[CONF_APPLE_ID])
@@ -194,7 +207,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         )
         clients.approvals = approvals
         await approvals.async_record_interrupted(approvals.restore(stored.get("approvals")))
-        approvals.on_change = state.changed
+        approvals.on_change = changed("approvals")
         state.register("approvals", approvals.export)
         entry.async_on_unload(hass.bus.async_listen(MOBILE_ACTION_EVENT, approvals.handle_mobile_action))
         entry.async_on_unload(approvals.shutdown)

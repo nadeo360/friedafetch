@@ -191,6 +191,7 @@ flowchart TB
 | `approvals.py` | Parkt kritische Aufrufe (Senden, Löschen, Massenaktionen), benachrichtigt (persistent + mobile Benachrichtigung mit Aktionen), führt nach Freigabe aus, verfällt nach einer Frist; verzögertes Senden als Anfrage, die sich nach Ablauf der Verzögerung selbst ausführt. |
 | `state.py` | Speicher pro Konto für Kontingent-Verbrauch, Injection-Sperren und die Freigabeliste (kurz nach jeder Änderung und beim Entladen geschrieben). |
 | `audit.py` | Ringpuffer (500) schreibender Aktionen pro Konto, Ereignis `friedafetch_action`. |
+| `live.py` | Live-Signal für die Panels (Konto + Thema), über das WebSocket-Abo weitergereicht. |
 | `usage.py` | Zähler pro Konto (Tag, Tool, Herkunft) und bekannte MCP-Clients – nur Zahlen. |
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Freie Zeiten, Geburtstage, Dubletten, Postfach-Statistik; Ein-Klick-Abmeldung nach RFC 8058 mit SSRF-Schutz; sichere Anhang-Ablage. |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Konten, Überblick, Nutzung, Protokoll, Freigaben) und das Web-Component-Panel; Texte und Styles sind eigene Module, geladen mit der Versionsangabe des Panels. |
@@ -400,9 +401,15 @@ nächsten Lauf.
 ### 8.5 Bedienoberfläche
 
 Panels sind einfache Web Components (kein Build-Schritt, keine externen Bibliotheken), passen sich über
-HA-CSS-Variablen dem Theme an, haben mobile Layouts mit gestapelten Tabellen, aktualisieren sich alle 30 Sekunden
+HA-CSS-Variablen dem Theme an, haben mobile Layouts mit gestapelten Tabellen, aktualisieren sich live (siehe unten)
 und folgen der HA-Sprache (Deutsch/Englisch). Options-Dialoge nutzen Menüs; optionale Felder verwenden
 `suggested_value`, damit geleerte Felder leer bleiben.
+
+Live-Aktualisierung: Was die Daten eines Kontos ändert (Änderungsprotokoll, Freigaben, Zähler, Kontingente, Sperren in
+Frieda; Regeln, Ausführungen und KI-Sortierung in Frieda Postfach), sendet ein Dispatcher-Signal mit Konto und Thema
+(`live.py`). Offene Panels abonnieren es über `friedafetch/subscribe` bzw. `friedafetch_mail/subscribe` und laden nur
+diesen Teil neu – kurz verzögert und nur, wenn gerade kein Menü, Dialog, Editor oder Eingabefeld in Benutzung ist. Neue
+Zeilen leuchten einmal auf. Ein 60-Sekunden-Takt bleibt für relative Zeitangaben und als Rückfallebene.
 
 Barrierefreiheit steckt in Frieda UI, damit jedes Panel sie bekommt: Panels zeichnen ihren Inhalt komplett neu, und
 `keepFocus()` setzt den Fokus danach wieder auf dasselbe Bedienelement (bzw. in einen geöffneten Dialog und zurück
@@ -462,6 +469,7 @@ sich eine Schnittstelle ändert.
 | ADR-22 | Panel-Anordnung (Reihenfolge, Breite, ausgeblendete Widgets, Tabellenspalten) in den Frontend-Benutzerdaten von Home Assistant | Muss Neustarts überstehen und dem Benutzer auf alle Geräte folgen, ohne eigenen Speicher oder Backend-Code | Pro HA-Benutzer gespeichert (`frontend/set_user_data`, Schlüssel `friedafetch_panel`, `friedafetch_mail_panel`) |
 | ADR-23 | Container Queries für Tabellen | Widgets können halb breit sein; Tabellen wechseln nach Widget-Breite ins Kompaktlayout, nicht nach Bildschirmbreite | Setzt einen aktuellen Browser voraus (Container Queries), wie Home Assistant selbst |
 | ADR-24 | Ein Verlaufseintrag pro Durchgang von Regeln und KI-Sortierung | Beide bearbeiten dieselben neuen Mails nacheinander; getrennt angezeigt war nicht erkennbar, was mit einer Mail passiert ist | Takt und Push schreiben den Eintrag nach dem KI-Schritt; reine KI-Durchgänge (keine Regeln, „Neueste bewerten“) erhalten einen eigenen Eintrag; bis zu 20 Mails pro Durchgang werden lokal gespeichert |
+| ADR-25 | Panels aktualisieren sich live über den WebSocket von Home Assistant, nicht per Polling oder externem Broker | Tabellen hingen bis zu 30 s hinterher; ein Message-Broker (z. B. Kafka) brächte einen Server ohne Nutzen für eine Instanz | Dispatcher-Signal pro Änderung, WebSocket-Abo pro offenem Panel, nur der geänderte Teil wird neu geladen; 60-s-Takt als Rückfallebene |
 
 ---
 

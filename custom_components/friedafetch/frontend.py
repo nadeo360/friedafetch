@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.loader import IntegrationNotFound, async_get_integration
 from homeassistant.util.hass_dict import HassKey
@@ -32,6 +33,7 @@ from .const import (
     DEFAULT_READ_ONLY,
     DOMAIN,
 )
+from .live import SIGNAL_PANEL
 from .mail import MailError
 from .mcp_http import DATA_MCP_HTTP, READONLY_API, STREAMABLE_API, async_served_tools
 from .schema import vol
@@ -56,6 +58,7 @@ async def async_setup_frontend(hass: HomeAssistant, version: str) -> None:
     await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(static_dir), cache_headers=False)])
     for command in (
         ws_accounts,
+        ws_subscribe,
         ws_overview,
         ws_usage_reset,
         ws_mailboxes,
@@ -212,6 +215,20 @@ async def _postfach(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
         "version": str(integration.version) if integration and integration.version else None,
         "status": status,
     }
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/subscribe"})
+@websocket_api.require_admin
+@callback
+def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Live updates: sends {entry_id, topic} whenever a part of an account changes, until the panel unsubscribes."""
+
+    @callback
+    def forward(entry_id: str | None, topic: str) -> None:
+        connection.send_message(websocket_api.event_message(msg["id"], {"entry_id": entry_id, "topic": topic}))
+
+    connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_PANEL, forward)
+    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/overview", vol.Optional("entry_id"): str})
