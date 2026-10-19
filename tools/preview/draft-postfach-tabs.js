@@ -44,6 +44,22 @@ const CHROME_CSS = `
     background: color-mix(in srgb, var(--primary-color) 8%, transparent); }
 `;
 
+const LOC_CSS = `
+  .loc { grid-column: 1 / -1; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 2px; align-items: center;
+    margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--secondary-background-color); font-size: 13.5px; --mdc-icon-size: 18px; }
+  .loc .li { display: inline-grid; place-items: center; color: var(--secondary-text-color); }
+  .loc .li .spinner { width: 14px; height: 14px; border-width: 2px; }
+  .loc.same .li { color: var(--frieda-text-ok); }
+  .loc.moved .li { color: var(--frieda-text-info); }
+  .loc.gone .li { color: var(--frieda-text-warn); }
+  .loc .lt { min-width: 0; overflow-wrap: anywhere; }
+  .loc .lt small { display: block; font-size: 12px; color: var(--secondary-text-color); }
+  .loc .note { grid-column: 2 / -1; font-size: 12.5px; color: var(--secondary-text-color); }
+  .loc button.link { font-size: 12.5px; white-space: nowrap; }
+  .sheet-head.drafted .state.box { display: none; }  /* the sheet's folder chip says what Frieda did – the check below says where it is */
+  .sheet-head .loc { margin-top: 6px; }
+`;
+
 const MC_CSS = `
   .mcwrap { container-type: inline-size; }
   .mc { display: grid; grid-template-columns: 216px minmax(300px, 390px) minmax(0, 1fr); height: max(540px, calc(100vh - 196px));
@@ -372,6 +388,7 @@ export async function mount({ el, root, data, q }) {
   chrome.after(act);
   const aroot = act.attachShadow({ mode: "open" });
 
+  const loc = new Map(); // mail → { busy, mailbox, at }: the real place in iCloud, looked up on opening
   const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 50, picking: false, anchor: null, batch: null, folded: new Set() };
   if (!TABS.some(([id]) => id === state.tab)) state.tab = "aktivitaet";
   const rows = activityRows(data, !!q?.get("volume"));
@@ -453,7 +470,7 @@ export async function mount({ el, root, data, q }) {
       `<button class="box" data-box="${esc(id)}" aria-current="${state.box === id}">${ico(icon)}<span class="lbl">${esc(label)}</span><span class="n">${rows.filter(test).length}</span></button>`;
     return `<nav class="rail" aria-label="Ansichten">
         <h3>Ergebnis</h3>${KINDS.filter(([id, , , test]) => id === "all" || rows.some(test)).map(box).join("")}
-        <h3>Liegt jetzt in</h3>${FOLDERS.map(box).join("")}
+        <h3>Von Frieda abgelegt in</h3>${FOLDERS.map(box).join("")}
         <h3>Technik</h3><button class="box" data-act="runs">${ico("format-list-numbered")}<span class="lbl">Durchgänge</span></button>
         <span class="grow"></span>
         <div class="status">${statusItems()}</div>
@@ -551,7 +568,7 @@ export async function mount({ el, root, data, q }) {
           return `<button class="seg ${on ? "on" : ""}" data-day="${esc(d)}" aria-pressed="${on}" ${sel.length ? "" : "disabled"}>${esc(shortDay(d))}<span class="n">${sel.length}</span></button>`;
         }).join("")}</div>` : ""}`
       : `<div class="lrow">
-          <select class="fsel boxsel" data-boxsel aria-label="Ansicht">${opts("Ergebnis", KINDS.filter(([id, , , t]) => id === "all" || rows.some(t)))}${opts("Liegt jetzt in", FOLDERS)}<optgroup label="Technik"><option value="runs">Durchgänge</option></optgroup></select>
+          <select class="fsel boxsel" data-boxsel aria-label="Ansicht">${opts("Ergebnis", KINDS.filter(([id, , , t]) => id === "all" || rows.some(t)))}${opts("Von Frieda abgelegt in", FOLDERS)}<optgroup label="Technik"><option value="runs">Durchgänge</option></optgroup></select>
           <label class="search">${ico("magnify")}<input type="search" data-q value="${esc(state.q)}" placeholder="Suchen" aria-label="Betreff oder Absender suchen"></label>
           <button class="secondary small ib pickbtn" data-act="pick" ${pickable.length ? "" : "disabled"}>${ico("checkbox-multiple-marked-outline")}<span>Auswählen</span></button>
         </div>`;
@@ -600,7 +617,8 @@ export async function mount({ el, root, data, q }) {
             <span class="av" aria-hidden="true">${esc(initials(r.name))}</span>
             <span class="who"><strong>${esc(r.name)}</strong><small>${esc(r.from)}</small></span>
             <span class="date">${esc(fmtDateTime(plus(r.time, -40)))}</span>
-            <div class="chips">${meta(r, true)}${rowBatch(r.i)}</div>
+            <div class="chips">${meta(r)}${rowBatch(r.i)}</div>
+            ${locHtml(r.i)}
           </div>
           <h3 class="sect">Verlauf</h3>
           <ol class="tl">${steps}</ol>
@@ -617,10 +635,10 @@ export async function mount({ el, root, data, q }) {
     const caret = a?.selectionStart;
     const scroll = [aroot.querySelector(".lscroll")?.scrollTop, aroot.querySelector(".rbody")?.scrollTop];
     if (state.box === "runs") {
-      aroot.innerHTML = `<style>${UI_STYLE}${STYLE}${MC_CSS}</style><div class="content widgets" style="padding-bottom:0"><section class="widget w-full"><div class="card"><div class="runsbar">
+      aroot.innerHTML = `<style>${UI_STYLE}${STYLE}${MC_CSS}${LOC_CSS}</style><div class="content widgets" style="padding-bottom:0"><section class="widget w-full"><div class="card"><div class="runsbar">
           <button class="secondary small ib" data-act="back-runs">${ico("chevron-left")}Zurück zu den Mails</button><span class="muted">Durchgänge: die technische Sicht für die Fehlersuche.</span></div></div></section></div>`;
     } else {
-      aroot.innerHTML = `<style>${UI_STYLE}${STYLE}${MC_CSS}</style><div class="content widgets" style="padding-bottom:0"><section class="widget w-full"><div class="mcwrap">
+      aroot.innerHTML = `<style>${UI_STYLE}${STYLE}${MC_CSS}${LOC_CSS}</style><div class="content widgets" style="padding-bottom:0"><section class="widget w-full"><div class="mcwrap">
           <div class="mc">${drawRail()}${drawList()}${drawReader()}</div></div></section></div>`;
       const all = aroot.querySelector('[data-act="all"]');
       if (all && !all.checked) all.indeterminate = listNow().some((r) => r.selectable && state.sel.has(r.i));
@@ -656,8 +674,50 @@ export async function mount({ el, root, data, q }) {
     };
   }
 
+  // Example answers of the lookup (a new websocket command would search iCloud by Message-ID, like the re-rating does):
+  // mostly where Frieda left the mail; some were moved in Apple Mail afterwards, some are gone.
+  function actualPlace(r) {
+    if (r.i % 13 === 7) return null;
+    if (r.i % 6 === 5) return r.folder === "Archive" ? "INBOX" : "Archive";
+    return r.folder;
+  }
+
+  async function locate(i) {
+    const r = rows.find((x) => x.i === i);
+    if (!r || loc.get(i)?.busy) return;
+    loc.set(i, { ...(loc.get(i) || {}), busy: true });
+    refresh(i);
+    await new Promise((res) => setTimeout(res, 700 + (i % 3) * 250));
+    loc.set(i, { busy: false, mailbox: actualPlace(r), at: new Date().toISOString() });
+    refresh(i);
+  }
+
+  function refresh(i) {
+    if (state.open !== i) return;
+    if (el._s.sheet?.key?.message_id === `<draft-${i}@example>`) el._render();
+    else drawActivity();
+  }
+
+  function locHtml(i) {
+    const r = rows.find((x) => x.i === i);
+    const l = loc.get(i);
+    if (!r || !l) return "";
+    if (l.busy && !l.at) return `<div class="loc"><span class="li"><span class="spinner" aria-hidden="true"></span></span><span class="lt">Wird in iCloud gesucht …</span></div>`;
+    const again = `<button class="link" data-act="locate" data-i="${i}" ${l.busy ? "disabled" : ""}>${l.busy ? "Sucht …" : "Erneut prüfen"}</button>`;
+    const at = `geprüft ${clock(l.at)}`;
+    const frieda = r.kind === "del" || r.folder !== "INBOX" ? `Frieda hatte sie nach „${folderName(r.folder)}“ verschoben` : "Frieda hatte sie im Posteingang gelassen";
+    if (!l.mailbox)
+      return `<div class="loc gone" role="status"><span class="li">${ico("help-circle-outline")}</span><span class="lt">Nicht mehr in iCloud gefunden<small>${at}</small></span>${again}
+        <span class="note">${esc(frieda)}; danach wurde sie gelöscht oder der Papierkorb geleert.</span></div>`;
+    if (l.mailbox !== r.folder)
+      return `<div class="loc moved" role="status"><span class="li">${ico("folder-swap-outline")}</span><span class="lt">Liegt jetzt in ${esc(folderName(l.mailbox))}<small>${at}</small></span>${again}
+        <span class="note">${esc(frieda)}; danach wurde sie woanders hin verschoben.</span></div>`;
+    return `<div class="loc same" role="status"><span class="li">${ico("check-circle-outline")}</span><span class="lt">Liegt jetzt in ${esc(folderName(l.mailbox))}<small>${at}</small></span>${again}</div>`;
+  }
+
   function open(i) {
     state.open = i;
+    if (!loc.has(i)) locate(i);
     if (narrow()) {
       const r = rows.find((x) => x.i === i);
       el._s.sheet = { key: { message_id: `<draft-${i}@example>`, subject: r.subject, sender: r.from }, data: sheetData(r), loading: false, error: null };
@@ -709,6 +769,7 @@ export async function mount({ el, root, data, q }) {
     state.shown = 50;
     const test = (VIEWS.find(([id]) => id === box) || [])[3];
     state.open = test && !narrow() && !state.picking ? (rows.find(test)?.i ?? null) : state.open;
+    if (state.open != null && !loc.has(state.open)) locate(state.open);
     draw();
   }
 
@@ -758,6 +819,7 @@ export async function mount({ el, root, data, q }) {
       );
       loadMore.observe(sentinel);
     }
+    on('[data-act="locate"]', (b) => locate(Number(b.dataset.i)));
     on('[data-act="rerate"]', () => rerate([...state.sel]));
     on('[data-act="rerate-one"]', () => rerate([state.open]));
     on('[data-action="rerate-cancel"]', () => el._call(async () => (el._s.ai = await el._ws({ type: "friedafetch_mail/ai/rerate/cancel", entry_id: el._s.entryId }))));
@@ -791,7 +853,7 @@ export async function mount({ el, root, data, q }) {
 
   function draw() {
     const part = state.tab === "aktivitaet" ? (state.box === "runs" ? "runs" : "aktivitaet") : state.tab;
-    sheet.replaceSync(PANEL_CSS.common + PANEL_CSS[part]);
+    sheet.replaceSync(PANEL_CSS.common + PANEL_CSS[part] + LOC_CSS);
     drawChrome();
     drawActivity();
   }
@@ -801,6 +863,15 @@ export async function mount({ el, root, data, q }) {
   let lastBatch = "";
   el._render = (...args) => {
     const out = panelRender(...args);
+    const mid = el._s.sheet?.key?.message_id || "";
+    const head = mid.startsWith("<draft-") && root.querySelector(".sheet-head");
+    if (head) {
+      const i = Number(mid.slice(7, mid.indexOf("@")));
+      head.classList.add("drafted");
+      head.querySelector(".loc")?.remove();
+      head.insertAdjacentHTML("beforeend", locHtml(i));
+      head.querySelector('[data-act="locate"]')?.addEventListener("click", () => locate(i));
+    }
     const key = JSON.stringify(el._s.ai?.batch || null) + el._s.batchHidden;
     if (key !== lastBatch) {
       lastBatch = key;
@@ -810,6 +881,9 @@ export async function mount({ el, root, data, q }) {
   };
 
   // wide screens start with the newest mail open, like a mail program
-  if (innerWidth > 720 && rows.length) state.open = rows[0].i;
+  if (innerWidth > 720 && rows.length) {
+    state.open = rows[0].i;
+    locate(rows[0].i);
+  }
   draw();
 }
