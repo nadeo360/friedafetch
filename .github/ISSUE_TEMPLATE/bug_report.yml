@@ -1,0 +1,57 @@
+name: Bug report / Fehler melden
+description: Something in Frieda does not work as described. / Etwas funktioniert nicht wie beschrieben.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please never post** app-specific passwords, tokens, mail contents or private addresses – remove them from
+        logs and screenshots. Security problems go to the private report form (see SECURITY.md), not here.
+
+        **Bitte niemals posten:** app-spezifische Passwörter, Tokens, Mail-Inhalte oder private Adressen – aus Logs und
+        Screenshots entfernen. Sicherheitsprobleme bitte über das private Meldeformular (siehe SECURITY.md), nicht hier.
+  - type: input
+    id: version
+    attributes:
+      label: Frieda version / Version
+      placeholder: e.g. 1.2.3
+    validations:
+      required: true
+  - type: input
+    id: other
+    attributes:
+      label: Other versions / Weitere Versionen
+      description: Home Assistant and Frieda / Frieda Postfach (Settings → About, HACS)
+      placeholder: e.g. Home Assistant 2026.10.1, Frieda 2.0.14, Frieda Postfach 1.0.19
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Was ist passiert?
+      description: What did you do, what did you expect, what happened instead? / Was hast du gemacht, was erwartet, was ist stattdessen passiert?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Schritte zum Nachstellen
+      placeholder: |
+        1. …
+        2. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt / Log-Auszug
+      description: Settings → System → Logs, filter for `friedafetch`. Remove personal data. / Einstellungen → System → Protokolle, nach `friedafetch` filtern. Persönliche Daten entfernen.
+      render: text
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where do you use it? / Wo nutzt du es?
+      multiple: true
+      options:
+        - Browser
+        - Home Assistant app (iOS)
+        - Home Assistant app (Android)
+        - Other / Andere

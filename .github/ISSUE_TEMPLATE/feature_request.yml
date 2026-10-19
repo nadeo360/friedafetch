@@ -1,0 +1,23 @@
+name: Idea / Idee
+description: Suggest an improvement for Frieda. / Eine Verbesserung für Frieda vorschlagen.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do? / Was möchtest du erreichen?
+      description: Describe the situation and the goal rather than a solution. / Beschreibe Situation und Ziel, nicht gleich die Lösung.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea / Deine Idee
+      description: How could it work? Mockups and examples are welcome. / Wie könnte es funktionieren? Skizzen und Beispiele sind willkommen.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy / Datenschutz
+      options:
+        - label: My description contains no passwords, mail contents or private addresses. / Meine Beschreibung enthält keine Passwörter, Mail-Inhalte oder privaten Adressen.
+          required: true

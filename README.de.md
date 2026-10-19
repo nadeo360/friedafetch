@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/nadeo360/friedafetch/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nadeo360/friedafetch/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/friedafetch/actions/workflows/validate.yml"><img alt="hassfest & HACS" src="https://github.com/nadeo360/friedafetch/actions/workflows/validate.yml/badge.svg"></a>
-  <a href="https://github.com/nadeo360/friedafetch/security/code-scanning"><img alt="CodeQL" src="https://img.shields.io/badge/CodeQL-default%20setup-2ea44f"></a>
+  <a href="https://github.com/nadeo360/friedafetch/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/nadeo360/friedafetch/actions/workflows/codeql.yml/badge.svg"></a>
   <a href="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml"><img alt="Dependency audit" src="https://github.com/nadeo360/friedafetch/actions/workflows/security.yml/badge.svg"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/nadeo360/friedafetch"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/nadeo360/friedafetch/badge"></a>
   <a href="https://github.com/nadeo360/friedafetch/releases"><img alt="Release" src="https://img.shields.io/github/v/release/nadeo360/friedafetch?display_name=tag"></a>
@@ -398,6 +398,8 @@ automation:
   `mcp`, `anyio`).
 
 ## Entwicklung
+
+Wie du Fehler meldest, Ideen einbringst und Pull Requests schickst: [CONTRIBUTING.md](https://github.com/nadeo360/friedafetch/blob/main/CONTRIBUTING.md).
 
 Die Architektur von Frieda und Frieda Postfach beschreibt das arc42-Dokument [docs/architecture.de.md](https://github.com/nadeo360/friedafetch/blob/main/docs/architecture.de.md).
 
