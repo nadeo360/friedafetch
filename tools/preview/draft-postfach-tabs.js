@@ -89,8 +89,20 @@ const MC_CSS = `
   .lscroll, .rbody, .rail { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--secondary-text-color) 40%, transparent) transparent; }
   .lscroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   ul.mlist { list-style: none; margin: 0; padding: 0; }
-  .mlist li.day { position: sticky; top: 0; z-index: 2; padding: 12px 16px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-    color: var(--secondary-text-color); background: var(--card-background-color, #fff); }
+  .mlist li.day { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 10px 16px 4px;
+    background: var(--card-background-color, #fff); }
+  .listpane.picking .mlist li.day { padding-left: 16px; }
+  button.dayfold { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--secondary-text-color); min-height: 0;
+    font: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; --mdc-icon-size: 16px; }
+  button.dayfold[disabled] { cursor: default; }
+  button.dayfold .dn { font-weight: 500; letter-spacing: 0; opacity: .8; }
+  button.dayfold .dn::before { content: "· "; }
+  button.dayfold:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
+  .lmore { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; font-size: 13px; }
+  .lmore .spinner { width: 14px; height: 14px; border-width: 2px; }
+  .daypicks { display: flex; flex-wrap: wrap; gap: 6px; }
+  .daypicks .seg { background: var(--secondary-background-color); }
+  .daypicks .seg.on { background: color-mix(in srgb, var(--primary-color) 16%, transparent); color: var(--primary-text-color); box-shadow: none; }
   .mlist li.m { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 10px; align-items: start; margin: 0 6px; padding: 9px 10px 10px;
     border-radius: 10px; }
   .mlist li.m + li.m::after { content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 1px; background: var(--divider-color, #e0e0e0); }
@@ -226,6 +238,48 @@ const EXTRA = [
   { ago: 60 * 23, subject: "Rabatt-Code nur heute", from: "promo@werbung.example", name: "Werbung", kind: "del", rule: "Werbung & Newsletter löschen" },
 ];
 
+// "volume=1": a busy mailbox – about 100 mails today, 60 yesterday, 30 the day before (example senders only)
+const SENDERS = [
+  ["Gartenmarkt", "news@gartenmarkt.example", "news", ["Herbstpflanzen jetzt 20 % günstiger", "Ihr Wochenangebot", "Nur heute: Gratis-Versand"]],
+  ["Möbelhaus", "newsletter@moebel.example", "news", ["Neue Kollektion ist da", "Sofa-Wochen: bis zu 40 %", "Ihr persönlicher Gutschein"]],
+  ["Shop Versand", "versand@shop.example", "bill", ["Ihre Bestellung ist unterwegs", "Rechnung zu Ihrer Bestellung", "Zustellung heute zwischen 10 und 14 Uhr"]],
+  ["Stadtwerke", "rechnung@stadtwerke.example", "bill", ["Ihre Abschlagsrechnung", "Zählerstand bitte melden"]],
+  ["Erika Mustermann", "erika@example.com", "personal", ["Kurze Frage zu Samstag", "Fotos vom Wochenende", "Re: Termin nächste Woche"]],
+  ["Anna Beispiel", "anna@example.com", "personal", ["Treffen am Donnerstag?", "Danke dir!"]],
+  ["Verein Vorstand", "vorstand@verein.example", "personal", ["Einladung zur Mitgliederversammlung", "Protokoll der Sitzung"]],
+  ["CI-Server", "ci@code.example", "ci", ["Run failed: CI - main", "Run failed: nightly", "[bot] Bump dependency"]],
+  ["Werbung", "promo@werbung.example", "promo", ["Rabatt-Code nur heute", "Sie haben gewonnen!", "Letzte Chance"]],
+  ["Reiseportal", "noreply@reiseportal.example", "bill", ["Ihre Buchungsbestätigung", "Check-in jetzt möglich"]],
+  ["Praxis Dr. Beispiel", "praxis@example.com", "held", ["Befund", "Terminerinnerung"]],
+];
+function volumeRows() {
+  const out = [];
+  const midnight = new Date(new Date().toDateString()).getTime();
+  const plan = [[0, 100, Date.now() - midnight - 120000], [1, 60, 86400000], [2, 30, 86400000]];
+  let k = 0;
+  for (const [daysAgo, n, span] of plan) {
+    for (let j = 0; j < n; j++, k++) {
+      const [name, from, type, subjects] = SENDERS[(k * 7 + j) % SENDERS.length];
+      const time = new Date(midnight - daysAgo * 86400000 + Math.round(((j + 0.5) / n) * span)).toISOString();
+      const subject = subjects[(k + j) % subjects.length];
+      const base = { time, trigger: k % 9 ? "push" : "auto", subject, from, name, rule: "", category: "", applied: [], volume: true };
+      if (type === "ci") out.push({ ...base, kind: "del", rule: "CI-Meldungen löschen" });
+      else if (type === "promo") out.push({ ...base, kind: "del", rule: "Werbung & Newsletter löschen" });
+      else if (type === "held") out.push({ ...base, kind: "held" });
+      else if (k % 17 === 0) out.push({ ...base, kind: "none" });
+      else {
+        const [category, importance, applied, reason] = {
+          news: ["Newsletter & Werbung", 1, ["moved:Deleted Messages"], "Werblicher Newsletter."],
+          bill: ["Rechnungen & Belege", 3, [], "Beleg oder Versandinformation."],
+          personal: ["Persönlich & wichtig", 4, ["flagged", "notified"], "Persönliche Nachricht eines Kontakts."],
+        }[type];
+        out.push({ ...base, kind: "ai", category, importance, applied, reason });
+      }
+    }
+  }
+  return out;
+}
+
 const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").trim();
 const initials = (name) =>
   String(name)
@@ -241,11 +295,12 @@ const dayLabel = (iso) => {
   const days = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 86400000);
   return days === 0 ? "Heute" : days === 1 ? "Gestern" : d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
 };
+const shortDay = (d) => d.replace(/^(\p{L}+), (\d+)\. (\p{L}{3})\p{L}*$/u, "$1, $2. $3"); // "Freitag, 17. Okt"
 const clock = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const plus = (iso, s) => new Date(new Date(iso).getTime() + s * 1000).toISOString();
 
 // One entry per mail: what the rules or the AI did with it (from the example runs and ratings).
-function activityRows(data) {
+function activityRows(data, volume = false) {
   const ratings = data["friedafetch_mail/ai"]?.ratings || [];
   const seen = new Set();
   const rows = [];
@@ -281,6 +336,7 @@ function activityRows(data) {
   }
   const now = Date.now();
   for (const x of EXTRA) rows.push({ ...x, time: new Date(now - x.ago * 60000).toISOString(), trigger: "push", rule: x.rule || "", category: x.category || "", applied: x.applied || [] });
+  if (volume) rows.push(...volumeRows());
   rows.sort((a, b) => (a.time < b.time ? 1 : -1));
   rows.forEach((r, i) => {
     r.i = i;
@@ -306,7 +362,7 @@ function timeline(r) {
   return ev;
 }
 
-export async function mount({ el, root, data }) {
+export async function mount({ el, root, data, q }) {
   const sheet = new CSSStyleSheet();
   root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
   const chrome = document.createElement("div");
@@ -316,9 +372,9 @@ export async function mount({ el, root, data }) {
   chrome.after(act);
   const aroot = act.attachShadow({ mode: "open" });
 
-  const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 25, picking: false, anchor: null, batch: null };
+  const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 50, picking: false, anchor: null, batch: null, folded: new Set() };
   if (!TABS.some(([id]) => id === state.tab)) state.tab = "aktivitaet";
-  const rows = activityRows(data);
+  const rows = activityRows(data, !!q?.get("volume"));
   const ai = data["friedafetch_mail/ai"];
   const auto = data["friedafetch_mail/rules/list"]?.automation || {};
   const lastErr = (data["friedafetch_mail/rules/history"]?.runs || []).find((r) => (r.errors || []).length);
@@ -429,24 +485,36 @@ export async function mount({ el, root, data }) {
     const allPicked = pickable.length > 0 && pickable.every((r) => state.sel.has(r.i));
     const somePicked = pickable.some((r) => state.sel.has(r.i));
     const opts = (group, items) => `<optgroup label="${group}">${items.map(([id, l, , tst]) => `<option value="${esc(id)}" ${state.box === id ? "selected" : ""}>${esc(l)} (${rows.filter(tst).length})</option>`).join("")}</optgroup>`;
-    let day = "";
-    const items = list
-      .slice(0, state.shown)
-      .map((r) => {
-        const d = dayLabel(r.time);
-        const head = d !== day ? `<li class="day" aria-hidden="true">${esc((day = d))}</li>` : "";
+    // the days of the whole view (also the mails not shown yet): their count, and in picking one box per day
+    const days = new Map();
+    for (const r of list) {
+      const d = dayLabel(r.time);
+      if (!days.has(d)) days.set(d, []);
+      days.get(d).push(r);
+    }
+    const dayHead = (d) => {
+      const all = days.get(d);
+      const sel = all.filter((r) => r.selectable);
+      const on = sel.length > 0 && sel.every((r) => state.sel.has(r.i));
+      const folded = state.folded.has(d) && !state.picking;
+      const box = state.picking
+        ? `<input type="checkbox" class="selbox" data-day="${esc(d)}" ${on ? "checked" : ""} ${sel.length ? "" : "disabled"} aria-label="${esc(`Alle von ${d} auswählen (${sel.length})`)}">`
+        : "";
+      return `<li class="day">${box}<button class="dayfold" data-fold="${esc(d)}" aria-expanded="${!folded}" ${state.picking ? "disabled" : ""}>${state.picking ? "" : ico(folded ? "chevron-right" : "chevron-down")}<span>${esc(d)}</span><span class="dn">${all.length}</span></button></li>`;
+    };
+    // day by day: the header (with its count), then its mails up to the current chunk; a folded day costs nothing
+    const row = (r, d) => {
         const picked = state.sel.has(r.i);
-        // picking: the whole row is the checkbox; otherwise the avatar is a shortcut into picking
         // only while picking: a round box in front of each mail (rule hits stay without one)
         const av = state.picking ? `<span class="av ${r.selectable ? "pick" : "off"}" aria-hidden="true">${picked ? ico("check") : ""}</span>` : "";
-        const when = d === "Heute" ? clock(r.time) : d === "Gestern" ? "Gestern" : new Date(r.time).toLocaleDateString("de-DE");
+        const when = clock(r.time); // the day stands in the header above
         const name = `${r.name}, ${r.subject}, ${d} ${clock(r.time)}`;
         const role = state.picking
           ? r.selectable
             ? `role="checkbox" aria-checked="${picked}" aria-label="${esc(name)}"`
             : `aria-disabled="true" aria-label="${esc(`${name} – von einer Regel erledigt, nicht für die KI`)}"`
           : `aria-current="${state.open === r.i}" aria-label="${esc(name)}"`;
-        return `${head}<li class="m ${!state.picking && state.open === r.i ? "open" : ""} ${picked ? "picked" : ""} ${state.picking && !r.selectable ? "dim" : ""}">
+        return `<li class="m ${!state.picking && state.open === r.i ? "open" : ""} ${picked ? "picked" : ""} ${state.picking && !r.selectable ? "dim" : ""}">
             ${av}
             <button class="mitem" data-open="${r.i}" ${role}>
               <span class="r1"><span class="from">${esc(r.name)}</span><span class="time">${esc(when)}</span></span>
@@ -454,14 +522,34 @@ export async function mount({ el, root, data }) {
               <span class="r3">${meta(r)}${rowBatch(r.i)}</span>
             </button>
           </li>`;
-      })
-      .join("");
-    const more = list.length > state.shown ? `<div class="lempty"><button class="secondary small" data-act="more">Weitere ${Math.min(25, list.length - state.shown)} anzeigen</button></div>` : "";
+    };
+    let budget = state.shown;
+    let left = 0;
+    const parts = [];
+    for (const [d, all] of days) {
+      const folded = state.folded.has(d) && !state.picking;
+      if (budget <= 0) {
+        if (!folded) left += all.length;
+        continue;
+      }
+      parts.push(dayHead(d));
+      if (folded) continue;
+      all.slice(0, budget).forEach((r) => parts.push(row(r, d)));
+      left += Math.max(0, all.length - budget);
+      budget -= all.length;
+    }
+    const items = parts.join("");
+    const more = left > 0 ? `<div class="lmore" data-more-sentinel><span class="spinner" aria-hidden="true"></span><button class="link small" data-act="more">Weitere ${Math.min(50, left)} anzeigen</button><span class="muted">noch ${left}</span></div>` : "";
     const tools = state.picking
       ? `<div class="pickbar">
           <label class="pickall"><input type="checkbox" class="selbox" data-act="all" ${allPicked ? "checked" : ""} ${pickable.length ? "" : "disabled"}><span>Alle auswählen <span class="muted">(${pickable.length})</span></span></label>
           <span class="grow"></span><button class="link" data-act="pick-done">Fertig</button>
-        </div>`
+        </div>
+        ${days.size > 1 ? `<div class="daypicks" role="group" aria-label="Nach Tag auswählen">${[...days.entries()].slice(0, 3).map(([d, all]) => {
+          const sel = all.filter((r) => r.selectable);
+          const on = sel.length > 0 && sel.every((r) => state.sel.has(r.i));
+          return `<button class="seg ${on ? "on" : ""}" data-day="${esc(d)}" aria-pressed="${on}" ${sel.length ? "" : "disabled"}>${esc(shortDay(d))}<span class="n">${sel.length}</span></button>`;
+        }).join("")}</div>` : ""}`
       : `<div class="lrow">
           <select class="fsel boxsel" data-boxsel aria-label="Ansicht">${opts("Ergebnis", KINDS.filter(([id, , , t]) => id === "all" || rows.some(t)))}${opts("Liegt jetzt in", FOLDERS)}<optgroup label="Technik"><option value="runs">Durchgänge</option></optgroup></select>
           <label class="search">${ico("magnify")}<input type="search" data-q value="${esc(state.q)}" placeholder="Suchen" aria-label="Betreff oder Absender suchen"></label>
@@ -618,11 +706,13 @@ export async function mount({ el, root, data }) {
   // a new view shows its newest mail (wide screens) – never a mail that is not in the list
   function switchBox(box) {
     state.box = box;
-    state.shown = 25;
+    state.shown = 50;
     const test = (VIEWS.find(([id]) => id === box) || [])[3];
     state.open = test && !narrow() && !state.picking ? (rows.find(test)?.i ?? null) : state.open;
     draw();
   }
+
+  let loadMore = null;
 
   function bind() {
     const on = (sel, fn, type = "click") => aroot.querySelectorAll(sel).forEach((n) => n.addEventListener(type, (ev) => fn(n, ev)));
@@ -631,7 +721,7 @@ export async function mount({ el, root, data }) {
     on("[data-boxsel]", (s) => switchBox(s.value), "change");
     on('[data-act="runs"]', () => ((state.box = "runs"), draw()));
     on('[data-act="back-runs"]', () => ((state.box = "all"), draw()));
-    on('[data-act="more"]', () => ((state.shown += 25), draw()));
+    on('[data-act="more"]', () => ((state.shown += 50), draw()));
     on('[data-act="pick"]', () => ((state.picking = true), draw(), aroot.querySelector('[data-act="all"]')?.focus()));
     on('[data-act="pick-done"]', () => (stopPicking(), aroot.querySelector('[data-act="pick"]')?.focus()));
     on('[data-act="all"]', (c) => {
@@ -640,6 +730,34 @@ export async function mount({ el, root, data }) {
       else pickable.forEach((r) => state.sel.delete(r.i));
       draw();
     }, "change");
+    on("[data-day]", (b, ev) => {
+      ev.stopPropagation();
+      const all = listNow().filter((r) => r.selectable && dayLabel(r.time) === b.dataset.day);
+      const on = all.every((r) => state.sel.has(r.i));
+      all.forEach((r) => (on ? state.sel.delete(r.i) : state.sel.add(r.i)));
+      draw();
+    });
+    on("[data-fold]", (b) => {
+      const d = b.dataset.fold;
+      if (state.folded.has(d)) state.folded.delete(d);
+      else state.folded.add(d);
+      draw();
+    });
+    // load the next mails shortly before the end of the list (the button stays for keyboards)
+    loadMore?.disconnect();
+    const sentinel = aroot.querySelector("[data-more-sentinel]");
+    if (sentinel && "IntersectionObserver" in window) {
+      loadMore = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          loadMore.disconnect();
+          state.shown += 50;
+          draw();
+        },
+        { root: narrow() ? null : aroot.querySelector(".lscroll"), rootMargin: "300px" }
+      );
+      loadMore.observe(sentinel);
+    }
     on('[data-act="rerate"]', () => rerate([...state.sel]));
     on('[data-act="rerate-one"]', () => rerate([state.open]));
     on('[data-action="rerate-cancel"]', () => el._call(async () => (el._s.ai = await el._ws({ type: "friedafetch_mail/ai/rerate/cancel", entry_id: el._s.entryId }))));
@@ -651,7 +769,7 @@ export async function mount({ el, root, data }) {
       if (state.picking || ev.metaKey || ev.ctrlKey || ev.shiftKey) toggle(i, ev);
       else open(i);
     });
-    on("[data-q]", (inp) => ((state.q = inp.value), (state.shown = 25), draw()), "input");
+    on("[data-q]", (inp) => ((state.q = inp.value), (state.shown = 50), draw()), "input");
     on(".mc", (n, ev) => ev.key === "Escape" && state.picking && (stopPicking(), aroot.querySelector('[data-act="pick"]')?.focus()), "keydown");
     // arrow keys move through the list like in a mail program
     on(
