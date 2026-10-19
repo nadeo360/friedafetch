@@ -1,0 +1,203 @@
+<title>Frieda Dev-Vorschau</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a quiet control bar on top, the panel below it as large as possible (an iPhone-sized frame on request). */
+  :root {
+    --bg: #eef0f2;
+    --bar: #ffffff;
+    --fg: #1d2329;
+    --muted: #5d6873;
+    --line: #d6dbe0;
+    --fill: #e4e8ec;
+    --accent: #2f6f8f;
+    --on-accent: #ffffff;
+    --frame: #1d2329;
+    --warn: #9a5200;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181c; --bar: #1c2126; --fg: #e6eaee; --muted: #9aa5b0; --line: #2e353c; --fill: #262d33;
+      --accent: #7fb6d4; --on-accent: #0f1a20; --frame: #050607; --warn: #f0b060; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181c; --bar: #1c2126; --fg: #e6eaee; --muted: #9aa5b0; --line: #2e353c; --fill: #262d33;
+    --accent: #7fb6d4; --on-accent: #0f1a20; --frame: #050607; --warn: #f0b060; color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; display: flex; flex-direction: column; }
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bar); border-bottom: 1px solid var(--line);
+    padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 8px;
+  }
+  .top { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; }
+  .stamp { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .stamp code { font-family: var(--mono); font-size: 12px; color: var(--fg); }
+  .stamp .warn { color: var(--warn); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: var(--fill); }
+  .seg button {
+    font: inherit; font-size: 13px; border: 0; border-radius: 6px; padding: 5px 11px; background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--bar); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  label.scn { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; min-width: 0; }
+  select {
+    font: inherit; font-size: 13px; color: var(--fg); background: var(--bar); border: 1px solid var(--line); border-radius: 8px;
+    padding: 5px 8px; max-width: min(320px, 70vw);
+  }
+  .icon-btn {
+    font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bar); color: var(--fg); border-radius: 8px;
+    padding: 5px 10px; cursor: pointer;
+  }
+  button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details.news { font-size: 13px; }
+  details.news summary { cursor: pointer; color: var(--accent); width: max-content; }
+  .log { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 24px; margin-top: 8px; }
+  .log h2 { margin: 0 0 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+  .log li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; min-width: 0; }
+  .log li code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .log li span { overflow-wrap: anywhere; }
+  main { flex: 1; display: flex; justify-content: center; align-items: flex-start; min-height: 0; padding-block: 0; }
+  main.phone { padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  iframe { border: 0; width: 100%; height: 100%; min-height: 70vh; background: var(--bg); display: block; }
+  main.phone iframe { width: 402px; max-width: 100%; height: 874px; min-height: 0; border-radius: 28px; border: 8px solid var(--frame); box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  @media (max-width: 720px) {
+    .wide-only { display: none; }
+    main.phone { padding: 0; }
+    main.phone iframe { width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header>
+  <div class="top">
+    <h1>Frieda Dev-Vorschau</h1>
+    <span class="stamp" id="stamp">Stand wird geladen …</span>
+  </div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Panel" id="panel-seg">
+      <button type="button" data-panel="frieda" aria-pressed="true">Frieda</button>
+      <button type="button" data-panel="postfach" aria-pressed="false">Postfach</button>
+    </div>
+    <div class="seg" role="group" aria-label="Darstellung" id="theme-seg">
+      <button type="button" data-theme-choice="light" aria-pressed="true">Hell</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dunkel</button>
+    </div>
+    <div class="seg wide-only" role="group" aria-label="Breite" id="width-seg">
+      <button type="button" data-width="desktop" aria-pressed="true">Desktop</button>
+      <button type="button" data-width="phone" aria-pressed="false">iPhone</button>
+    </div>
+    <label class="scn" for="scenario">Szenario <select id="scenario"></select></label>
+    <button type="button" class="icon-btn" id="reload" title="Panel neu laden">Neu laden</button>
+  </div>
+  <details class="news" id="news">
+    <summary>Letzte Änderungen auf dev</summary>
+    <div class="log" id="log"></div>
+  </details>
+</header>
+<main id="stage"><iframe id="view" title="Panel-Vorschau"></iframe></main>
+
+<script>
+  // Example data only: no real accounts, mails or AI calls. The panels are the code of the dev branch.
+  const SCENARIOS = {
+    frieda: [
+      ["", "Überblick"],
+      ["approvals=1", "Offene Freigaben"],
+      ["scene=fmails", "Änderungsprotokoll mit Mails"],
+      ["scene=fcolopen", "Spalten-Menü"],
+      ["scene=fpaging", "Seiten im Änderungsprotokoll"],
+      ["update=1", "Hinweis: neue Version"],
+    ],
+    postfach: [
+      ["", "Alles"],
+      ["scene=tl", "Verlauf einer Mail"],
+      ["scene=tlheld", "Verlauf: Killswitch"],
+      ["pending=1&scene=history", "Laufender Push-Durchgang"],
+      ["many=1&scene=pagershot", "Viele Einträge (Seiten)"],
+      ["scene=edit", "Regel bearbeiten"],
+      ["scene=catedit", "Kategorie bearbeiten"],
+      ["scene=menu", "Ausführen-Menü"],
+      ["scene=rowmenu", "Regel-Menü"],
+      ["scene=confirm", "Bestätigungsdialog"],
+      ["update=1", "Hinweis: neue Version"],
+    ],
+  };
+  const KEY = "frieda-dev-preview";
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  let state = { panel: "frieda", theme: prefersDark ? "dark" : "light", width: "desktop", scenario: { frieda: "", postfach: "" } };
+  try {
+    state = { ...state, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
+  } catch (err) {
+    /* no storage: defaults */
+  }
+  const $ = (id) => document.getElementById(id);
+  const save = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (err) {
+      /* fine */
+    }
+  };
+
+  function render() {
+    for (const b of document.querySelectorAll("[data-panel]")) b.setAttribute("aria-pressed", String(b.dataset.panel === state.panel));
+    for (const b of document.querySelectorAll("[data-theme-choice]")) b.setAttribute("aria-pressed", String(b.dataset.themeChoice === state.theme));
+    for (const b of document.querySelectorAll("[data-width]")) b.setAttribute("aria-pressed", String(b.dataset.width === state.width));
+    const sel = $("scenario");
+    sel.innerHTML = SCENARIOS[state.panel].map(([q, label]) => `<option value="${q}">${label}</option>`).join("");
+    sel.value = state.scenario[state.panel] || "";
+    $("stage").classList.toggle("phone", state.width === "phone");
+    load();
+  }
+
+  function load() {
+    const params = new URLSearchParams(state.scenario[state.panel] || "");
+    if (state.theme === "dark") params.set("dark", "1");
+    params.set("t", Date.now().toString(36)); // a fresh page, so the panel starts from its example data again
+    $("view").src = `${state.panel}.html?${params}`;
+  }
+
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button");
+    if (!b) return;
+    if (b.dataset.panel) state.panel = b.dataset.panel;
+    else if (b.dataset.themeChoice) state.theme = b.dataset.themeChoice;
+    else if (b.dataset.width) state.width = b.dataset.width;
+    else if (b.id === "reload") return load();
+    else return;
+    save();
+    render();
+  });
+  $("scenario").addEventListener("change", (ev) => {
+    state.scenario[state.panel] = ev.target.value;
+    save();
+    load();
+  });
+
+  // which dev state is shown
+  fetch("version.json")
+    .then((r) => r.json())
+    .then((v) => {
+      const when = new Date(v.built).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      const repo = (name, s) =>
+        `${name} <code>${s.branch} ${s.commit}</code>${s.dirty ? ' <span class="warn">(ungespeicherte Änderungen)</span>' : ""}`;
+      $("stamp").innerHTML = `${repo("Frieda", v.frieda)} · ${repo("Postfach", v.postfach)} · gebaut ${when}`;
+      const list = (title, s) =>
+        `<div><h2>${title}</h2><ol>${s.log
+          .map((c) => `<li><code>${c.commit}</code><span>${c.subject.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[m])}</span></li>`)
+          .join("")}</ol></div>`;
+      $("log").innerHTML = list("Frieda", v.frieda) + list("Frieda Postfach", v.postfach);
+    })
+    .catch(() => ($("stamp").textContent = "Stand unbekannt"));
+
+  render();
+</script>

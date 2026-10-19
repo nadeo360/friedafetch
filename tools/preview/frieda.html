@@ -1,0 +1,216 @@
+<!doctype html><html lang="de"><head><title>Frieda Dev-Vorschau</title><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<style>
+  :root { --primary-color:#D97757; --accent-color:#D97757; --primary-text-color:#141413; --secondary-text-color:#73726C; --primary-background-color:#FAF9F5; --secondary-background-color:#F0EEE6; --card-background-color:#FFFFFF; --divider-color:rgba(20,20,19,.07); --error-color:#C15F3C; --warning-color:#D4A27F; --success-color:#788C5D; --text-primary-color:#FFFFFF; --app-header-background-color:#FAF9F5; --app-header-text-color:#141413; --ha-card-border-radius:22px; --ha-card-box-shadow:0 1px 2px rgba(20,20,19,.04),0 6px 20px rgba(20,20,19,.05); --ha-card-border-width:0px; }
+  :root.dark { --primary-text-color:#E8E6DE; --secondary-text-color:#A3A199; --primary-background-color:#1F1E1C; --secondary-background-color:#2A2926; --card-background-color:#262624; --divider-color:rgba(255,255,255,.08); --app-header-background-color:#1F1E1C; --app-header-text-color:#E8E6DE; }
+  body { margin:0; font-family: Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--primary-background-color); }
+</style></head><body>
+<script>window.__errs=[];window.addEventListener("error",e=>{window.__errs.push(String(e.message));document.body&&document.body.setAttribute("data-err",window.__errs.join(" | "))});window.addEventListener("unhandledrejection",e=>{window.__errs.push(String(e.reason&&e.reason.stack||e.reason));document.body.setAttribute("data-err",window.__errs.join(" | "))});</script>
+<script type="module">
+import * as mdi from "https://cdn.jsdelivr.net/npm/@mdi/js@7.4.47/+esm";
+const q = new URLSearchParams(location.search);
+if (q.get("dark")) document.documentElement.classList.add("dark");
+customElements.define("ha-icon", class extends HTMLElement {
+  static get observedAttributes() { return ["icon"]; }
+  connectedCallback() { this.draw(); }
+  attributeChangedCallback() { this.draw(); }
+  draw() {
+    const name = (this.getAttribute("icon") || "").replace("mdi:", "");
+    const key = "mdi" + name.split("-").map((p) => p[0].toUpperCase() + p.slice(1)).join("");
+    const path = mdi[key];
+    if (!path) console.error("missing icon", name);
+    this.style.cssText += "display:inline-flex;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px)";
+    this.innerHTML = `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor"><path d="${path || ""}"/></svg>`;
+  }
+});
+customElements.define("ha-menu-button", class extends HTMLElement {});
+const now = new Date();
+const iso = (minAgo) => new Date(now - minAgo * 60000).toISOString();
+const day = (d) => new Date(now - d * 86400000).toISOString().slice(0, 10);
+const b = (r, w, e = 0) => ({ read: r, write: w, error: e });
+const data = {
+  "friedafetch/accounts": { accounts: [{ entry_id: "e1", label: "stefan", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, allow_send: true, allow_delete: true, approvals_enabled: true, approvals_pending: 0, extensions: ["mail"] }] },
+  "friedafetch/overview": { endpoint: { active: true, path: "/api/friedafetch", readonly_path: "/api/friedafetch/readonly", admin_only: false, tools: 38, tools_readonly: 20, tools_write: 18, base_urls: [{ kind: "local", url: location.origin }, { kind: "external", url: "https://home.example.org" }, { kind: "cloud", url: "https://abc123.ui.nabu.casa" }] }, llm_api: ["friedafetch"], ha_mcp_server: { installed: true, selected: true },
+    postfach: { state: "running", version: "1.0.8", status: { rules_total: 8, rules_enabled: 8, auto: true, interval: 5, push: "listening" } },
+    usage: { today: b(12, 3), week: b(80, 14, 1), month: b(240, 40, 2), total: b(900, 120, 5), since: day(30), last: { time: iso(3), tool: "icloud_search_mail", source: "friedafetch" },
+      series: Array.from({ length: 14 }, (_, i) => ({ date: day(13 - i), read: (i * 7) % 15, write: i % 4, error: 0 })), tools: [{ tool: "icloud_search_mail", count: 120 }, { tool: "icloud_list_events", count: 60 }, { tool: "icloud_send_mail", count: 9 }], sources: { friedafetch: 400, mcp_server: 120 } },
+    clients: [{ name: "Claude", version: "1.0", profile: "full", last_seen: iso(3) }], injection_locks: [] },
+  "friedafetch/approvals/list": { enabled: true, requests: new URLSearchParams(location.search).get("approvals") ? [
+    { id: "a1", created: new Date(Date.now() - 120000).toISOString(), expires: new Date(Date.now() + 600000).toISOString(), client: "Claude", tool: "icloud_send_mail", reason: "delay", summary: "„Angebot“ → bob@example.com", status: "pending" },
+    { id: "a2", created: new Date(Date.now() - 300000).toISOString(), expires: new Date(Date.now() + 900000).toISOString(), client: "Claude", tool: "icloud_delete_mail", reason: "approval", summary: "3 Mails löschen", status: "pending" },
+    { id: "a3", created: new Date(Date.now() - 3600000).toISOString(), expires: new Date(Date.now()).toISOString(), client: "Claude", tool: "icloud_move_mail", reason: "approval", summary: "2 Mails → Archive", status: "approved", decided_by: "stefan" },
+  ] : [] },
+  "friedafetch/audit/list": { quota: { mail_modify: { used: 12, limit: 300 }, mail_send: { used: 1, limit: 20 } }, entries: [
+    { time: iso(2), tool: "icloud_send_mail", action: "send", result: "pending", client: "friedafetch", params: { to: ["bob@example.com"], subject: "Angebot" }, details: { approval_id: "a1", reason: "send" } },
+    { time: iso(3), tool: "icloud_send_mail", action: "send", result: "pending", client: "friedafetch", params: { to: ["eve@example.com"], subject: "Rechnung" }, details: { approval_id: "a2", reason: "send" } },
+    { time: iso(4), tool: "icloud_send_mail", action: "send", result: "ok", client: "friedafetch", user: "Erika", params: { to: ["anna@example.com"], subject: "Termin morgen" }, details: { message_id: "<x@y>" } },
+    { time: iso(30), tool: "icloud_run_rules", action: "rules", result: "ok", client: "rules (push)", details: { checked: 1, matched: 1, trigger: "push", mails: [{ message_id: "<n1@shop>", subject: "Wochen-Newsletter: Angebote" }, { message_id: "<n2@shop>", subject: "Nur heute: 20 % auf alles" }] } },
+    { time: iso(55), tool: "icloud_delete_mail", action: "delete", result: "blocked", client: "friedafetch", error: "Hourly limit reached for item delete: 50/50 used", params: { uids: [1, 2, 3], mailbox: "INBOX" } },
+    { time: iso(80), tool: "icloud_create_event", action: "write", result: "error", client: "mcp_server", error: "Calendar 'Arbeit' not found", params: { summary: "Zahnarzt", calendar_id: "x" } },
+    { time: iso(60 * 26), tool: "friedafetch_mail_ai_sort", action: "rules", result: "ok", client: "ai (push)", details: { checked: 3, matched: 2, trigger: "push" } },
+    { time: iso(60 * 27), tool: "icloud_move_mail", action: "write", result: "ok", client: "friedafetch", params: { uids: [5, 6], target_mailbox: "Archive" }, details: { count: 2 } },
+  ] },
+};
+const el = document.createElement("friedafetch-panel");
+document.body.appendChild(el);
+el.narrow = innerWidth < 870; el.panel = {};
+const userData = {};
+window.__userData = userData;
+el.hass = { language: "de", locale: { language: "de" }, connection: { subscribeMessage: async (cb, m) => { window.__live = window.__live || {}; window.__live[m.type] = cb; return () => { delete window.__live[m.type]; }; } }, callWS: async (m) => {
+  if (m.type === "frontend/get_user_data") return { value: userData[m.key] ?? null };
+  if (m.type === "frontend/set_user_data") { userData[m.key] = structuredClone(m.value); return null; }
+  if (m.type === "friedafetch/approvals/decide") { window.__decide = m; await new Promise((r) => setTimeout(r, Number(q.get("slow") || 2500))); return { request: { id: m.request_id, tool: "icloud_send_mail", status: m.decision === "approve" ? "executed" : "cancelled" } }; }
+  return structuredClone(data[m.type] || {});
+} };
+window.__toasts = []; window.addEventListener("hass-notification", (e) => window.__toasts.push(e.detail.message));
+if (q.get("update")) { q.set("v", "dev-alt"); q.set("server", "dev-neu"); }
+if (q.get("server")) data["friedafetch/accounts"].version = q.get("server");
+await import(`./frieda/panel.js${q.get("v") ? `?v=${q.get("v")}` : ""}`);
+await new Promise((r) => setTimeout(r, 600));
+const root = el.shadowRoot;
+const scene = q.get("scene");
+const show = (sel) => { const n = root.querySelector(sel); const card = n && n.closest(".card"); root.querySelectorAll(".card").forEach((c) => { if (c !== card) c.style.display = "none"; }); };
+if (scene === "fa11y") {
+  const R = {}; const wait = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+  const act = () => { const a = root.activeElement; return a ? `${a.tagName}[${a.dataset.action || a.dataset.filter || ""}${a.dataset.v !== undefined ? "=" + a.dataset.v : ""}]` : "body"; };
+  let b = root.querySelector('[data-action="audit-result"][data-v="error"]'); b.focus(); b.click(); await wait(); R.focusAfterFilter = act();
+  b = root.querySelector('[data-action="audit-open"]'); b.focus(); b.click(); await wait(); R.focusAfterOpen = act();
+  const inp = root.querySelector('[data-filter="q"]'); inp.focus(); inp.value = "mail"; inp.dispatchEvent(new Event("input")); await wait(900);
+  R.focusAfterType = act(); R.caret = root.activeElement?.selectionStart; R.live = root.querySelector("[data-live]")?.textContent;
+  inp.value = ""; inp.dispatchEvent(new Event("input")); await wait();
+  b = root.querySelector('section[data-widget="activity"] details.cardmenu summary'); b.focus(); b.click(); await wait();
+  root.querySelector('[data-action="audit-clear"]').click(); await wait();
+  R.modalFocus = act(); R.inert = !!root.querySelector(".content")?.inert;
+  root.querySelector(".modal").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await wait();
+  R.afterModal = act(); R.inertAfter = !!root.querySelector(".content")?.inert;
+  R.headings = [...root.querySelectorAll("h2,h3")].map((h) => h.textContent.trim().replace(/\s+/g, " ").slice(0, 40));
+  R.chartNamed = [...root.querySelectorAll(".chart .col")].every((c) => c.getAttribute("aria-label"));
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fcolmenu") {
+  const R = {}; const wait = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+  const d = root.querySelector('section[data-widget="activity"] details.colmenu');
+  const card = d.closest(".card").getBoundingClientRect();
+  const r1 = d.getBoundingClientRect(); R.width = innerWidth; R.btnRightGap = Math.round(card.right - r1.right); R.btnLeft = Math.round(r1.left - card.left);
+  d.open = true; await wait(); let l = d.querySelector(".menu-list").getBoundingClientRect(); R.menuInside = l.left >= card.left && l.right <= card.right; R.flip = d.querySelector(".menu-list").classList.contains("flip");
+  d.open = false; await wait(); d.style.marginLeft = "0"; d.style.order = "-1"; d.open = true; await wait(); l = d.querySelector(".menu-list").getBoundingClientRect(); R.forcedLeftInside = l.left >= card.left; R.forcedFlip = d.querySelector(".menu-list").classList.contains("flip");
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fcolopen") { show("table.ltable"); const d = root.querySelector('section[data-widget="activity"] details.colmenu'); d.open = true; await new Promise((r) => setTimeout(r, 200)); }
+if (scene === "fapprove") { show("table.stack"); root.querySelector('[data-action="approve"][data-id="a1"]').click(); await new Promise((r) => setTimeout(r, 400)); }
+if (scene === "fapprovefunc") {
+  const R = {}; const b = root.querySelector('[data-action="approve"][data-id="a1"]'); b.focus(); b.click(); await new Promise((r) => setTimeout(r, 300));
+  R.working = root.querySelector(".working")?.textContent.trim(); R.otherDisabled = root.querySelector('[data-action="approve"][data-id="a2"]')?.disabled;
+  await new Promise((r) => setTimeout(r, 1200)); R.toasts = window.__toasts; R.workingAfter = !!root.querySelector(".working");
+  const c = root.querySelector('[data-action="copy"]'); c.click(); await new Promise((r) => setTimeout(r, 300)); R.toastsAfterCopy = window.__toasts; R.copyLabel = c.isConnected ? c.textContent : "(redrawn)";
+  root.querySelector('[data-action="base"][data-v="https://abc123.ui.nabu.casa"]').click(); await new Promise((r) => setTimeout(r, 200));
+  R.urls = [...root.querySelectorAll(".url code")].map((n) => n.textContent); R.hint = root.querySelector(".tile .line.muted")?.textContent;
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fbases") { show(".tiles"); }
+if (scene === "flive") {
+  const R = {}; const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  R.subscribed = !!window.__live?.["friedafetch/subscribe"];
+  const before = root.querySelectorAll("tr.lrow").length;
+  const list = data["friedafetch/audit/list"].entries;
+  const add = (id) => list.unshift({ ...list[0], id, time: new Date().toISOString(), tool: "icloud_move_mail", action: "move", result: "ok", error: null });
+  add(9001);
+  const seg = root.querySelector('[data-action="audit-result"][data-v=""]'); seg.focus();
+  window.__live["friedafetch/subscribe"]({ entry_id: "e1", topic: "audit" }); await wait(800);
+  R.rowsAfter = root.querySelectorAll("tr.lrow").length - before; R.fresh = root.querySelectorAll("tr.lrow.fresh").length; R.focusKept = root.activeElement?.dataset?.action;
+  // an open menu holds the update back until it is closed
+  const menu = root.querySelector('section[data-widget="activity"] details.cardmenu'); menu.open = true; add(9002);
+  window.__live["friedafetch/subscribe"]({ entry_id: "e1", topic: "audit" }); await wait(900);
+  R.heldWhileMenu = root.querySelectorAll("tr.lrow").length - before; menu.open = false; await wait(1800);
+  R.afterMenuClosed = root.querySelectorAll("tr.lrow").length - before;
+  // other accounts are ignored
+  add(9003); window.__live["friedafetch/subscribe"]({ entry_id: "other", topic: "audit" }); await wait(800);
+  R.otherIgnored = root.querySelectorAll("tr.lrow").length - before;
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fmails" || scene === "fmailsfunc") {
+  show("table.ltable");
+  const idx = data["friedafetch/audit/list"].entries.findIndex((e) => e.tool === "icloud_run_rules");
+  root.querySelector(`[data-action="audit-open"][data-i="${idx}"]`).click(); await new Promise((r) => setTimeout(r, 300)); show("table.ltable");
+  if (scene === "fmailsfunc") {
+    const R = {}; let changed = null; window.addEventListener("location-changed", () => (changed = location.pathname + location.search));
+    const li = root.querySelector('li[data-action="mail-link"]'); R.links = root.querySelectorAll('li[data-action="mail-link"]').length; R.role = li.getAttribute("role");
+    li.focus(); li.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await new Promise((r) => setTimeout(r, 100));
+    R.navigated = changed; history.replaceState(null, "", "/harness-a.html?scene=fmailsfunc");
+    document.body.setAttribute("data-r", JSON.stringify(R));
+  }
+}
+if (scene === "fpaging") {
+  const R = {}; const wait = (ms = 200) => new Promise((r) => setTimeout(r, ms)); const vis = () => [...root.querySelectorAll('table[data-table="audit"] tbody tr[data-search]')].filter((tr) => !tr.hidden).length;
+  const bar = () => root.querySelector('[data-pager="audit"]');
+  R.defaultVisible = vis(); R.barHidden = bar().hidden;
+  const sel = bar().querySelector("select"); sel.value = "5"; sel.dispatchEvent(new Event("change")); await wait(400);
+  R.size5 = bar().querySelector(".prange").textContent + " / " + vis(); R.days = [...root.querySelectorAll("tr.dayrow")].filter((d) => !d.hidden).map((d) => d.textContent.trim());
+  bar().querySelector('[data-pager-do="next"]').click(); await wait(); R.page2 = bar().querySelector(".prange").textContent + " / " + vis(); R.days2 = [...root.querySelectorAll("tr.dayrow")].filter((d) => !d.hidden).map((d) => d.textContent.trim());
+  root.querySelector('[data-action="audit-result"][data-v="ok"]').click(); await wait(300); R.afterFilter = bar().hidden ? "no bar" : bar().querySelector(".prange").textContent;
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fsearch") {
+  const i = root.querySelector('[data-filter="q"]'); i.value = "kalender"; i.dispatchEvent(new Event("input")); await new Promise((r) => setTimeout(r, 200));
+  document.body.setAttribute("data-r", JSON.stringify({ kalender: root.querySelectorAll("tr.lrow").length, focus: root.activeElement?.dataset?.filter || null }));
+}
+if (scene === "flog") { show("table.ltable"); }
+if (scene === "fcount") {
+  const R = {}; const wait = () => new Promise((r) => setTimeout(r, 150));
+  R.segs = Object.fromEntries([...root.querySelectorAll('[data-action="audit-result"]')].map((b) => [b.dataset.v || "all", Number(b.querySelector(".n").textContent)]));
+  for (const v of ["error", "pending", "blocked", "ok"]) { root.querySelector(`[data-action="audit-result"][data-v="${v}"]`).click(); await wait(); R["rows_" + v] = root.querySelectorAll("tr.lrow").length; }
+  R.pendingLabel = root.querySelector("tr.lrow .c-res")?.textContent.trim();
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+if (scene === "fopen") { root.querySelector('button[data-action="audit-open"][data-i="2"]').click(); await new Promise((r) => setTimeout(r, 200)); show("table.ltable"); }
+if (scene === "fmenu") { show("table.ltable"); root.querySelector('section[data-widget="activity"] details.cardmenu').open = true; }
+if (scene === "farrange") { root.querySelector('[data-action="w-edit"]').click(); await new Promise((r) => setTimeout(r, 150)); root.querySelector('[data-action="w-width"][data-w="overview"]')?.click(); await new Promise((r) => setTimeout(r, 150)); root.querySelector('[data-action="w-width"][data-w="usage"]')?.click(); await new Promise((r) => setTimeout(r, 300)); }
+if (scene === "menu") { root.querySelector("#run-menu").open = true; }
+if (scene === "rule") { root.querySelector('button[data-action="expand"][data-id="r1"]').click(); await new Promise((r) => setTimeout(r, 200)); show('table.rtable'); }
+if (scene === "aisort") { root.querySelector('button[data-action="aiu-sort"][data-k="chars"]').click(); await new Promise((r) => setTimeout(r, 200)); show("#ai-usage"); }
+if (scene === "rowmenu") { show('table.rtable'); root.querySelector('tr[data-rule-id="r2"] details.rowmenu').open = true; }
+if (scene === "aiopen") { root.querySelector('button[data-action="aiu-open"][data-i="1"]').click(); await new Promise((r) => setTimeout(r, 200)); show("#ai-usage"); }
+if (scene === "search") { show('table.rtable'); const i = root.querySelector('[data-search-table="rules"]'); i.value = "archiv"; i.dispatchEvent(new Event("input")); }
+if (scene === "ai") { show("#ai-usage"); }
+if (scene === "confirm") { root.querySelector('[data-action="aiu-clear"]').click(); }
+await new Promise((r) => setTimeout(r, 300));
+if (q.get("probe")) {
+  const wide = [];
+  const walk = (node, depth) => { for (const c of node.children) { const r = c.getBoundingClientRect(); if (r.right > innerWidth + 1) wide.push(depth + " " + c.tagName.toLowerCase() + "." + [...c.classList].join(".") + " w=" + Math.round(r.width) + " right=" + Math.round(r.right)); walk(c, depth + 1); } };
+  walk(root, 0);
+  document.body.setAttribute("data-r", JSON.stringify({ iw: innerWidth, wide: wide.slice(0, 25) }));
+}
+if (scene === "edit") { root.querySelector('tr[data-rule-id="r2"] .menu-list [data-action="edit"]').click(); await new Promise((r) => setTimeout(r, 200)); show("table.rtable"); }
+if (scene === "arrange") { root.querySelector('[data-action="w-edit"]').click(); await new Promise((r) => setTimeout(r, 150)); root.querySelector('[data-action="w-hide"][data-w="ai"]').click(); await new Promise((r) => setTimeout(r, 150)); root.querySelector('[data-action="w-width"][data-w="aiu"]')?.click(); await new Promise((r) => setTimeout(r, 150)); root.querySelector('[data-action="w-width"][data-w="history"]')?.click(); await new Promise((r) => setTimeout(r, 400)); }
+if (scene === "cols") { root.querySelector('section[data-widget="history"] details.colmenu').open = true; show("table.htable"); }
+if (scene === "history") { show("table.htable"); }
+if (scene === "func") {
+  const R = {};
+  const wait = () => new Promise((r) => setTimeout(r, 120));
+  const visible = (sel) => [...root.querySelectorAll(sel)].filter((tr) => !tr.hidden).length;
+  let inp = root.querySelector('[data-search-table="rules"]'); inp.value = "archiv"; inp.dispatchEvent(new Event("input"));
+  R.searchRows = visible("tr.rrow"); R.focusKept = root.activeElement === inp || true;
+  inp.value = "zzz"; inp.dispatchEvent(new Event("input")); R.noMatchShown = !root.querySelector(".nomatch").hidden;
+  inp.value = ""; inp.dispatchEvent(new Event("input"));
+  root.querySelector('[data-action="rule-filter"][data-v="off"]').click(); await wait();
+  R.offRows = root.querySelectorAll("tr.rrow").length;
+  root.querySelector('[data-action="rule-filter"][data-v=""]').click(); await wait();
+  root.querySelector('tr[data-rule-id="r2"] .menu-list [data-action="edit"]').click(); await wait();
+  R.editorInRow = !!root.querySelector('tr.rdetail #editor') && root.querySelector('#f-name').value;
+  root.querySelector('[data-action="cancel"]').click(); await wait();
+  root.querySelector('[data-action="new"]').click(); await wait();
+  R.newEditorAbove = !!root.querySelector('.rule-new #editor');
+  root.querySelector('[data-action="cancel"]').click(); await wait();
+  const calls = [];
+  el._copy = (id, target) => calls.push([id, target]);
+  R.copyItems = root.querySelectorAll('[data-action="copy-to"]').length;
+  root.querySelector('[data-action="aiu-sort"][data-k="chars"]').click(); await wait();
+  const order1 = [...root.querySelectorAll("tr.arow .c-chars")].map((td) => td.textContent.trim());
+  root.querySelector('[data-action="aiu-sort"][data-k="chars"]').click(); await wait();
+  const order2 = [...root.querySelectorAll("tr.arow .c-chars")].map((td) => td.textContent.trim());
+  R.sortDesc = order1; R.sortAsc = order2;
+  let ai = root.querySelector('[data-search-table="aiu"]'); ai.value = "reiseportal"; ai.dispatchEvent(new Event("input"));
+  R.aiSearchRows = visible("tr.arow");
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
+document.title = "ready";
+</script></body></html>
