@@ -82,23 +82,25 @@ const MC_CSS = `
   .lstatus { display: none; flex-wrap: wrap; gap: 4px 12px; }
   .lstatus button.st { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--secondary-text-color);
     font: inherit; font-size: 12.5px; min-height: 0; cursor: pointer; --mdc-icon-size: 15px; }
-  .errline { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 10px; font-size: 13px; --mdc-icon-size: 17px;
-    background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent); color: var(--frieda-text-err); }
+  .errline { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--secondary-text-color); --mdc-icon-size: 15px; }
+  .errline ha-icon { color: var(--frieda-text-err); flex: none; margin-top: 1px; }
   .errline span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .errline button { flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; min-height: 0; cursor: pointer; }
-  .selbar { margin: 0; }
   .lscroll, .rbody, .rail { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--secondary-text-color) 40%, transparent) transparent; }
   .lscroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   ul.mlist { list-style: none; margin: 0; padding: 0; }
-  .mlist li.day { position: sticky; top: 0; z-index: 2; padding: 6px 14px; font-size: 12px; font-weight: 600; color: var(--secondary-text-color);
-    background: color-mix(in srgb, var(--secondary-background-color) 75%, var(--card-background-color, #fff)); }
-  .mlist li.m { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; padding: 10px 14px 11px 12px;
-    border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+  .mlist li.day { position: sticky; top: 0; z-index: 2; padding: 12px 16px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--secondary-text-color); background: var(--card-background-color, #fff); }
+  .mlist li.m { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 10px; align-items: start; margin: 0 6px; padding: 9px 10px 10px;
+    border-radius: 10px; }
+  .mlist li.m + li.m::after { content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 1px; background: var(--divider-color, #e0e0e0); }
+  .mlist li.m:hover::after, .mlist li.m:hover + li.m::after, .mlist li.m.open::after, .mlist li.m.open + li.m::after { opacity: 0; }
+  .listpane.picking li.m { grid-template-columns: 20px minmax(0, 1fr); }
   .mlist li.m:hover { background: color-mix(in srgb, var(--secondary-background-color) 55%, transparent); }
   .mlist li.m.picked { background: color-mix(in srgb, var(--primary-color) 6%, transparent); }
   .mlist li.m.open { background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
-  .mlist li.m.open::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--primary-color); }
   .mlist li.m:has(.mitem:focus-visible) { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+  .mlist li.m.open .from, .mlist li.m.open .subj { color: var(--primary-text-color); }
   .av { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 50%; display: inline-grid; place-items: center; padding: 0; border: 0;
     background: var(--secondary-background-color); color: var(--frieda-text-on-fill); font: inherit; font-size: 13px; font-weight: 600; min-height: 0; --mdc-icon-size: 20px; }
   button.av { cursor: pointer; }
@@ -111,8 +113,18 @@ const MC_CSS = `
   .mitem .r1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .mitem .from { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mitem .time { flex: none; font-size: 12px; color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
-  .mitem .subj { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mitem .r3 { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 4px; }
+  .mitem .from { font-weight: 500; }
+  .mitem .subj { font-size: 13.5px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mitem .r3 { display: flex; align-items: center; gap: 10px; min-width: 0; margin-top: 2px; }
+  .meta, .mv { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 12.5px; color: var(--secondary-text-color); --mdc-icon-size: 14px; }
+  .meta .rl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta ha-icon, .mv ha-icon { flex: none; }
+  .mv { flex: none; }
+  .mv ha-icon { opacity: .7; }
+  .meta.ai ha-icon { color: var(--frieda-text-ai); }
+  .meta.rule ha-icon { color: var(--frieda-text-info); }
+  .meta.held ha-icon { color: var(--frieda-text-ok); }
+  .rhead .chips .meta, .rhead .chips .mv { font-size: 13px; }
   .res { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; padding: 2px 9px 2px 6px; border-radius: 11px; font-size: 12px;
     background: var(--secondary-background-color); color: var(--frieda-text-on-fill); --mdc-icon-size: 14px; }
   .res .rl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -128,8 +140,6 @@ const MC_CSS = `
   .reader { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .rtop { display: flex; align-items: center; gap: 8px; min-height: 52px; box-sizing: border-box; padding: 8px 14px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
   .rtop .grow { flex: 1; }
-  .rtop button.back { display: none; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border: 0; background: none; color: var(--primary-color);
-    font: inherit; font-size: 15px; min-height: 0; cursor: pointer; --mdc-icon-size: 24px; }
   .rbody { flex: 1; min-height: 0; overflow: auto; padding: 22px 26px 12px; overscroll-behavior: contain; }
   .rhead { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; align-items: center;
     padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
@@ -141,13 +151,42 @@ const MC_CSS = `
   .rhead .who small { font-size: 13px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rhead .date { font-size: 12.5px; color: var(--secondary-text-color); white-space: nowrap; align-self: start; padding-top: 3px; }
   .rhead .chips { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .rhead .chips .res, .rhead .chips .where { font-size: 12.5px; }
-  .rhead .chips .where { padding: 2px 9px 2px 6px; border-radius: 11px; background: var(--secondary-background-color); color: var(--frieda-text-on-fill); }
+  .rhead .chips { gap: 14px; }
   h3.sect { margin: 0 0 12px; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--secondary-text-color); }
   .rfoot { padding: 10px 26px 14px; font-size: 12px; color: var(--secondary-text-color); border-top: 1px solid var(--divider-color, #e0e0e0); }
   .rempty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; color: var(--secondary-text-color); --mdc-icon-size: 44px; }
   .rempty ha-icon { opacity: .45; }
   .runsbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* picking several mails */
+  .lhead .pickbtn { flex: none; }
+  .pickbar { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+  .pickbar .grow { flex: 1; }
+  label.pickall { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+  .pickbar button.link { font-weight: 500; }
+  .av.pick, .av.off { width: 20px; height: 20px; margin-top: 1px; --mdc-icon-size: 14px; }
+  .av.pick { background: transparent; box-shadow: inset 0 0 0 1.5px var(--secondary-text-color); pointer-events: none; }
+  li.m.picked .av.pick { background: var(--primary-color); color: var(--text-primary-color, #fff); box-shadow: none; }
+  .av.off { background: none; pointer-events: none; }
+  li.m.dim .mitem { opacity: .5; cursor: default; }
+  .listpane.picking li.m.picked { background: color-mix(in srgb, var(--primary-color) 10%, transparent); }
+  .actbar { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+    border-top: 1px solid var(--divider-color, #e0e0e0); background: var(--card-background-color, #fff); font-size: 14px; }
+  .actbar .grow { flex: 1; }
+  .actbar .pill[disabled] { opacity: .45; }
+  .rr { display: inline-flex; align-items: center; gap: 5px; flex: none; font-size: 12px; color: var(--secondary-text-color); --mdc-icon-size: 14px; }
+  .rr.done { color: var(--frieda-text-ok); }
+  .rr.work { color: var(--frieda-text-ai); }
+  .rr .spinner { width: 12px; height: 12px; border-width: 2px; }
+  .lhead .batch { margin: 0; }
+  .pickinfo { gap: 12px; max-width: 420px; margin: 0 auto; }
+  .pickinfo > ha-icon { --mdc-icon-size: 40px; width: 40px; height: 40px; }
+  .pickinfo strong { font-size: 17px; color: var(--primary-text-color); }
+  ul.picklist { list-style: none; margin: 4px 0; padding: 0; width: 100%; display: grid; gap: 6px; text-align: left; }
+  ul.picklist li { display: grid; padding: 8px 12px; border-radius: 10px; background: var(--secondary-background-color); font-size: 13.5px; color: var(--primary-text-color); }
+  ul.picklist li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.picklist li small { color: var(--secondary-text-color); font-size: 12px; }
+  ul.picklist li.muted { background: none; padding: 0 12px; }
 
   /* tablet: the views move into a menu above the list */
   @container (max-width: 1000px) {
@@ -157,21 +196,18 @@ const MC_CSS = `
     .lhead .ttl { display: none; }
     .lstatus { display: flex; }
   }
-  /* phone: list or mail, like a mail app */
+  /* phone: the list; a mail opens in the sheet over it */
   @container (max-width: 720px) {
     .mc { display: block; height: auto; overflow: visible; }
     .listpane { border-right: 0; }
-    .reader { display: none; }
-    .mc.reading .listpane { display: none; }
-    .mc.reading .reader { display: flex; }
-    .rtop button.back { display: inline-flex; }
+    .reader { display: none; }  /* the mail opens in the sheet over the list */
+    .lhead .lrow { flex-wrap: wrap; }
+    .lhead label.search { order: 3; flex: 1 1 100%; }  /* the search gets its own line, so "Auswählen" keeps its words */
     .lscroll, .rbody { overflow: visible; }
     .rbody { padding: 18px 16px 8px; }
     .rfoot { padding: 10px 16px 14px; }
     .rhead h2 { font-size: 19px; }
     .lhead label.search { flex-basis: auto; }
-    button.av { width: 40px; height: 40px; }
-    .mlist li.m { grid-template-columns: 40px minmax(0, 1fr); }
   }
 `;
 
@@ -280,7 +316,7 @@ export async function mount({ el, root, data }) {
   chrome.after(act);
   const aroot = act.attachShadow({ mode: "open" });
 
-  const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, reading: false, shown: 25 };
+  const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 25, picking: false, anchor: null, batch: null };
   if (!TABS.some(([id]) => id === state.tab)) state.tab = "aktivitaet";
   const rows = activityRows(data);
   const ai = data["friedafetch_mail/ai"];
@@ -296,6 +332,18 @@ export async function mount({ el, root, data }) {
       none: ["keine Aktion", "minus-circle-outline", ""],
     }[r.kind];
     return `<span class="res ${cls}">${ico(icon)}<span class="rl">${esc(label)}</span></span>`;
+  };
+  // the list stays quiet: grey text, only the small symbol carries the colour; the folder only when the mail moved
+  const meta = (r, full = false) => {
+    const [label, icon, cls] = {
+      rule: [r.rule, "filter-check-outline", "rule"],
+      del: [r.rule, "filter-check-outline", "rule"],
+      held: ["Killswitch – nicht an die KI", "shield-check-outline", "held"],
+      ai: [`${r.category}${r.importance ? ` · ${r.importance}/5` : ""}`, r.original ? "pencil-outline" : "creation", "ai"],
+      none: ["keine Aktion", "minus-circle-outline", ""],
+    }[r.kind];
+    const where = full || r.folder !== "INBOX" ? `<span class="mv">${ico(full ? folderIcon(r.folder) : "arrow-right")}${esc(folderName(r.folder))}</span>` : "";
+    return `<span class="meta ${cls}">${ico(icon)}<span class="rl">${esc(label)}</span></span>${where}`;
   };
   const folderIcon = (f) => (f === "Deleted Messages" ? "delete-outline" : f === "INBOX" ? "inbox" : "folder-outline");
   const folderName = (f) => ({ INBOX: "Posteingang", "Deleted Messages": "Papierkorb", Junk: "Werbung", Archive: "Archiv" })[f] || f; // as Apple Mail names them
@@ -356,10 +404,30 @@ export async function mount({ el, root, data }) {
       </nav>`;
   }
 
-  function drawList() {
-    const [, label, , test] = view();
+  // the mails of the current view and search (all of them, also those not shown yet)
+  function listNow() {
+    const test = view()[3];
     const qv = state.q.toLowerCase().trim();
-    const list = rows.filter(test).filter((r) => !qv || `${r.subject} ${r.name} ${r.from} ${r.category} ${r.rule}`.toLowerCase().includes(qv));
+    return rows.filter(test).filter((r) => !qv || `${r.subject} ${r.name} ${r.from} ${r.category} ${r.rule}`.toLowerCase().includes(qv));
+  }
+
+  // where a mail stands in the running (or last) re-rating
+  function rowBatch(i) {
+    const b = el._s.ai?.batch;
+    if (!state.batch || !b || b.started !== state.batch.started) return "";
+    const k = state.batch.rows.indexOf(i);
+    if (k < 0) return "";
+    if (k < b.done) return `<span class="rr done">${ico("check")}neu bewertet</span>`;
+    if (b.state !== "running") return "";
+    return k === b.done ? `<span class="rr work"><span class="spinner" aria-hidden="true"></span>wird bewertet</span>` : `<span class="rr wait">${ico("clock-outline")}wartet</span>`;
+  }
+
+  function drawList() {
+    const label = view()[1];
+    const list = listNow();
+    const pickable = list.filter((r) => r.selectable);
+    const allPicked = pickable.length > 0 && pickable.every((r) => state.sel.has(r.i));
+    const somePicked = pickable.some((r) => state.sel.has(r.i));
     const opts = (group, items) => `<optgroup label="${group}">${items.map(([id, l, , tst]) => `<option value="${esc(id)}" ${state.box === id ? "selected" : ""}>${esc(l)} (${rows.filter(tst).length})</option>`).join("")}</optgroup>`;
     let day = "";
     const items = list
@@ -368,54 +436,83 @@ export async function mount({ el, root, data }) {
         const d = dayLabel(r.time);
         const head = d !== day ? `<li class="day" aria-hidden="true">${esc((day = d))}</li>` : "";
         const picked = state.sel.has(r.i);
-        const av = r.selectable
-          ? `<button class="av" role="checkbox" aria-checked="${picked}" data-pick="${r.i}" aria-label="Auswählen: ${esc(r.subject)}">${picked ? ico("check") : esc(initials(r.name))}</button>`
-          : `<span class="av" aria-hidden="true">${esc(initials(r.name))}</span>`;
-        return `${head}<li class="m ${state.open === r.i ? "open" : ""} ${picked ? "picked" : ""}">
+        // picking: the whole row is the checkbox; otherwise the avatar is a shortcut into picking
+        // only while picking: a round box in front of each mail (rule hits stay without one)
+        const av = state.picking ? `<span class="av ${r.selectable ? "pick" : "off"}" aria-hidden="true">${picked ? ico("check") : ""}</span>` : "";
+        const when = d === "Heute" ? clock(r.time) : d === "Gestern" ? "Gestern" : new Date(r.time).toLocaleDateString("de-DE");
+        const name = `${r.name}, ${r.subject}, ${d} ${clock(r.time)}`;
+        const role = state.picking
+          ? r.selectable
+            ? `role="checkbox" aria-checked="${picked}" aria-label="${esc(name)}"`
+            : `aria-disabled="true" aria-label="${esc(`${name} – von einer Regel erledigt, nicht für die KI`)}"`
+          : `aria-current="${state.open === r.i}" aria-label="${esc(name)}"`;
+        return `${head}<li class="m ${!state.picking && state.open === r.i ? "open" : ""} ${picked ? "picked" : ""} ${state.picking && !r.selectable ? "dim" : ""}">
             ${av}
-            <button class="mitem" data-open="${r.i}" aria-current="${state.open === r.i}" aria-label="${esc(`${r.name}, ${r.subject}, ${d} ${clock(r.time)}`)}">
-              <span class="r1"><span class="from">${esc(r.name)}</span><span class="time">${esc(d === "Heute" ? clock(r.time) : d === "Gestern" ? `Gestern` : new Date(r.time).toLocaleDateString("de-DE"))}</span></span>
+            <button class="mitem" data-open="${r.i}" ${role}>
+              <span class="r1"><span class="from">${esc(r.name)}</span><span class="time">${esc(when)}</span></span>
               <span class="subj">${esc(r.subject)}</span>
-              <span class="r3">${res(r)}<span class="where">${ico(folderIcon(r.folder))}${esc(folderName(r.folder))}</span></span>
+              <span class="r3">${meta(r)}${rowBatch(r.i)}</span>
             </button>
           </li>`;
       })
       .join("");
     const more = list.length > state.shown ? `<div class="lempty"><button class="secondary small" data-act="more">Weitere ${Math.min(25, list.length - state.shown)} anzeigen</button></div>` : "";
-    const selbar = state.sel.size
-      ? `<div class="selbar"><strong>${state.sel.size} ausgewählt</strong><span class="grow"></span><button class="link small" data-act="sel-clear">Aufheben</button><button class="pill" data-act="rerate">${ico("refresh")}Neu bewerten</button></div>`
+    const tools = state.picking
+      ? `<div class="pickbar">
+          <label class="pickall"><input type="checkbox" class="selbox" data-act="all" ${allPicked ? "checked" : ""} ${pickable.length ? "" : "disabled"}><span>Alle auswählen <span class="muted">(${pickable.length})</span></span></label>
+          <span class="grow"></span><button class="link" data-act="pick-done">Fertig</button>
+        </div>`
+      : `<div class="lrow">
+          <select class="fsel boxsel" data-boxsel aria-label="Ansicht">${opts("Ergebnis", KINDS.filter(([id, , , t]) => id === "all" || rows.some(t)))}${opts("Liegt jetzt in", FOLDERS)}<optgroup label="Technik"><option value="runs">Durchgänge</option></optgroup></select>
+          <label class="search">${ico("magnify")}<input type="search" data-q value="${esc(state.q)}" placeholder="Suchen" aria-label="Betreff oder Absender suchen"></label>
+          <button class="secondary small ib pickbtn" data-act="pick" ${pickable.length ? "" : "disabled"}>${ico("checkbox-multiple-marked-outline")}<span>Auswählen</span></button>
+        </div>`;
+    const batch = el._s.ai?.batch ? el._renderBatch(el._s.ai) : "";
+    const actbar = state.picking
+      ? `<div class="actbar"><span><strong>${state.sel.size}</strong> ausgewählt</span><span class="grow"></span><button class="pill" data-act="rerate" ${state.sel.size && !running() ? "" : "disabled"}>${ico("refresh")}Neu bewerten</button></div>`
       : "";
-    return `<div class="listpane">
+    return `<div class="listpane ${state.picking ? "picking" : ""}">
         <div class="lhead">
           <div class="ttl"><h2>${esc(label)}</h2><span class="cnt">${list.length}</span></div>
-          <div class="lrow">
-            <select class="fsel boxsel" data-boxsel aria-label="Ansicht">${opts("Ergebnis", KINDS.filter(([id, , , t]) => id === "all" || rows.some(t)))}${opts("Liegt jetzt in", FOLDERS)}<optgroup label="Technik"><option value="runs">Durchgänge</option></optgroup></select>
-            <label class="search">${ico("magnify")}<input type="search" data-q value="${esc(state.q)}" placeholder="Suchen" aria-label="Betreff oder Absender suchen"></label>
-          </div>
-          <div class="lstatus">${statusItems()}</div>
-          ${lastErr ? `<div class="errline">${ico("alert-circle-outline")}<span>Letzter Fehler ${esc(clock(lastErr.started))}: ${esc(lastErr.errors[0])}</span><button data-act="runs">Durchgänge</button></div>` : ""}
-          ${selbar}
+          ${tools}
+          ${state.picking ? "" : `<div class="lstatus">${statusItems()}</div>`}
+          ${lastErr && !state.picking ? `<div class="errline">${ico("alert-circle-outline")}<span>Fehler um ${esc(clock(lastErr.started))}: ${esc(lastErr.errors[0])}</span><button data-act="runs">Details</button></div>` : ""}
+          ${batch}
         </div>
         <div class="lscroll">${items ? `<ul class="mlist" aria-label="Mails">${items}</ul>${more}` : `<div class="lempty">Keine Mails in dieser Ansicht.</div>`}</div>
+        ${actbar}
       </div>`;
   }
 
+  const running = () => el._s.ai?.batch?.state === "running";
+
   function drawReader() {
+    if (state.picking) {
+      const picked = rows.filter((r) => state.sel.has(r.i));
+      const n = picked.length;
+      return `<section class="reader" aria-label="Auswahl"><div class="rempty pickinfo">
+          ${ico("checkbox-multiple-marked-outline")}
+          <strong>${n ? `${n} ${n === 1 ? "Mail" : "Mails"} ausgewählt` : "Noch keine Mail ausgewählt"}</strong>
+          <span>Klicke Mails in der Liste an. Mit ⇧ wählst du einen ganzen Bereich.</span>
+          ${n ? `<ul class="picklist">${picked.slice(0, 6).map((r) => `<li><span>${esc(r.subject)}</span><small>${esc(r.name)}</small></li>`).join("")}${n > 6 ? `<li class="muted">und ${n - 6} weitere</li>` : ""}</ul>` : ""}
+          ${n ? `<button class="pill" data-act="rerate" ${running() ? "disabled" : ""}>${ico("refresh")}${n === 1 ? "Neu bewerten" : `${n} Mails neu bewerten`}</button>` : ""}
+        </div></section>`;
+    }
     const r = rows.find((x) => x.i === state.open);
     if (!r) return `<section class="reader" aria-label="Mail"><div class="rempty">${ico("email-open-outline")}<span>Wähle eine Mail, um zu sehen,<br>was Regeln und KI mit ihr gemacht haben.</span></div></section>`;
     const ev = timeline(r);
     const steps = ev.map((e, i) => el._tlStep(e, i === ev.length - 1)).join("");
     const canRerate = r.selectable && ai?.status?.active;
     return `<section class="reader" aria-label="Mail">
-        <div class="rtop"><button class="back" data-act="back">${ico("chevron-left")}${esc(view()[1])}</button><span class="grow"></span>
-          ${canRerate ? `<button class="secondary small ib" data-act="rerate-one">${ico("refresh")}Neu bewerten</button>` : ""}</div>
+        <div class="rtop"><span class="grow"></span>
+          ${canRerate ? `<button class="secondary small ib" data-act="rerate-one" ${running() ? "disabled" : ""}>${ico("refresh")}Neu bewerten</button>` : ""}</div>
         <div class="rbody">
           <div class="rhead">
             <h2 tabindex="-1" id="r-title">${esc(r.subject)}</h2>
             <span class="av" aria-hidden="true">${esc(initials(r.name))}</span>
             <span class="who"><strong>${esc(r.name)}</strong><small>${esc(r.from)}</small></span>
             <span class="date">${esc(fmtDateTime(plus(r.time, -40)))}</span>
-            <div class="chips">${res(r)}<span class="where">${ico(folderIcon(r.folder))}${esc(folderName(r.folder))}</span></div>
+            <div class="chips">${meta(r, true)}${rowBatch(r.i)}</div>
           </div>
           <h3 class="sect">Verlauf</h3>
           <ol class="tl">${steps}</ol>
@@ -436,7 +533,9 @@ export async function mount({ el, root, data }) {
           <button class="secondary small ib" data-act="back-runs">${ico("chevron-left")}Zurück zu den Mails</button><span class="muted">Durchgänge: die technische Sicht für die Fehlersuche.</span></div></div></section></div>`;
     } else {
       aroot.innerHTML = `<style>${UI_STYLE}${STYLE}${MC_CSS}</style><div class="content widgets" style="padding-bottom:0"><section class="widget w-full"><div class="mcwrap">
-          <div class="mc ${state.reading ? "reading" : ""}">${drawRail()}${drawList()}${drawReader()}</div></div></section></div>`;
+          <div class="mc">${drawRail()}${drawList()}${drawReader()}</div></div></section></div>`;
+      const all = aroot.querySelector('[data-act="all"]');
+      if (all && !all.checked) all.indeterminate = listNow().some((r) => r.selectable && state.sel.has(r.i));
     }
     if (focus) {
       const n = aroot.querySelector(focus);
@@ -450,26 +549,78 @@ export async function mount({ el, root, data }) {
     bind();
   }
 
+  // phones: no reading pane – the mail opens in the panel's own sheet over the list (swipe down to close)
+  const narrow = () => (aroot.querySelector(".mcwrap")?.clientWidth || innerWidth) <= 720;
+
+  function sheetData(r) {
+    return {
+      found: true,
+      message_id: `<draft-${r.i}@example>`,
+      subject: r.subject,
+      sender: r.from,
+      date: plus(r.time, -40),
+      category: r.kind === "ai" ? r.category : null,
+      corrected: !!r.original,
+      held: r.kind === "held",
+      mailbox: "INBOX",
+      location: r.kind === "del" ? "trash" : r.folder !== "INBOX" ? r.folder : null,
+      events: timeline(r),
+    };
+  }
+
   function open(i) {
     state.open = i;
-    state.reading = true;
+    if (narrow()) {
+      const r = rows.find((x) => x.i === i);
+      el._s.sheet = { key: { message_id: `<draft-${i}@example>`, subject: r.subject, sender: r.from }, data: sheetData(r), loading: false, error: null };
+      el._render();
+      draw();
+      return;
+    }
     state.jumped = true;
     draw();
-    // on a phone the mail replaces the list: start at its top, with the focus on its subject
-    if (aroot.querySelector(".rtop .back")?.offsetParent) {
-      aroot.host.scrollIntoView({ block: "start" });
-      aroot.querySelector("#r-title")?.focus({ preventScroll: true });
-    }
+  }
+
+  // select one mail, or with Shift everything between the last one and this one
+  function toggle(i, ev) {
+    const list = listNow();
+    if (!rows.find((r) => r.i === i)?.selectable) return;
+    if (ev?.shiftKey && state.anchor != null && list.some((r) => r.i === state.anchor)) {
+      const [a, b] = [list.findIndex((r) => r.i === state.anchor), list.findIndex((r) => r.i === i)].sort((x, y) => x - y);
+      list.slice(a, b + 1).forEach((r) => r.selectable && state.sel.add(r.i));
+    } else if (state.sel.has(i)) state.sel.delete(i);
+    else state.sel.add(i);
+    state.anchor = i;
+    state.picking = true;
+    draw();
+  }
+
+  function stopPicking() {
+    state.picking = false;
+    state.sel.clear();
+    state.anchor = null;
+    draw();
+  }
+
+  // asks (the panel's own dialog), then marks the chosen mails in the list while the batch runs
+  async function rerate(ids) {
+    const order = rows.map((r) => r.i).filter((i) => ids.includes(i));
+    const before = el._s.ai?.batch?.started;
+    await el._rerate({ messages: order.map((i) => ({ message_id: `<draft-${i}@example>` })) });
+    const b = el._s.ai?.batch;
+    if (!b || b.started === before) return;
+    state.batch = { rows: order, started: b.started };
+    state.picking = false;
+    state.sel.clear();
+    draw();
   }
 
   // a new view shows its newest mail (wide screens) – never a mail that is not in the list
   function switchBox(box) {
     state.box = box;
     state.shown = 25;
-    state.reading = false;
     const test = (VIEWS.find(([id]) => id === box) || [])[3];
-    const wide = !aroot.querySelector(".rtop .back")?.offsetParent;
-    state.open = test && wide ? (rows.find(test)?.i ?? null) : null;
+    state.open = test && !narrow() && !state.picking ? (rows.find(test)?.i ?? null) : state.open;
     draw();
   }
 
@@ -481,23 +632,27 @@ export async function mount({ el, root, data }) {
     on('[data-act="runs"]', () => ((state.box = "runs"), draw()));
     on('[data-act="back-runs"]', () => ((state.box = "all"), draw()));
     on('[data-act="more"]', () => ((state.shown += 25), draw()));
-    on('[data-act="sel-clear"]', () => (state.sel.clear(), draw()));
-    on('[data-act="rerate"]', () => el._rerate({ messages: [...state.sel].map((i) => ({ message_id: `<draft-${i}@example>` })) }));
-    on('[data-act="rerate-one"]', () => el._rerate({ messages: [{ message_id: `<draft-${state.open}@example>` }] }));
-    on('[data-act="back"]', () => {
-      state.reading = false;
+    on('[data-act="pick"]', () => ((state.picking = true), draw(), aroot.querySelector('[data-act="all"]')?.focus()));
+    on('[data-act="pick-done"]', () => (stopPicking(), aroot.querySelector('[data-act="pick"]')?.focus()));
+    on('[data-act="all"]', (c) => {
+      const pickable = listNow().filter((r) => r.selectable);
+      if (c.checked) pickable.forEach((r) => state.sel.add(r.i));
+      else pickable.forEach((r) => state.sel.delete(r.i));
       draw();
-      aroot.querySelector(`[data-open="${state.open}"]`)?.focus();
-      aroot.querySelector(`[data-open="${state.open}"]`)?.scrollIntoView({ block: "center" });
+    }, "change");
+    on('[data-act="rerate"]', () => rerate([...state.sel]));
+    on('[data-act="rerate-one"]', () => rerate([state.open]));
+    on('[data-action="rerate-cancel"]', () => el._call(async () => (el._s.ai = await el._ws({ type: "friedafetch_mail/ai/rerate/cancel", entry_id: el._s.entryId }))));
+    on('[data-action="batch-hide"]', () => ((el._s.batchHidden = el._s.ai?.batch?.started), draw()));
+    on("[data-pick]", (b, ev) => toggle(Number(b.dataset.pick), ev));
+    on("[data-open]", (b, ev) => {
+      const i = Number(b.dataset.open);
+      // like a mail program: ⌘/Ctrl adds one mail, Shift a range; in picking every click selects
+      if (state.picking || ev.metaKey || ev.ctrlKey || ev.shiftKey) toggle(i, ev);
+      else open(i);
     });
-    on("[data-pick]", (b) => {
-      const i = Number(b.dataset.pick);
-      if (state.sel.has(i)) state.sel.delete(i);
-      else state.sel.add(i);
-      draw();
-    });
-    on("[data-open]", (b) => open(Number(b.dataset.open)));
     on("[data-q]", (inp) => ((state.q = inp.value), (state.shown = 25), draw()), "input");
+    on(".mc", (n, ev) => ev.key === "Escape" && state.picking && (stopPicking(), aroot.querySelector('[data-act="pick"]')?.focus()), "keydown");
     // arrow keys move through the list like in a mail program
     on(
       ".mlist",
@@ -509,7 +664,8 @@ export async function mount({ el, root, data }) {
         ev.preventDefault();
         next.focus();
         next.scrollIntoView({ block: "nearest" });
-        if (!aroot.querySelector(".rtop .back")?.offsetParent) open(Number(next.dataset.open));
+        if (ev.shiftKey && state.picking) toggle(Number(next.dataset.open), ev);
+        else if (!state.picking && !narrow()) open(Number(next.dataset.open));
       },
       "keydown"
     );
@@ -521,6 +677,19 @@ export async function mount({ el, root, data }) {
     drawChrome();
     drawActivity();
   }
+
+  // the panel redraws when the AI state changes (live): follow the re-rating in the list
+  const panelRender = el._render.bind(el);
+  let lastBatch = "";
+  el._render = (...args) => {
+    const out = panelRender(...args);
+    const key = JSON.stringify(el._s.ai?.batch || null) + el._s.batchHidden;
+    if (key !== lastBatch) {
+      lastBatch = key;
+      if (state.tab === "aktivitaet") drawActivity();
+    }
+    return out;
+  };
 
   // wide screens start with the newest mail open, like a mail program
   if (innerWidth > 720 && rows.length) state.open = rows[0].i;
