@@ -64,7 +64,8 @@ def main() -> None:
 
     # one key per build for every panel import, so browsers never keep files of an older build
     build = format(int(datetime.now().timestamp()), "x")
-    pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("draft-*.js")]  # drafts: ideas not in the panels yet
+    # the example backends (mock-*.js) and clickable drafts of ideas that are not in the panels yet (draft-*.js)
+    pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("mock-*.js"), *HERE.glob("draft-*.js")]
     for src in pages:
         (out / src.name).write_text(src.read_text(encoding="utf-8").replace("__BUILD__", build), encoding="utf-8")
     page = (HERE / "index.html").read_text(encoding="utf-8")

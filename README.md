@@ -213,10 +213,13 @@ language):
   → Archive"), with search, filters for area and trigger, a result switch and selectable columns; a click on a row
   shows the error and the raw parameters, and for runs of Frieda Postfach the messages with a link to their timeline.
 
-**Widgets:** the cards are widgets. **Arrange** in the title bar lets you drag them by the handle (or move them with
-the arrows), switch them between full and half width and hide them; tables offer a **Columns** menu. Rare actions
-such as clearing the log sit in a small ⋮ menu and always ask for confirmation. The layout is stored per Home
-Assistant user in Home Assistant itself, so it survives restarts and follows you to other devices.
+**Tabs and widgets:** three tabs keep the panel tidy – **Overview** (with the usage), **Approvals** (shown when
+approvals are on or there are entries; the tab counts the pending ones, so they stand out from the other tabs too) and
+**Change log**. On the overview, **Arrange** in the title bar lets you drag the cards by the handle (or move them
+with the arrows), switch them between full and half width and hide them; tables offer a **Columns** menu. Rare
+actions such as clearing the log sit in a small ⋮ menu and always ask for confirmation. The layout and the last tab
+are stored per Home Assistant user in Home Assistant itself, so they survive restarts and follow you to other
+devices.
 
 **Live:** the tables follow changes right away (new change-log entries, approvals, runs), without reloading the page;
 new rows light up briefly. After an update the panel offers a reload when it still runs the old code.

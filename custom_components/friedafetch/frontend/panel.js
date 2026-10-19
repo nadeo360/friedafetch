@@ -811,9 +811,36 @@ class FriedaPanel extends HTMLElement {
     W.keepScroll(this, () => W.keepFocus(this.shadowRoot, () => this._draw()));
   }
 
+  // Tabs: the overview (with usage, arrangeable), approvals (when switched on or with entries) and the change log.
+  _tabs() {
+    const t = this.t;
+    const approvals = this._renderApprovals();
+    const pending = (this._s.approvals?.requests || []).filter((r) => r.status === "pending").length;
+    return [
+      { id: "overview", label: t.overview, icon: "view-dashboard-outline" },
+      approvals && { id: "approvals", label: t.approvals, icon: "check-decagram-outline", badge: pending || "", badgeLabel: fmt(t.approvalsOpen, pending) },
+      { id: "activity", label: t.activity, icon: "history" },
+    ].filter(Boolean);
+  }
+
+  _tab(tabs) {
+    const id = this._layout.opt("tabs", "current", "overview");
+    return tabs.some((x) => x.id === id) ? id : "overview";
+  }
+
   _draw() {
     const t = this.t;
     const s = this._s;
+    const ready = s.loaded && s.entryId;
+    const tabs = ready ? this._tabs() : [];
+    const tab = this._tab(tabs);
+    const single = (id, html) => `<section class="widget w-full" data-widget="${id}">${html}</section>`;
+    const content = {
+      overview: () =>
+        W.renderWidgets(this._layout, { overview: { title: t.overview, html: this._renderOverview() }, usage: { title: t.usage, html: this._renderUsage() } }, t),
+      approvals: () => single("approvals", this._renderApprovals()),
+      activity: () => single("activity", this._renderActivity()),
+    };
     const body = !s.loaded
       ? `<p class="muted">${esc(t.loading)}</p>`
       : !s.entryId
@@ -822,22 +849,19 @@ class FriedaPanel extends HTMLElement {
       ${this._renderUpdateHint()}
       ${s.error ? `<div class="error" data-announce>${esc(s.error)}</div>` : ""}
       ${this._renderAccounts()}
-      ${W.renderWidgets(
-        this._layout,
-        {
-          overview: { title: t.overview, html: this._renderOverview() },
-          approvals: { title: t.approvals, html: this._renderApprovals() },
-          usage: { title: t.usage, html: this._renderUsage() },
-          activity: { title: t.activity, html: this._renderActivity() },
-        },
-        t
-      )}`;
+      ${content[tab]()}`;
     W.mount(
       this.shadowRoot,
       `<style>${W.UI_STYLE}${STYLE}</style>
-      <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${s.loaded && s.entryId ? W.layoutButton(this._layout, t) : ""}</div>
-      <div class="content widgets">${body}</div>${this._renderConfirm()}`
+      <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${ready && tab === "overview" ? W.layoutButton(this._layout, t) : ""}</div>
+      ${ready ? W.renderTabs(tabs, tab, t.tabsLabel) : ""}
+      <div class="content widgets" ${ready ? `role="tabpanel" id="tabpanel" aria-labelledby="tab-${tab}"` : ""}>${body}</div>${this._renderConfirm()}`
     );
+    W.bindTabs(this.shadowRoot, (id) => {
+      this._layout.setOpt("tabs", "current", id);
+      this._layout.editing = false;
+      this._render();
+    });
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {
       menu.hass = this._hass;

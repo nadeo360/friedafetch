@@ -275,10 +275,13 @@ oder Englisch je nach HA-Sprache):
   wählbaren Spalten; ein Klick auf die Zeile zeigt Fehler und Rohparameter, bei Läufen von Frieda Postfach auch die Mails
   mit Link zu ihrem Verlauf.
 
-**Widgets:** Die Karten sind Widgets. Mit **Anordnen** in der Titelleiste lassen sie sich am Griff ziehen (oder per
-Pfeil verschieben), zwischen voller und halber Breite umschalten und ausblenden; Tabellen haben ein Menü **Spalten**.
-Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen ⋮-Menü und fragen immer nach. Die Anordnung wird pro
-Home-Assistant-Benutzer in Home Assistant gespeichert, übersteht also Neustarts und gilt auf allen Geräten.
+**Tabs und Widgets:** Drei Tabs halten das Panel übersichtlich – **Überblick** (mit der Nutzung), **Freigaben**
+(sichtbar, wenn Freigaben eingeschaltet sind oder es Einträge gibt; der Tab zählt die offenen, damit sie auch von
+den anderen Tabs aus auffallen) und **Änderungsprotokoll**. Im Überblick lassen sich die Karten mit **Anordnen** in
+der Titelleiste am Griff ziehen (oder per Pfeil verschieben), zwischen voller und halber Breite umschalten und
+ausblenden; Tabellen haben ein Menü **Spalten**. Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen
+⋮-Menü und fragen immer nach. Anordnung und zuletzt gewählter Tab werden pro Home-Assistant-Benutzer in Home Assistant
+gespeichert, überstehen also Neustarts und gelten auf allen Geräten.
 
 **Live:** Die Tabellen folgen Änderungen sofort (neue Einträge im Änderungsprotokoll, Freigaben, Ausführungen), ohne
 die Seite neu zu laden; neue Zeilen leuchten kurz auf. Nach einem Update bietet das Panel ein Neuladen an, wenn es noch den

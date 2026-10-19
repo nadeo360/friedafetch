@@ -13,6 +13,8 @@ export const I18N = {
     switchHint: "Übersicht, Nutzung und Protokoll gelten je Konto. Wähle oben das Konto.",
     // overview
     overview: "Überblick",
+    tabsLabel: "Bereiche",
+    approvalsOpen: "{0} offen",
     endpoint: "MCP-Endpunkt",
     endpointOn: "aktiv",
     endpointOff: "nicht aktiv",
@@ -208,6 +210,8 @@ export const I18N = {
     accountNoDelete: "no deleting",
     switchHint: "Overview, usage and log are per account. Pick the account above.",
     overview: "Overview",
+    tabsLabel: "Sections",
+    approvalsOpen: "{0} pending",
     endpoint: "MCP endpoint",
     endpointOn: "active",
     endpointOff: "not active",

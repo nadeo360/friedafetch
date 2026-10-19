@@ -7,7 +7,7 @@
    Layouts are stored per Home Assistant user in HA's frontend user data, so they survive restarts and follow the
    user to other devices. */
 
-export const UI_API = 4; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll(); 4: keepFocus(), mount(), announce(), .chead
+export const UI_API = 5; // 2: donut(), Layout.opt()/setOpt(); 3: keepScroll(); 4: keepFocus(), mount(), announce(), .chead; 5: renderTabs(), bindTabs()
 
 // ------------------------------------------------------------------ helpers
 const escape = (s) =>
@@ -426,6 +426,35 @@ export function renderWidgets(layout, widgets, t) {
   return `${tray}${items}`;
 }
 
+// ------------------------------------------------------------------ tabs
+// Tabs below the toolbar (WAI-ARIA tabs). tabs: [{ id, label, icon, badge, badgeLabel }]. The panel puts the current
+// tab's content into an element with role="tabpanel" id="tabpanel" aria-labelledby="tab-<id>".
+export function renderTabs(tabs, current, label) {
+  const tab = (t) => {
+    const on = t.id === current;
+    const badge = t.badge ? `<span class="tbadge"><span aria-hidden="true">${escape(t.badge)}</span><span class="vh">${escape(t.badgeLabel || t.badge)}</span></span>` : "";
+    return `<button role="tab" id="tab-${escape(t.id)}" data-tab="${escape(t.id)}" aria-selected="${on}" aria-controls="tabpanel" tabindex="${on ? 0 : -1}">${ico(t.icon)}<span class="tl">${escape(t.label)}</span>${badge}</button>`;
+  };
+  return `<nav class="tabsbar" role="tablist" aria-label="${escape(label)}">${tabs.map(tab).join("")}</nav>`;
+}
+
+// Click and the arrow keys (Home/End too) choose a tab; onSelect(id) redraws the panel.
+export function bindTabs(root, onSelect) {
+  const list = root.querySelector('[role="tablist"]');
+  if (!list) return;
+  const tabs = [...list.querySelectorAll('[role="tab"]')];
+  tabs.forEach((b) => b.addEventListener("click", () => onSelect(b.dataset.tab)));
+  list.addEventListener("keydown", (ev) => {
+    const i = tabs.indexOf(root.activeElement);
+    if (i < 0) return;
+    const n = { ArrowRight: (i + 1) % tabs.length, ArrowLeft: (i - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 }[ev.key];
+    if (n === undefined) return;
+    ev.preventDefault();
+    onSelect(tabs[n].dataset.tab);
+    root.querySelector(`[role="tab"][data-tab="${tabs[n].dataset.tab}"]`)?.focus();
+  });
+}
+
 // Toolbar button that switches the arrange mode.
 export function layoutButton(layout, t) {
   return `<button class="tbtn ${layout.editing ? "on" : ""}" data-action="w-edit" aria-pressed="${layout.editing}" title="${escape(layout.editing ? t.layoutDone : t.layoutEdit)}">${ico(layout.editing ? "check" : "view-dashboard-edit-outline")}<span>${escape(layout.editing ? t.layoutDone : t.layoutEdit)}</span></button>`;
@@ -556,6 +585,20 @@ export function bindWidgets(root, layout, rerender) {
 }
 
 const WIDGET_STYLE = `
+  /* tabs below the toolbar; on phones icon over a short label, all in one row */
+  .tabsbar { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 0 12px; background: var(--app-header-background-color, var(--primary-color)); color: var(--app-header-text-color, #fff); border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+  .tabsbar::-webkit-scrollbar { display: none; }
+  .tabsbar button[role="tab"] { flex: none; position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 0; padding: 12px 14px 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: inherit; opacity: .72; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; --mdc-icon-size: 18px; }
+  .tabsbar button[role="tab"][aria-selected="true"] { opacity: 1; border-bottom-color: var(--primary-color); }
+  .tabsbar button[role="tab"]:hover { opacity: 1; }
+  .tabsbar button[role="tab"]:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -4px; border-radius: 6px; }
+  .tabsbar .tbadge { font-size: 11px; font-weight: 600; line-height: 16px; min-width: 16px; padding: 0 5px; box-sizing: border-box; text-align: center; border-radius: 8px; background: var(--primary-color); color: var(--text-primary-color, #fff); }
+  @media (max-width: 600px) {
+    .tabsbar { gap: 0; padding: 0 4px; }
+    .tabsbar button[role="tab"] { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; padding: 8px 2px 6px; font-size: 12px; --mdc-icon-size: 20px; }
+    .tabsbar .tl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tabsbar .tbadge { position: absolute; top: 4px; left: calc(50% + 6px); }
+  }
   ha-icon { --mdc-icon-size: 18px; display: inline-flex; flex: none; width: var(--mdc-icon-size); height: var(--mdc-icon-size); }
   .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   tr[hidden] { display: none !important; }

@@ -55,6 +55,7 @@ document.body.appendChild(el);
 el.narrow = innerWidth < 870; el.panel = {};
 const userData = {};
 window.__userData = userData;
+if (q.get("tab")) userData.friedafetch_panel = { opts: { tabs: { current: q.get("tab") } } }; // the tab to start with
 el.hass = { language: "de", locale: { language: "de" }, connection: { subscribeMessage: async (cb, m) => { window.__live = window.__live || {}; window.__live[m.type] = cb; return () => { delete window.__live[m.type]; }; } }, callWS: async (m) => {
   if (m.type === "frontend/get_user_data") return { value: userData[m.key] ?? null };
   if (m.type === "frontend/set_user_data") { userData[m.key] = structuredClone(m.value); return null; }
@@ -212,6 +213,5 @@ if (scene === "func") {
   R.aiSearchRows = visible("tr.arow");
   document.body.setAttribute("data-r", JSON.stringify(R));
 }
-if (q.get("draft") === "tabs") { const d = await import("./draft-frieda-tabs.js"); await d.mount({ el, root, data, q }); }
 document.title = "ready";
 </script></body></html>
