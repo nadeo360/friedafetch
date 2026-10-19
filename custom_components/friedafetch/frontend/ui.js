@@ -117,6 +117,8 @@ export function keepFocus(root, draw) {
     if (!shown(target) && index >= 0) target = all().slice(Math.max(0, index - 1)).find(shown) || null;
   }
   if (!shown(target) || target === root.activeElement) return;
+  // phones and tablets open a dropdown as soon as it gets the focus: after a choice it would ask a second time
+  if (target.tagName === "SELECT" && window.matchMedia?.("(pointer: coarse)").matches) return;
   target.focus({ preventScroll: true });
   if (caret && target.tagName === "INPUT") {
     try {
