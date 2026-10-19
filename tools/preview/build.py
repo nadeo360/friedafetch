@@ -62,10 +62,11 @@ def main() -> None:
         raise SystemExit("Frieda Postfach no longer imports /friedafetch_static/ui.js – update build.py")
     panel.write_text(text.replace("/friedafetch_static/ui.js", "../frieda/ui.js"), encoding="utf-8")
 
-    for name in ("frieda.html", "postfach.html"):
-        shutil.copy2(HERE / name, out / name)
-    for draft in HERE.glob("draft-*.js"):  # clickable drafts of ideas that are not in the panels yet
-        shutil.copy2(draft, out / draft.name)
+    # one key per build for every panel import, so browsers never keep files of an older build
+    build = format(int(datetime.now().timestamp()), "x")
+    pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("draft-*.js")]  # drafts: ideas not in the panels yet
+    for src in pages:
+        (out / src.name).write_text(src.read_text(encoding="utf-8").replace("__BUILD__", build), encoding="utf-8")
     page = (HERE / "index.html").read_text(encoding="utf-8")
     (out / "index.html").write_text(page, encoding="utf-8")
     # the published page gets its document skeleton from the host; locally it needs one

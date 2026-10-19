@@ -111,7 +111,7 @@ if (q.get("many")) { const ai = data["friedafetch_mail/ai"]; const base = ai.rat
 if (q.get("pending")) data["friedafetch_mail/rules/history"].current = { trigger: "push", started: new Date(Date.now() - 4000).toISOString(), ai: true };
 if (q.get("update")) { q.set("v", "dev-alt"); q.set("server", "dev-neu"); }
 if (q.get("server")) data["friedafetch_mail/accounts"].version = q.get("server");
-await import(`./postfach/panel.js${q.get("v") ? `?v=${q.get("v")}` : ""}`);
+await import(`./postfach/panel.js?v=${q.get("v") || "__BUILD__"}`); // a new key per build, so no browser keeps old panel files
 await new Promise((r) => setTimeout(r, 600));
 const root = el.shadowRoot;
 const scene = q.get("scene");

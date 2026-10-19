@@ -1,5 +1,5 @@
 // DRAFT (dev preview only): Frieda in three tabs. All content is the real panel; the tabs only decide what is shown.
-import { UI_STYLE, esc, ico } from "./frieda/ui.js";
+import { UI_STYLE, esc, ico } from "./frieda/ui.js?v=__BUILD__";
 
 const TABS = [
   ["ueberblick", "Überblick", "view-dashboard-outline"],

@@ -64,7 +64,7 @@ el.hass = { language: "de", locale: { language: "de" }, connection: { subscribeM
 window.__toasts = []; window.addEventListener("hass-notification", (e) => window.__toasts.push(e.detail.message));
 if (q.get("update")) { q.set("v", "dev-alt"); q.set("server", "dev-neu"); }
 if (q.get("server")) data["friedafetch/accounts"].version = q.get("server");
-await import(`./frieda/panel.js${q.get("v") ? `?v=${q.get("v")}` : ""}`);
+await import(`./frieda/panel.js?v=${q.get("v") || "__BUILD__"}`); // a new key per build, so no browser keeps old panel files
 await new Promise((r) => setTimeout(r, 600));
 const root = el.shadowRoot;
 const scene = q.get("scene");
