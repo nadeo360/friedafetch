@@ -64,6 +64,8 @@ def main() -> None:
 
     for name in ("frieda.html", "postfach.html"):
         shutil.copy2(HERE / name, out / name)
+    for draft in HERE.glob("draft-*.js"):  # clickable drafts of ideas that are not in the panels yet
+        shutil.copy2(draft, out / draft.name)
     page = (HERE / "index.html").read_text(encoding="utf-8")
     (out / "index.html").write_text(page, encoding="utf-8")
     # the published page gets its document skeleton from the host; locally it needs one

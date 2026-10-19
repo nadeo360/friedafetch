@@ -28,7 +28,7 @@ const iso = (minAgo) => new Date(now - minAgo * 60000).toISOString();
 const day = (d) => new Date(now - d * 86400000).toISOString().slice(0, 10);
 const b = (r, w, e = 0) => ({ read: r, write: w, error: e });
 const data = {
-  "friedafetch/accounts": { accounts: [{ entry_id: "e1", label: "stefan", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, allow_send: true, allow_delete: true, approvals_enabled: true, approvals_pending: 0, extensions: ["mail"] }] },
+  "friedafetch/accounts": { accounts: [{ entry_id: "e1", label: "privat", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, allow_send: true, allow_delete: true, approvals_enabled: true, approvals_pending: 0, extensions: ["mail"] }] },
   "friedafetch/overview": { endpoint: { active: true, path: "/api/friedafetch", readonly_path: "/api/friedafetch/readonly", admin_only: false, tools: 38, tools_readonly: 20, tools_write: 18, base_urls: [{ kind: "local", url: location.origin }, { kind: "external", url: "https://home.example.org" }, { kind: "cloud", url: "https://abc123.ui.nabu.casa" }] }, llm_api: ["friedafetch"], ha_mcp_server: { installed: true, selected: true },
     postfach: { state: "running", version: "1.0.8", status: { rules_total: 8, rules_enabled: 8, auto: true, interval: 5, push: "listening" } },
     usage: { today: b(12, 3), week: b(80, 14, 1), month: b(240, 40, 2), total: b(900, 120, 5), since: day(30), last: { time: iso(3), tool: "icloud_search_mail", source: "friedafetch" },
@@ -37,7 +37,7 @@ const data = {
   "friedafetch/approvals/list": { enabled: true, requests: new URLSearchParams(location.search).get("approvals") ? [
     { id: "a1", created: new Date(Date.now() - 120000).toISOString(), expires: new Date(Date.now() + 600000).toISOString(), client: "Claude", tool: "icloud_send_mail", reason: "delay", summary: "„Angebot“ → bob@example.com", status: "pending" },
     { id: "a2", created: new Date(Date.now() - 300000).toISOString(), expires: new Date(Date.now() + 900000).toISOString(), client: "Claude", tool: "icloud_delete_mail", reason: "approval", summary: "3 Mails löschen", status: "pending" },
-    { id: "a3", created: new Date(Date.now() - 3600000).toISOString(), expires: new Date(Date.now()).toISOString(), client: "Claude", tool: "icloud_move_mail", reason: "approval", summary: "2 Mails → Archive", status: "approved", decided_by: "stefan" },
+    { id: "a3", created: new Date(Date.now() - 3600000).toISOString(), expires: new Date(Date.now()).toISOString(), client: "Claude", tool: "icloud_move_mail", reason: "approval", summary: "2 Mails → Archive", status: "approved", decided_by: "erika" },
   ] : [] },
   "friedafetch/audit/list": { quota: { mail_modify: { used: 12, limit: 300 }, mail_send: { used: 1, limit: 20 } }, entries: [
     { time: iso(2), tool: "icloud_send_mail", action: "send", result: "pending", client: "friedafetch", params: { to: ["bob@example.com"], subject: "Angebot" }, details: { approval_id: "a1", reason: "send" } },
@@ -212,5 +212,6 @@ if (scene === "func") {
   R.aiSearchRows = visible("tr.arow");
   document.body.setAttribute("data-r", JSON.stringify(R));
 }
+if (q.get("draft") === "tabs") { const d = await import("./draft-frieda-tabs.js"); await d.mount({ el, root, data, q }); }
 document.title = "ready";
 </script></body></html>

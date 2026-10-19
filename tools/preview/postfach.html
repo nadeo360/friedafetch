@@ -35,7 +35,7 @@ const log = [
 const w = { calls: 7, chars: 9677, body: 1, held_back: 1, errors: 1, sort: 6, digest: 1, entities: { "ai_task.mein_ki_modell": 7 } };
 const rule = (id, name, conds, actions, hits) => ({ id, name, conditions: conds, actions: { move_to: null, mark_seen: null, flag: null, delete: false, stop: true, save_attachments: false, ...actions }, match: "any", enabled: true, mailbox: "INBOX", hits });
 const data = {
-  "friedafetch_mail/accounts": { accounts: [{ entry_id: "e1", label: "stefan", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, rules_auto: true, rules_interval: 5, rules_push: true, rules_total: 3, rules_enabled: 3, hits: 25, automation: { enabled: true, interval: 5, enabled_rules: 3, push: { state: "listening" } }, attachments: true }] },
+  "friedafetch_mail/accounts": { accounts: [{ entry_id: "e1", label: "privat", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, rules_auto: true, rules_interval: 5, rules_push: true, rules_total: 3, rules_enabled: 3, hits: 25, automation: { enabled: true, interval: 5, enabled_rules: 3, push: { state: "listening" } }, attachments: true }] },
   "friedafetch_mail/rules/list": { rules: [
     rule("r1", "Werbung & Newsletter löschen", [{ field: "from", op: "domain", value: "werbung.example" }, { field: "from", op: "domain", value: "drogerie.example" }], { delete: true }, 2),
     rule("r2", "Spam/Phishing nach Junk", [{ field: "from", op: "domain", value: "spam.example" }], { move_to: "Junk", mark_seen: true }, 1),
@@ -341,5 +341,6 @@ if (scene === "rerfunc") {
   R.selCleared = !root.querySelector(".selbar");
   document.body.setAttribute("data-r", JSON.stringify(R));
 }
+if (q.get("draft") === "tabs") { const d = await import("./draft-postfach-tabs.js"); await d.mount({ el, root, data, q }); }
 document.title = "ready";
 </script></body></html>
