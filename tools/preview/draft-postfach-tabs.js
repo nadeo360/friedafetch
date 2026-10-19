@@ -389,7 +389,7 @@ export async function mount({ el, root, data, q }) {
   const aroot = act.attachShadow({ mode: "open" });
 
   const loc = new Map(); // mail → { busy, mailbox, at }: the real place in iCloud, looked up on opening
-  const state = { tab: (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 50, picking: false, anchor: null, batch: null, folded: new Set() };
+  const state = { tab: q?.get("tab") || (location.hash || "").slice(1) || "aktivitaet", box: "all", q: "", sel: new Set(), open: null, shown: 50, picking: false, anchor: null, batch: null, folded: new Set() };
   if (!TABS.some(([id]) => id === state.tab)) state.tab = "aktivitaet";
   const rows = activityRows(data, !!q?.get("volume"));
   const ai = data["friedafetch_mail/ai"];
@@ -858,11 +858,24 @@ export async function mount({ el, root, data, q }) {
     drawActivity();
   }
 
+  // DRAFT: "Mit Frieda beschreiben" next to "+" of the AI categories (the panel redraws it, so it is added again each time)
+  function injectAssist() {
+    const add = root.querySelector('[data-action="ai-cat-new"]');
+    if (!add || root.querySelector("[data-assist]")) return;
+    add.insertAdjacentHTML("afterend", `<button class="secondary small ib" data-assist style="margin-left:8px">${ico("creation")}Mit Frieda beschreiben</button>`);
+    root.querySelector("[data-assist]").addEventListener("click", openAssist);
+  }
+  async function openAssist() {
+    const m = await import("./draft-postfach-assist.js?v=__BUILD__");
+    m.openAssistant({ el, data });
+  }
+
   // the panel redraws when the AI state changes (live): follow the re-rating in the list
   const panelRender = el._render.bind(el);
   let lastBatch = "";
   el._render = (...args) => {
     const out = panelRender(...args);
+    injectAssist();
     const mid = el._s.sheet?.key?.message_id || "";
     const head = mid.startsWith("<draft-") && root.querySelector(".sheet-head");
     if (head) {
@@ -886,4 +899,6 @@ export async function mount({ el, root, data, q }) {
     locate(rows[0].i);
   }
   draw();
+  injectAssist();
+  if (q?.get("assist")) openAssist();
 }
