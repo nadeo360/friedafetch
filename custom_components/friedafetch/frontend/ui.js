@@ -267,15 +267,21 @@ export function applyPaging(root, layout, table, state, t, fallback = 10) {
   }
 }
 
-// Confirmation dialog markup; c = { title, text, ok, irreversible }. Buttons use data-action confirm-yes / confirm-no.
+// Confirmation dialog markup; c = { title, text, ok, irreversible, tone, icon, note, option }.
+// tone "neutral" is for actions that destroy nothing (primary button, own icon); note is a second, quieter line;
+// option { label, checked } adds a switch (#confirm-option) the caller reads when the dialog is confirmed.
+// Buttons use data-action confirm-yes / confirm-no.
 export function renderConfirm(c, t) {
   if (!c) return "";
+  const neutral = c.tone === "neutral";
   return `<div class="modal-backdrop" data-action="confirm-no"></div>
-    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
-      <div class="modal-head"><span class="modal-icon">${ico("alert-outline")}</span><h3 id="confirm-title">${escape(c.title)}</h3></div>
+    <div class="modal ${neutral ? "neutral" : ""}" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="modal-head"><span class="modal-icon">${ico(c.icon || (neutral ? "help-circle-outline" : "alert-outline"))}</span><h3 id="confirm-title">${escape(c.title)}</h3></div>
       <p id="confirm-text">${escape(c.text)}</p>
+      ${c.note ? `<p class="modal-note">${escape(c.note)}</p>` : ""}
+      ${c.option ? `<label class="modal-option"><input type="checkbox" class="switch" id="confirm-option" ${c.option.checked ? "checked" : ""}><span>${escape(c.option.label)}</span></label>` : ""}
       ${c.irreversible ? `<p class="modal-warn">${escape(t.irreversible)}</p>` : ""}
-      <div class="modal-actions"><button class="secondary" data-action="confirm-no">${escape(t.cancel)}</button><button class="danger" data-action="confirm-yes">${escape(c.ok)}</button></div>
+      <div class="modal-actions"><button class="secondary" data-action="confirm-no">${escape(t.cancel)}</button><button class="${neutral ? "" : "danger"}" data-action="confirm-yes">${escape(c.ok)}</button></div>
     </div>`;
 }
 
@@ -844,7 +850,10 @@ const BASE_STYLE = `
   .modal-head h3 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.3; text-transform: none; letter-spacing: normal; color: var(--primary-text-color); }
   .modal-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--frieda-text-err); --mdc-icon-size: 22px; }
   .modal p { margin: 14px 0 0; font-size: 14px; line-height: 1.45; }
-  .modal .modal-warn { margin-top: 8px; color: var(--frieda-text-err); font-size: 13px; font-weight: 500; }
+  .modal.neutral .modal-icon { background: color-mix(in srgb, var(--primary-color) 14%, transparent); color: var(--primary-color); }
+  .modal .modal-note { margin-top: 8px; color: var(--secondary-text-color); font-size: 13px; }
+  .modal .modal-option { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 14px; cursor: pointer; }
+    .modal .modal-warn { margin-top: 8px; color: var(--frieda-text-err); font-size: 13px; font-weight: 500; }
   .modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
   .modal-actions button { font-size: 14px; padding: 8px 18px; border-radius: 18px; }
   .modal button:focus-visible, .modal button:focus { outline: 2px solid var(--primary-color); outline-offset: 2px; }

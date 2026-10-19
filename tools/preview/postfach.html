@@ -75,6 +75,23 @@ window.__userData = userData;
 el.hass = { language: "de", locale: { language: "de" }, connection: { subscribeMessage: async (cb, m) => { window.__live = window.__live || {}; window.__live[m.type] = cb; return () => { delete window.__live[m.type]; }; } }, callWS: async (m) => {
   if (m.type === "frontend/get_user_data") return { value: userData[m.key] ?? null };
   if (m.type === "frontend/set_user_data") { userData[m.key] = structuredClone(m.value); return null; }
+  if (m.type === "friedafetch_mail/ai/rerate") {
+    // a re-rating that works through the messages, one per second, and reports live
+    const ai = data["friedafetch_mail/ai"]; const ids = m.rating_ids || []; const total = ids.length + (m.messages || []).length;
+    ai.batch = { state: "running", total, done: 0, rated: 0, held: 0, missing: 0, applied: 0, errors: [], apply: !!m.apply, started: new Date().toISOString(), finished: null };
+    const tick = () => {
+      const b = ai.batch; if (b.state !== "running") return;
+      const r = ai.ratings.find((x) => x.id === ids[b.done]);
+      if (r) { r.previous = { time: r.time, category: r.category, importance: r.importance, reason: r.reason, corrected: r.corrected, applied: r.applied }; r.category = "Persönlich & wichtig"; r.corrected = null; r.time = new Date().toISOString(); }
+      b.done += 1; b.rated += 1; if (m.apply) b.applied += 1;
+      if (b.done >= b.total) { b.state = "done"; b.finished = new Date().toISOString(); }
+      window.__live?.["friedafetch_mail/subscribe"]?.({ entry_id: "e1", topic: "ai" });
+      if (b.state === "running") setTimeout(tick, Number(q.get("tick") || 1200));
+    };
+    setTimeout(tick, Number(q.get("tick") || 1200));
+    return structuredClone(ai);
+  }
+  if (m.type === "friedafetch_mail/ai/rerate/cancel") { const ai = data["friedafetch_mail/ai"]; if (ai.batch?.state === "running") { ai.batch.state = "cancelled"; ai.batch.finished = new Date().toISOString(); } return structuredClone(ai); }
   if (m.type === "friedafetch_mail/mail/timeline") { window.__tlCalls = (window.__tlCalls || 0) + 1; await new Promise((r) => setTimeout(r, Number(q.get("tlslow") || 50)));
     const big = /Ratenkredit/.test(m.subject || "");
     return big ? { message_id: "<r4@bank>", subject: "Ihr Ratenkredit - letzte Rate im November", sender: "service@bank.example", date: iso(105), mailbox: "INBOX", location: "Belege", category: "Persönlich & wichtig", corrected: true, held: false, found: true, events: [
@@ -303,5 +320,26 @@ if (scene === "paging") {
   document.body.setAttribute("data-r", JSON.stringify(R));
 }
 if (scene === "pagershot") { show("table.ratetable"); }
+if (scene === "rerate" || scene === "rerating") {
+  show("table.ratetable");
+  for (const id of ["r1", "r3", "r4"]) { root.querySelector(`[data-action="rate-sel"][data-id="${id}"]`).click(); await new Promise((r) => setTimeout(r, 60)); }
+  root.querySelector('[data-action="rerate"]').click(); await new Promise((r) => setTimeout(r, 200));
+  if (scene === "rerating") { root.querySelector("#confirm-option")?.click(); root.querySelector('[data-action="confirm-yes"]').click(); await new Promise((r) => setTimeout(r, 300)); show("table.ratetable"); }
+}
+if (scene === "rerfunc") {
+  const R = {}; const wait = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+  for (const id of ["r1", "r3"]) { root.querySelector(`[data-action="rate-sel"][data-id="${id}"]`).click(); await wait(60); }
+  R.selbar = root.querySelector(".selbar strong")?.textContent;
+  root.querySelector('[data-action="rate-sel-all"]').click(); await wait(); R.afterAll = root.querySelector(".selbar strong")?.textContent;
+  root.querySelector('[data-action="rate-sel-all"]').click(); await wait(); R.afterNone = !root.querySelector(".selbar");
+  root.querySelector('[data-action="rate-sel"][data-id="r4"]').click(); await wait();
+  root.querySelector('[data-action="rerate"]').click(); await wait();
+  R.dialog = root.querySelector("#confirm-title")?.textContent; R.option = !!root.querySelector("#confirm-option"); R.neutral = root.querySelector(".modal")?.classList.contains("neutral");
+  root.querySelector('[data-action="confirm-yes"]').click(); await wait(300);
+  R.running = root.querySelector(".batch strong")?.textContent;
+  await wait(800); R.done = root.querySelector(".batch strong")?.textContent + " / " + root.querySelector(".batch .muted")?.textContent;
+  R.selCleared = !root.querySelector(".selbar");
+  document.body.setAttribute("data-r", JSON.stringify(R));
+}
 document.title = "ready";
 </script></body></html>
