@@ -81,7 +81,40 @@ def test_a_closed_result_stays_closed_after_reopening(open_panel) -> None:
     assert reopened == {"loaded": True, "notice": False}
 
 
+def test_rerate_waits_for_the_hourly_limit_and_goes_on(open_panel) -> None:
+    """At the hourly limit the batch waits for the next hour instead of stopping (1.0.24)."""
+    panel = open_panel("postfach", "waitafter=1&tick=400")
+    panel.click('[data-action="act-pick"]')
+    panel.click('[data-action="act-all"]')
+    panel.click('.actbar [data-action="act-rerate"]')
+    panel.click('[data-action="confirm-yes"]', 100)
+    panel.js("for (let i = 0; i < 50 && !root.querySelector('.lhead .batch.wait'); i++) await wait(100);")
+    waiting = panel.text(".lhead .batch.wait") or ""
+    assert "Stundenlimit erreicht" in waiting and "von selbst weiter" in waiting
+    panel.js("for (let i = 0; i < 100 && !root.querySelector('.lhead .batch.done'); i++) await wait(100);")
+    assert panel.count(".lhead .batch.wait") == 0
+    assert "Neu bewertet" in panel.text(".lhead .batch")
+
+
 # ------------------------------------------------------------------ activity
+def test_unsure_ratings_have_their_own_view(open_panel) -> None:
+    panel = open_panel("postfach")
+    panel.click('.rail [data-action="act-view"][data-v="unsure"]', 600)
+    assert panel.text(".lhead h2") == "Unsicher"
+    assert panel.count(".mlist li.m") == 2 == panel.count(".mlist .uns")
+
+
+def test_accuracy_check_with_another_ai_entity(open_panel) -> None:
+    panel = open_panel("postfach", "tab=ai&aislow=300")
+    panel.js(
+        "const s = root.querySelector('[data-action=\"check-entity\"]'); s.value = 'ai_task.lokales_modell';"
+        "s.dispatchEvent(new Event('change'));"
+    )
+    panel.click('[data-action="ai-check"]', 900)
+    result = panel.text(".check-res")
+    assert "1 von 1 richtig (100 %)" in result and "lokales_modell" in result
+
+
 def test_picking_a_day_selects_its_mails(open_panel) -> None:
     panel = open_panel("postfach", "volume=1")
     panel.click('[data-action="act-pick"]')

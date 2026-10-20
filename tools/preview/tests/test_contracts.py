@@ -38,6 +38,7 @@ REQUESTS = {
     "friedafetch_mail/mail/locate": {"message_id": "<ratenkredit@example>"},
     "friedafetch_mail/ai/assist": {"conversation": [{"role": "user", "text": "Alles vom Steuerberater, ins Archiv"}]},
     "friedafetch_mail/ai/assist/test": {"proposal": {"name": "Steuer", "description": "Finanzamt"}},
+    "friedafetch_mail/ai/check": {},
 }
 CONTRACTS = {
     "frieda": PREVIEW.parent.parent / "tests" / "contracts" / "ws.json",

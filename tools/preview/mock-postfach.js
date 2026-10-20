@@ -32,9 +32,9 @@ function makeRows(volume) {
     { id: "gartenmarkt-rabatt", min: 40, name: "Gartenmarkt", from: "news@gartenmarkt.example", subject: "🍁 Nur noch 6 Tage: 15% Rabatt mit Code OKT06 bei Gartenmarkt", type: "news" },
     { id: "ci-run-failed", min: 40, name: "CI-Server", from: "ci@code.example", subject: "[nadeo360/friedafetch] Run failed: CI - main", type: "ci" },
     { id: "ratenkredit", min: 90, name: "Kundenservice Bank", from: "service@bank.example", subject: "Ihr Ratenkredit - letzte Rate im November", type: "bill", importance: 4, corrected: "Persönlich & wichtig" },
-    { id: "karte-belasten", min: 90, name: "Reiseportal", from: "noreply@reiseportal.example", subject: "Wir werden Ihre Karte bald belasten", type: "bill", importance: 4 },
-    { id: "bestellung-unterwegs", min: 60 * 15, name: "Shop Versand", from: "versand@shop.example", subject: "Ihre Bestellung ist unterwegs", type: "bill" },
-    { id: "moebel-wochenende", min: 60 * 17, name: "Möbelhaus", from: "newsletter@moebel.example", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas", type: "news" },
+    { id: "karte-belasten", min: 90, name: "Reiseportal", from: "noreply@reiseportal.example", subject: "Wir werden Ihre Karte bald belasten", type: "bill", importance: 4, confidence: "low" },
+    { id: "bestellung-unterwegs", min: 60 * 15, name: "Shop Versand", from: "versand@shop.example", subject: "Ihre Bestellung ist unterwegs", type: "bill", confidence: "low" },
+    { id: "moebel-wochenende", min: 60 * 17, name: "Möbelhaus", from: "newsletter@moebel.example", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas", type: "news", confidence: "medium" },
     { id: "elternabend", min: 60 * 21, name: "Schule Sekretariat", from: "sekretariat@schule.example", subject: "Elternabend am Donnerstag", type: "personal", importance: 4 },
     { id: "rabatt-code", min: 60 * 23, name: "Werbung", from: "promo@werbung.example", subject: "Rabatt-Code nur heute", type: "promo" },
   ].map((x) => ({ ...x, time: at(x.min) }));
@@ -44,7 +44,9 @@ function makeRows(volume) {
     for (const [daysAgo, n, span] of [[0, 100, now - midnight - 120000], [1, 60, 86400000], [2, 30, 86400000]]) {
       for (let j = 0; j < n; j++, k++) {
         const [name, from, type, subjects] = SENDERS[(k * 7 + j) % SENDERS.length];
-        base.push({ id: `vol-${k}`, name, from, type: k % 17 === 0 && CATS[type] ? "none" : type, subject: subjects[(k + j) % subjects.length], time: new Date(midnight - daysAgo * 86400000 + Math.round(((j + 0.5) / n) * span)).toISOString() });
+        const kind = k % 17 === 0 && CATS[type] ? "none" : type;
+        const corrected = kind === "bill" && k % 23 === 5 ? "Persönlich & wichtig" : undefined;
+        base.push({ id: `vol-${k}`, name, from, type: kind, corrected, confidence: k % 9 === 4 ? "low" : "high", subject: subjects[(k + j) % subjects.length], time: new Date(midnight - daysAgo * 86400000 + Math.round(((j + 0.5) / n) * span)).toISOString() });
       }
     }
   }
@@ -54,10 +56,10 @@ function makeRows(volume) {
     const row = { key: mid, message_id: mid, mailbox: "INBOX", uid: 1000 - i, subject: x.subject, from: x.from, name: x.name, date: x.time, time: x.time, updated: x.time, trigger: "push", rules: [], move_to: null, delete: false, seen: null, flag: null, ai: null, day: dayOf(x.time) };
     if (x.type === "ci") Object.assign(row, { rules: ["CI-Meldungen löschen"], delete: true });
     else if (x.type === "promo") Object.assign(row, { rules: ["Werbung & Newsletter löschen"], delete: true });
-    else if (x.type === "held") row.ai = { category: null, importance: null, applied: [], held: ["term"] };
+    else if (x.type === "held") row.ai = { category: null, importance: null, confidence: null, applied: [], held: ["term"] };
     else if (CATS[x.type]) {
       const [category, importance, applied, reason] = CATS[x.type];
-      row.ai = { category: x.corrected || category, importance: x.importance || importance, applied, held: null };
+      row.ai = { category: x.corrected || category, importance: x.importance || importance, confidence: x.confidence || "high", applied, held: null };
       row.reason = reason;
       row.rating_id = `r${i}`;
       row.corrected = !!x.corrected;
@@ -67,11 +69,13 @@ function makeRows(volume) {
     const moved = (row.ai?.applied || []).find((a) => a.startsWith("moved:"));
     row.folder = row.delete ? TRASH : moved ? (moved.slice(6) === "Deleted Messages" ? TRASH : moved.slice(6)) : "INBOX";
     row.selectable = !!row.message_id && row.kind !== "rule";
+    row.unsure = row.kind === "ai" && row.ai.confidence === "low" && !row.corrected;
     return row;
   });
 }
 
 const matches = (row, view, query) => {
+  if (view === "unsure" && !row.unsure) return false;
   if (view.startsWith("k:") && row.kind !== view.slice(2)) return false;
   if (view.startsWith("f:") && row.folder !== view.slice(2)) return false;
   if (!query) return true;
@@ -133,9 +137,10 @@ function derive(data, rows) {
   Object.assign(ai.status, { include_body: false, body_chars: 1000, excluded: 2, block_terms: 3, last_run: rows.find((r) => r.kind === "ai")?.time || null, last_error: null });
   ai.ratings = rows
     .filter((r) => r.kind === "ai")
-    .map((r) => ({ id: r.rating_id, time: r.time, mailbox: "INBOX", uid: r.uid, message_id: r.message_id, subject: r.subject, from: r.name, from_domain: r.from.split("@")[1], date: r.date, mode: "act", category: r.original || r.ai.category, importance: r.ai.importance, reason: r.reason, applied: r.ai.applied, corrected: r.original ? r.ai.category : null, suspicious: false }))
+    .map((r) => ({ id: r.rating_id, time: r.time, mailbox: "INBOX", uid: r.uid, message_id: r.message_id, subject: r.subject, from: r.name, from_domain: r.from.split("@")[1], date: r.date, mode: "act", category: r.original || r.ai.category, importance: r.ai.importance, confidence: r.ai.confidence, reason: r.reason, applied: r.ai.applied, corrected: r.original ? r.ai.category : null, suspicious: false }))
     .reverse();
   ai.examples = rows.filter((r) => r.corrected).length;
+  ai.corrected = ai.examples;
   ai.batch = ai.batch ?? null;
   // the AI log: one transmission per rated mail, one hold per kill-switch mail, the daily overview, one failure
   const sort = rows
@@ -161,7 +166,7 @@ function derive(data, rows) {
     const rated = mails.filter((m) => m.kind === "ai");
     return { started: time, finished: time, trigger: "push", scope: "new", mailboxes: ["INBOX"], checked: mails.length, matched: mails.filter((m) => m.rules.length).length, actions: mails.filter((m) => m.rules.length).length, rules: perRule,
       ai: rated.length || mails.some((m) => m.kind === "held") ? { rated: rated.length, applied: rated.filter((m) => m.ai.applied.length).length, held: mails.filter((m) => m.kind === "held").length, errors: [] } : null,
-      mails: mails.map((m) => ({ subject: m.subject, from: m.from, name: m.name, mailbox: "INBOX", uid: m.uid, message_id: m.message_id, date: m.date, rules: m.rules, move_to: null, delete: m.delete, seen: null, flag: null, ai: m.ai ? { category: m.ai.category, importance: m.ai.importance, applied: m.ai.applied, held: m.ai.held } : null })),
+      mails: mails.map((m) => ({ subject: m.subject, from: m.from, name: m.name, mailbox: "INBOX", uid: m.uid, message_id: m.message_id, date: m.date, rules: m.rules, move_to: null, delete: m.delete, seen: null, flag: null, ai: m.ai ? { category: m.ai.category, importance: m.ai.importance, confidence: m.ai.confidence, applied: m.ai.applied, held: m.ai.held } : null })),
       mails_more: 0, errors: [], skipped: 0, saved_files: 0, idle: false, runs: 1 };
   });
   runs.push({ started: at(300), finished: at(120), trigger: "auto", scope: "new", mailboxes: ["INBOX"], checked: 0, matched: 0, rules: {}, ai: null, mails: [], mails_more: 0, errors: [], idle: true, runs: 15 });
@@ -223,7 +228,8 @@ export function install({ data, q }) {
         d.selectable += r.selectable ? 1 : 0;
       }
       const offset = m.offset || 0;
-      return structuredClone({ items: hits.slice(offset, offset + (m.limit || 50)), total: hits.length, selectable: hits.filter((r) => r.selectable).length, days, counts: { all: rows.length, kinds, folders } });
+      const unsure = rows.filter((r) => r.unsure).length;
+      return structuredClone({ items: hits.slice(offset, offset + (m.limit || 50)), total: hits.length, selectable: hits.filter((r) => r.selectable).length, days, counts: { all: rows.length, unsure, kinds, folders } });
     }
     if (m.type === "friedafetch_mail/activity/select") {
       return { messages: rows.filter((r) => matches(r, m.view || "all", (m.query || "").trim()) && r.selectable && (!m.day || r.day === m.day)).map((r) => ({ key: r.key, message_id: r.message_id, mailbox: r.mailbox })) };
@@ -251,12 +257,12 @@ export function install({ data, q }) {
       if (r.kind === "held") ev.push({ kind: "ai_held", time: at(3), reasons: [{ type: "term", value: "Diagnose", where: ["subject"] }] });
       if (r.kind === "ai") {
         ev.push({ kind: "ai_sent", time: at(3), entity: "ai_task.mein_ki_modell", ok: true, chars: 1480, duration: 3.4, fields: ["from", "to", "subject", "date"] });
-        ev.push({ kind: "rated", time: at(7), category: r.original || r.ai.category, importance: r.ai.importance, reason: r.reason || "" });
+        ev.push({ kind: "rated", time: at(7), category: r.original || r.ai.category, importance: r.ai.importance, confidence: r.ai.confidence, reason: r.reason || "" });
         if (r.ai.applied.length) ev.push({ kind: "ai_applied", time: at(8), applied: r.ai.applied });
         if (r.corrected) ev.push({ kind: "corrected", time: at(3600), before: r.original, after: r.ai.category });
-        if (r.rerated) ev.push({ kind: "rated", again: true, time: r.rerated, category: r.ai.category, importance: r.ai.importance, reason: r.reason || "" });
+        if (r.rerated) ev.push({ kind: "rated", again: true, time: r.rerated, category: r.ai.category, importance: r.ai.importance, confidence: r.ai.confidence, reason: r.reason || "" });
       }
-      return structuredClone({ message_id: r.message_id, subject: r.subject, sender: r.from, date: r.date, mailbox: "INBOX", location: r.folder === "INBOX" ? null : r.folder, category: r.ai?.category || null, importance: r.ai?.importance || null, rating_id: r.rating_id || null, corrected: !!r.corrected, held: r.kind === "held", found: true, events: ev });
+      return structuredClone({ message_id: r.message_id, subject: r.subject, sender: r.from, date: r.date, mailbox: "INBOX", location: r.folder === "INBOX" ? null : r.folder, category: r.ai?.category || null, importance: r.ai?.importance || null, confidence: r.ai?.confidence || null, rating_id: r.rating_id || null, corrected: !!r.corrected, held: r.kind === "held", found: true, events: ev });
     }
     if (m.type === "friedafetch_mail/ai/correct") {
       const r = rows.find((x) => x.rating_id === m.rating_id);
@@ -264,6 +270,8 @@ export function install({ data, q }) {
         if (!r.original) r.original = r.ai.category;
         r.ai.category = m.category;
         r.corrected = m.category !== r.original;
+        r.unsure = r.ai.confidence === "low" && !r.corrected;
+        ai.corrected = rows.filter((x) => x.corrected).length;
       }
       return { rating: { id: m.rating_id, corrected: m.category } };
     }
@@ -283,17 +291,39 @@ export function install({ data, q }) {
       await wait(Number(q.get("aislow") || 1500));
       const name = m.proposal.name;
       const sample = (window.__assistTopic?.sample || []).slice(0, (m.proposal.description || "").toLowerCase().includes("lohn") ? 3 : 2);
-      const results = [...sample.map(([subject, from, before]) => ({ subject, from, before, after: name })), ...Array.from({ length: 20 - sample.length }, (_, k) => ({ subject: `Mail ${k}`, from: "x", before: "Newsletter & Werbung", after: "Newsletter & Werbung" }))];
+      const results = [...sample.map(([subject, from, before]) => ({ subject, from, before, after: name })), ...Array.from({ length: 20 - sample.length }, (_, k) => ({ subject: `Mail ${k}`, from: "x", before: "Newsletter & Werbung", after: "Newsletter & Werbung" }))]
+        .map((r) => ({ ...r, first: r.before, expected: null, confidence: "high" }));
       ai.status.used_this_hour += 20;
       return { name, tested: 20, held: 0, missing: 0, limit: false, errors: [], results, hits: sample.length };
+    }
+    if (m.type === "friedafetch_mail/ai/check") {
+      await wait(Number(q.get("aislow") || 1500));
+      const corrected = rows.filter((r) => r.corrected).slice(0, 20);
+      // the scripted AI: every third one still lands in the category it picked first
+      const results = corrected.map((r, i) => ({ subject: r.subject, from: r.name, before: r.ai.category, first: r.original, expected: r.ai.category, after: i % 3 === 2 ? r.original : r.ai.category, confidence: i % 3 === 2 ? "low" : "high" }));
+      ai.status.used_this_hour += results.length;
+      return { entity: m.entity || ai.status.entity, corrected: corrected.length, tested: results.length, held: 0, missing: 0, limit: false, errors: [], results, hits: results.filter((x) => x.after === x.expected).length };
     }
     if (m.type === "friedafetch_mail/ai/rerate") {
       // works through the messages, one per tick, and reports live – like the background task
       const keys = [...(m.rating_ids || []).map((id) => rows.find((r) => r.rating_id === id)?.message_id), ...(m.messages || []).map((x) => x.message_id)].filter(Boolean);
-      ai.batch = { state: "running", total: keys.length, done: 0, rated: 0, held: 0, missing: 0, applied: 0, errors: [], apply: !!m.apply, started: new Date().toISOString(), finished: null };
+      ai.batch = { state: "running", total: keys.length, done: 0, rated: 0, held: 0, missing: 0, applied: 0, errors: [], apply: !!m.apply, started: new Date().toISOString(), finished: null, resume_at: null };
+      const waitAfter = Number(q.get("waitafter") || 0);
+      let waited = 0;
       const tick = () => {
         const b = ai.batch;
+        if (b.state === "waiting") {
+          if (++waited < 3) return setTimeout(tick, Number(q.get("tick") || 1200));
+          Object.assign(b, { state: "running", resume_at: null });
+        }
         if (b.state !== "running") return;
+        if (waitAfter && b.done === waitAfter && !waited) {
+          const next = new Date();
+          next.setHours(next.getHours() + 1, 0, 0, 0);
+          Object.assign(b, { state: "waiting", resume_at: next.toISOString() });
+          live("ai");
+          return setTimeout(tick, Number(q.get("tick") || 1200));
+        }
         const r = find(keys[b.done]);
         if (r?.kind === "held") b.held += 1;
         else if (r) {
@@ -314,7 +344,7 @@ export function install({ data, q }) {
       return structuredClone(ai);
     }
     if (m.type === "friedafetch_mail/ai/rerate/cancel") {
-      if (ai.batch?.state === "running") Object.assign(ai.batch, { state: "cancelled", finished: new Date().toISOString() });
+      if (["running", "waiting"].includes(ai.batch?.state)) Object.assign(ai.batch, { state: "cancelled", finished: new Date().toISOString(), resume_at: null });
       return structuredClone(ai);
     }
     if (m.type === "friedafetch_mail/ai/run") {

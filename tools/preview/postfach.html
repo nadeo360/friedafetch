@@ -46,7 +46,9 @@ el.narrow = innerWidth < 870; el.panel = {};
 const userData = {};
 window.__userData = userData;
 if (q.get("tab")) userData.friedafetch_mail_panel = { opts: { tabs: { current: q.get("tab") } } }; // the tab to start with
-el.hass = { language: "de", locale: { language: "de" }, connection: { subscribeMessage: async (cb, m) => { window.__live = window.__live || {}; window.__live[m.type] = cb; return () => { delete window.__live[m.type]; }; } }, callWS: async (m) => {
+// two AI entities, so the accuracy check offers a choice (example names)
+const states = { "ai_task.mein_ki_modell": { entity_id: "ai_task.mein_ki_modell", state: "unknown", attributes: { friendly_name: "Mein KI-Modell" } }, "ai_task.lokales_modell": { entity_id: "ai_task.lokales_modell", state: "unknown", attributes: { friendly_name: "Lokales Modell" } } };
+el.hass = { language: "de", locale: { language: "de" }, states, connection: { subscribeMessage: async (cb, m) => { window.__live = window.__live || {}; window.__live[m.type] = cb; return () => { delete window.__live[m.type]; }; } }, callWS: async (m) => {
   if (m.type === "frontend/get_user_data") return { value: userData[m.key] ?? null };
   if (m.type === "frontend/set_user_data") { userData[m.key] = structuredClone(m.value); return null; }
   const answer = await mock(m);
@@ -75,6 +77,8 @@ if (scene === "charts") { await click('section[data-widget="aiu"] details.cardme
 if (scene === "tlheld") await click('[data-action="aiu-mail"]', 400);
 // activity
 if (scene === "runs" || scene === "history") await click('[data-action="act-runs"]');
+if (scene === "unsure") await click('[data-action="act-view"][data-v="unsure"]', 400);
+if (scene === "check") await click('[data-action="ai-check"]', Number(q.get("aislow") || 1500) + 300);
 if (scene === "cols") { await click('[data-action="act-runs"]'); root.querySelector('section[data-widget="history"] details.colmenu').open = true; }
 if (scene === "pick" || scene === "rerating") {
   await click('[data-action="act-pick"]');
