@@ -30,4 +30,6 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ICloudC
         "tools": [t.name for t in build_tools(clients)],
         "calendars": calendars,
         "extensions": sorted(clients.extensions),
+        # what the IMAP server offers (CONDSTORE lets Frieda Postfach ask only for changed flags)
+        "imap": {"capabilities": clients.mail.capabilities, "condstore": clients.mail.condstore},
     }

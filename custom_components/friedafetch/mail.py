@@ -24,6 +24,8 @@ from .util import UNTRUSTED_NOTICE, detect_injection, html_to_text, sanitize_tex
 
 _LOGGER = logging.getLogger(__name__)
 _UIDVALIDITY_RE = re.compile(r"UIDVALIDITY (\d+)", re.IGNORECASE)
+_HIGHESTMODSEQ_RE = re.compile(r"HIGHESTMODSEQ (\d+)", re.IGNORECASE)
+_STATUS_ITEMS_RE = re.compile(r"\(([^()]*)\)\s*$")
 
 _FETCH_START_RE = re.compile(rb"^\*?\s*(\d+) FETCH \((.*)$", re.DOTALL)
 _LITERAL_RE = re.compile(rb"\{(\d+)\}\s*$")
@@ -427,9 +429,29 @@ class ICloudMail:
             raise MailError(f"IMAP connection failed: {err}") from err
         if response.result != "OK":
             raise MailAuthError("IMAP login failed - check Apple ID and app-specific password")
+        await self._learn_capabilities(client)
         self._selected = None
         self._last_used = time.monotonic()
         return client
+
+    async def _learn_capabilities(self, client: aioimaplib.IMAP4_SSL) -> None:
+        """What the server offers once logged in (servers often name more than before the login)."""
+        try:
+            await asyncio.wait_for(client.protocol.capability(), self._timeout)
+        except Exception as err:  # noqa: BLE001 - the list from the greeting stays
+            _LOGGER.debug("IMAP CAPABILITY after login failed: %s", err)
+        self._shared["capabilities"] = sorted({str(c).upper() for c in client.protocol.capabilities or ()})
+
+    @property
+    def capabilities(self) -> list[str]:
+        """The server's IMAP capabilities, as seen after the last login (empty before the first one)."""
+        return list(self._shared.get("capabilities") or [])
+
+    @property
+    def condstore(self) -> bool:
+        """The server keeps a change counter per mailbox (RFC 7162: CONDSTORE, or QRESYNC that includes it)."""
+        caps = set(self.capabilities)
+        return "CONDSTORE" in caps or "QRESYNC" in caps
 
     async def _ensure(self) -> aioimaplib.IMAP4_SSL:
         now = time.monotonic()
@@ -725,6 +747,76 @@ class ICloudMail:
         """Highest UID of a mailbox (0 when empty) – a cheap starting point for 'only new mail'."""
         uids = await self.async_search_uids(mailbox, ["UID", "*"])
         return max(uids) if uids else 0
+
+    async def async_status(self, mailbox: str) -> dict[str, int]:
+        """Counters of a mailbox: messages, unseen, uidnext, uidvalidity, and highestmodseq with CONDSTORE.
+
+        STATUS answers without opening the mailbox. For the mailbox this connection has open, STATUS may be out of
+        date (RFC 3501), so it is opened again and its unread messages are counted instead.
+        """
+        names = "MESSAGES UNSEEN UIDNEXT UIDVALIDITY" + (" HIGHESTMODSEQ" if self.condstore else "")
+
+        async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, int]:
+            if self._selected == mailbox:
+                self._selected = None
+                response = await client.select(quote_mailbox(mailbox))
+                if response.result != "OK":
+                    raise MailboxNotFound(f"Mailbox '{mailbox}' not found or cannot be opened")
+                self._selected = mailbox
+                out: dict[str, int] = {}
+                for line in response.lines:
+                    text = bytes(line).decode(errors="replace") if isinstance(line, (bytes, bytearray)) else str(line)
+                    upper = text.upper()
+                    if upper.endswith(" EXISTS") and text.split()[0].isdigit():
+                        out["messages"] = int(text.split()[0])
+                    for key, regex in (("uidvalidity", _UIDVALIDITY_RE), ("highestmodseq", _HIGHESTMODSEQ_RE)):
+                        if m := regex.search(text):
+                            out[key] = int(m.group(1))
+                    if m := re.search(r"UIDNEXT (\d+)", text, re.IGNORECASE):
+                        out["uidnext"] = int(m.group(1))
+                unseen = await client.uid_search("UNSEEN", charset=None)
+                if unseen.result != "OK":
+                    raise MailError(f"SEARCH failed: {unseen.lines}")
+                out["unseen"] = sum(
+                    len([x for x in bytes(line).decode(errors="replace").split() if x.isdigit()])
+                    for line in unseen.lines
+                    if isinstance(line, (bytes, bytearray)) and not bytes(line).upper().startswith(b"SEARCH")
+                )
+                return out
+            response = await client.status(quote_mailbox(mailbox), f"({names})")
+            if response.result != "OK":
+                raise MailboxNotFound(f"Mailbox '{mailbox}' not found or cannot be opened")
+            for line in response.lines:
+                text = bytes(line).decode(errors="replace") if isinstance(line, (bytes, bytearray)) else str(line)
+                if m := _STATUS_ITEMS_RE.search(text):
+                    tokens = m.group(1).split()
+                    return {k.lower(): int(v) for k, v in zip(tokens[::2], tokens[1::2], strict=False) if v.isdigit()}
+            raise MailError(f"STATUS gave no counters: {response.lines}")
+
+        return await self._run(op)
+
+    async def async_flags(
+        self, mailbox: str, uids: list[int] | None = None, *, changed_since: int | None = None
+    ) -> dict[int, list[str]]:
+        """Flags of messages by UID: of the given ones, or (CONDSTORE) of all whose flags changed since a modseq.
+
+        A message missing from the answer to a list of UIDs is no longer in the mailbox (moved or deleted).
+        """
+        if changed_since is not None and not self.condstore:
+            raise MailError("The server does not support CONDSTORE")
+        if changed_since is None and not uids:
+            return {}
+        uid_set = "1:*" if changed_since is not None else ",".join(str(int(u)) for u in uids or [])
+        parts = "(UID FLAGS)" + (f" (CHANGEDSINCE {int(changed_since)})" if changed_since is not None else "")
+
+        async def op(client: aioimaplib.IMAP4_SSL) -> dict[int, list[str]]:
+            await self._select(client, mailbox)
+            response = await client.uid("fetch", uid_set, parts)
+            if response.result != "OK":
+                raise MailError(f"FETCH failed: {response.lines[-1] if response.lines else ''}")
+            return {item.uid: list(item.flags or []) for item in parse_fetch(response.lines) if item.uid is not None}
+
+        return await self._run(op)
 
     def uidvalidity(self, mailbox: str) -> int | None:
         """UIDVALIDITY seen when the mailbox was last opened; a change means all UIDs were renumbered."""

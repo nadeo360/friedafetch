@@ -5,7 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from custom_components.friedafetch.mail import ICloudMail
+import pytest
+
+from custom_components.friedafetch.mail import ICloudMail, MailError
 
 
 def _mail() -> ICloudMail:
@@ -40,3 +42,80 @@ async def test_select_remembers_uidvalidity() -> None:
     assert mail.uidvalidity("INBOX") is None
     await mail._select(client, "INBOX")  # noqa: SLF001
     assert mail.uidvalidity("INBOX") == 1234567
+
+
+def _fake_client(caps: set[str], **commands) -> SimpleNamespace:
+    protocol = SimpleNamespace(capabilities=set(caps), capability=AsyncMock())
+    return SimpleNamespace(protocol=protocol, get_state=lambda: "AUTH", **commands)
+
+
+async def _with(mail: ICloudMail, client: SimpleNamespace) -> None:
+    mail._ensure = AsyncMock(return_value=client)  # noqa: SLF001
+    await mail._learn_capabilities(client)  # noqa: SLF001
+
+
+async def test_capabilities_after_login_and_condstore() -> None:
+    mail = _mail()
+    assert mail.capabilities == [] and mail.condstore is False
+    await _with(mail, _fake_client({"IMAP4rev1", "condstore", "IDLE"}))
+    assert mail.capabilities == ["CONDSTORE", "IDLE", "IMAP4REV1"] and mail.condstore is True
+    await _with(mail, _fake_client({"IMAP4rev1", "QRESYNC"}))
+    assert mail.condstore is True  # QRESYNC includes CONDSTORE
+    await _with(mail, _fake_client({"IMAP4rev1", "IDLE"}))
+    assert mail.condstore is False
+
+
+async def test_status_without_and_with_the_open_mailbox() -> None:
+    mail = _mail()
+    status = AsyncMock(
+        return_value=SimpleNamespace(
+            result="OK",
+            lines=[b'"INBOX" (MESSAGES 12 UNSEEN 3 UIDNEXT 120 UIDVALIDITY 77 HIGHESTMODSEQ 9001)', b"STATUS done"],
+        )
+    )
+    client = _fake_client({"IMAP4rev1", "CONDSTORE"}, status=status)
+    await _with(mail, client)
+    assert await mail.async_status("INBOX") == {
+        "messages": 12,
+        "unseen": 3,
+        "uidnext": 120,
+        "uidvalidity": 77,
+        "highestmodseq": 9001,
+    }
+    assert "HIGHESTMODSEQ" in status.await_args.args[1]
+
+    # the open mailbox: opened again and its unread ones counted (STATUS may be stale there)
+    mail._selected = "INBOX"  # noqa: SLF001
+    client.select = AsyncMock(
+        return_value=SimpleNamespace(
+            result="OK",
+            lines=[b"12 EXISTS", b"OK [UIDVALIDITY 77] ok", b"OK [UIDNEXT 120] ok", b"OK [HIGHESTMODSEQ 9002] ok"],
+        )
+    )
+    client.uid_search = AsyncMock(return_value=SimpleNamespace(result="OK", lines=[b"5 9", b"SEARCH completed"]))
+    assert await mail.async_status("INBOX") == {
+        "messages": 12,
+        "uidvalidity": 77,
+        "uidnext": 120,
+        "highestmodseq": 9002,
+        "unseen": 2,
+    }
+
+
+async def test_flags_of_messages_and_changes_since() -> None:
+    mail = _mail()
+    uid = AsyncMock(
+        return_value=SimpleNamespace(
+            result="OK",
+            lines=[b"* 1 FETCH (UID 5 FLAGS (\\Seen) MODSEQ (9010))", b"* 2 FETCH (UID 9 FLAGS ())", b"FETCH done"],
+        )
+    )
+    client = _fake_client({"IMAP4rev1"}, uid=uid, select=AsyncMock(return_value=SimpleNamespace(result="OK", lines=[])))
+    await _with(mail, client)
+    assert await mail.async_flags("INBOX", [5, 9, 11]) == {5: ["\\Seen"], 9: []}  # 11 is gone
+    assert uid.await_args.args == ("fetch", "5,9,11", "(UID FLAGS)")
+    with pytest.raises(MailError):  # no CONDSTORE: no changes-only query
+        await mail.async_flags("INBOX", changed_since=9000)
+    await _with(mail, _fake_client({"CONDSTORE"}, uid=uid, select=client.select))
+    await mail.async_flags("INBOX", changed_since=9000)
+    assert uid.await_args.args == ("fetch", "1:*", "(UID FLAGS) (CHANGEDSINCE 9000)")

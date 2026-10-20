@@ -70,6 +70,8 @@ function makeRows(volume) {
     row.folder = row.delete ? TRASH : moved ? (moved.slice(6) === "Deleted Messages" ? TRASH : moved.slice(6)) : "INBOX";
     row.selectable = !!row.message_id && row.kind !== "rule";
     row.unsure = row.kind === "ai" && row.ai.confidence === "low" && !row.corrected;
+    // read / flagged as the mailbox has it (mailstate.py): the newest ones still unread, flagged personal mails
+    row.state = row.folder === "INBOX" ? { seen: i >= 2 && i !== 6, flagged: (row.ai?.applied || []).includes("flagged"), gone: false, checked: new Date(now).toISOString() } : null;
     return row;
   });
 }

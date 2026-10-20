@@ -104,6 +104,17 @@ def test_unsure_ratings_have_their_own_view(open_panel) -> None:
     assert panel.count(".mlist li.m") == 2 == panel.count(".mlist .uns")
 
 
+def test_read_and_flagged_as_the_mailbox_has_it(open_panel) -> None:
+    """Unread mails stand out, flagged ones carry a flag; the opened mail says it too (CONDSTORE sync)."""
+    panel = open_panel("postfach")
+    assert panel.count(".mlist li.m.unread") == 3 and panel.count(".mlist li.m.unread .ud") == 3
+    assert panel.count(".mlist li.m .fl") >= 1
+    label = panel.js("return root.querySelector('.mlist li.m.unread .mitem').getAttribute('aria-label');")
+    assert label.endswith("ungelesen") or "ungelesen, markiert" in label
+    chips = panel.text(".rhead .chips")
+    assert "ungelesen" in chips and "markiert" in chips  # the first mail: personal, still unread
+
+
 def test_accuracy_check_with_another_ai_entity(open_panel) -> None:
     panel = open_panel("postfach", "tab=ai&aislow=300")
     panel.js(
