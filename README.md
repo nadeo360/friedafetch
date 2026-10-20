@@ -342,6 +342,15 @@ ruff check . && ruff format .
 
 Home Assistant 2026.10 requires Python ≥ 3.14.2.
 
+### Releases
+
+`scripts/release.py VERSION --notes NOTES.md` releases from a clean `dev`: it stops if `origin/main` has commits
+`dev` lacks, sets the version in the manifest, runs ruff and the tests, moves `main` on by fast-forward and pushes
+it, waits until every CI run of that commit has passed, creates the GitHub release with the notes (German, `---`,
+English), and then checks the zip the release workflow attached – checksum, version and every file against the
+tagged source. `--dry-run` only checks and tests; `--draft` prints a notes skeleton from the commits since the last
+release.
+
 ### Artwork
 
 `assets/*.svg` are the sources; `scripts/build_icons.py` renders every PNG variant (icon, @2x, light/dark logo) into
