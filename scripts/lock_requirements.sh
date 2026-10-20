@@ -11,7 +11,7 @@ open("requirements/manifest.in", "w").write(f"{head} (CI checks that they instal
 open("requirements/sbom.in", "w").write(f"{head} plus the SBOM generator (release workflow)\n" + "\n".join(reqs) + "\ncyclonedx-bom\n")
 PY
 OPTS="--generate-hashes --python-version 3.14.2 --python-platform x86_64-unknown-linux-gnu --quiet"
-for name in lint bandit icons; do
+for name in lint bandit icons ui; do
   uv pip compile "requirements/$name.in" $OPTS --custom-compile-command "scripts/lock_requirements.sh" -o "requirements/$name.txt"
 done
 # the .in files keep the ranges of manifest.json; the exact versions come from requirements_dev.txt, so the manifest

@@ -22,6 +22,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106"]
+"tools/preview/tests/*" = ["S101"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", ".venv314"]

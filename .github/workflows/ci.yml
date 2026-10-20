@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install --require-hashes -r requirements/lint.txt
-      - run: ruff check custom_components tests
-      - run: ruff format --check custom_components tests
+      - run: ruff check custom_components tests tools/preview
+      - run: ruff format --check custom_components tests tools/preview
 
   tests:
     name: pytest against Home Assistant ${{ matrix.ha }}

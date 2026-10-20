@@ -1,0 +1,4 @@
+# Browser tests of the panels (tools/preview/tests), compiled with hashes to ui.txt
+playwright==1.64.0
+pytest==9.1.1
+pytest-playwright==0.10.0

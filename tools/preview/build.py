@@ -28,14 +28,18 @@ def git_state(repo: Path) -> dict[str, object]:
     """Branch, commit and the latest commit subjects of a repository."""
 
     def git(*args: str) -> str:
-        return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout.strip()
+        # fixed git commands on the two working trees (no user input)
+        cmd = ["git", "-C", str(repo), *args]
+        return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()  # noqa: S603
 
     log = git("log", "-8", "--format=%h%x09%cI%x09%s")
     return {
         "branch": git("branch", "--show-current"),
         "commit": git("rev-parse", "--short", "HEAD"),
         "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
-        "log": [dict(zip(("commit", "time", "subject"), line.split("\t", 2))) for line in log.splitlines()],
+        "log": [
+            dict(zip(("commit", "time", "subject"), line.split("\t", 2), strict=False)) for line in log.splitlines()
+        ],
     }
 
 
@@ -65,8 +69,12 @@ def main() -> None:
     # one key per build for every panel import, so browsers never keep files of an older build
     build = format(int(datetime.now().timestamp()), "x")
     versions = {
-        "__FRIEDA_VERSION__": json.loads((FRIEDA / "custom_components" / "friedafetch" / "manifest.json").read_text())["version"],
-        "__POSTFACH_VERSION__": json.loads((args.postfach / "custom_components" / "friedafetch_mail" / "manifest.json").read_text())["version"],
+        "__FRIEDA_VERSION__": json.loads((FRIEDA / "custom_components" / "friedafetch" / "manifest.json").read_text())[
+            "version"
+        ],
+        "__POSTFACH_VERSION__": json.loads(
+            (args.postfach / "custom_components" / "friedafetch_mail" / "manifest.json").read_text()
+        )["version"],
     }
     # the example backends (mock-*.js) and clickable drafts of ideas that are not in the panels yet (draft-*.js)
     pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("mock-*.js"), *HERE.glob("draft-*.js")]
