@@ -51,13 +51,13 @@ function makeRows(volume) {
   base.sort((a, b) => (a.time < b.time ? 1 : -1));
   return base.map((x, i) => {
     const mid = `<${x.id}@example>`;
-    const row = { key: mid, message_id: mid, mailbox: "INBOX", uid: 1000 - i, subject: x.subject, from: x.from, name: x.name, date: x.time, time: x.time, trigger: "push", rules: [], move_to: null, delete: false, seen: null, flag: null, ai: null, day: dayOf(x.time) };
+    const row = { key: mid, message_id: mid, mailbox: "INBOX", uid: 1000 - i, subject: x.subject, from: x.from, name: x.name, date: x.time, time: x.time, updated: x.time, trigger: "push", rules: [], move_to: null, delete: false, seen: null, flag: null, ai: null, day: dayOf(x.time) };
     if (x.type === "ci") Object.assign(row, { rules: ["CI-Meldungen löschen"], delete: true });
     else if (x.type === "promo") Object.assign(row, { rules: ["Werbung & Newsletter löschen"], delete: true });
-    else if (x.type === "held") row.ai = { held: ["term"] };
+    else if (x.type === "held") row.ai = { category: null, importance: null, applied: [], held: ["term"] };
     else if (CATS[x.type]) {
       const [category, importance, applied, reason] = CATS[x.type];
-      row.ai = { category: x.corrected || category, importance: x.importance || importance, applied };
+      row.ai = { category: x.corrected || category, importance: x.importance || importance, applied, held: null };
       row.reason = reason;
       row.rating_id = `r${i}`;
       row.corrected = !!x.corrected;
@@ -123,7 +123,11 @@ function derive(data, rows) {
   const ai = data["friedafetch_mail/ai"];
   const account = data["friedafetch_mail/accounts"].accounts[0];
   const rules = data["friedafetch_mail/rules/list"].rules;
-  Object.assign(account, { core_entry_id: "e1", rules_total: rules.length, rules_enabled: rules.filter((r) => r.enabled).length, digest_time: "07:30", last_run: data["friedafetch_mail/rules/list"].last_run });
+  const automation = { enabled: true, interval: 5, enabled_rules: rules.filter((r) => r.enabled).length, push: { state: "listening" }, next_run: null, last_check: { time: new Date().toISOString(), result: "ran", error: null }, idle_reason: null };
+  Object.assign(data["friedafetch_mail/rules/list"], { entry_id: "e1", automation });
+  for (const r of rules) Object.assign(r, { created: r.created || "2026-09-01T10:00:00+02:00", actions: { attachments_folder: null, ...r.actions } });
+  data["friedafetch_mail/accounts"].version = "__BUILD__"; // the panel's own build: no "new version" hint
+  Object.assign(account, { automation, core_entry_id: "e1", rules_total: rules.length, rules_enabled: rules.filter((r) => r.enabled).length, digest_time: "07:30", last_run: data["friedafetch_mail/rules/list"].last_run });
   // iCloud's folders (the trash is "Deleted Messages"), plus two of the user's own
   data["friedafetch_mail/mailboxes"] = { mailboxes: ["INBOX", "Archive", "Belege", "Company", "Drafts", "Sent Messages", "Junk", "Deleted Messages"] };
   Object.assign(ai.status, { include_body: false, body_chars: 1000, excluded: 2, block_terms: 3, last_run: rows.find((r) => r.kind === "ai")?.time || null, last_error: null });
@@ -132,6 +136,7 @@ function derive(data, rows) {
     .map((r) => ({ id: r.rating_id, time: r.time, mailbox: "INBOX", uid: r.uid, message_id: r.message_id, subject: r.subject, from: r.name, from_domain: r.from.split("@")[1], date: r.date, mode: "act", category: r.original || r.ai.category, importance: r.ai.importance, reason: r.reason, applied: r.ai.applied, corrected: r.original ? r.ai.category : null, suspicious: false }))
     .reverse();
   ai.examples = rows.filter((r) => r.corrected).length;
+  ai.batch = ai.batch ?? null;
   // the AI log: one transmission per rated mail, one hold per kill-switch mail, the daily overview, one failure
   const sort = rows
     .filter((r) => r.kind === "ai" || r.kind === "held")
@@ -142,7 +147,8 @@ function derive(data, rows) {
   const log = [...sort, { time: at(60 * 20), kind: "digest", entity: "ai_task.mein_ki_modell", trigger: "auto", sent: true, ok: true, fields: ["unread", "events", "birthdays", "rules"], chars: 3120, items: 14 },
     { time: at(60 * 26), kind: "sort", entity: "ai_task.mein_ki_modell", trigger: "push", sent: true, ok: false, error: "Quota exceeded for the Gemini API", fields: ["from", "to", "subject", "date"], chars: 1350, sender: "noreply@reiseportal.example", subject: "Sie haben eine Nachricht von Ihrem Hotel" }]
     .sort((a, b) => (a.time < b.time ? 1 : -1));
-  ai.usage = { ...usageWindows(log), log };
+  const blank = { error: null, held_back: null, items: null, duration: null, message_id: null, sender: "", subject: "" };
+  ai.usage = { ...usageWindows(log), log: log.map((e) => ({ ...blank, ...e })) };
   // the runs: one pass per arrival time (push), plus a merged idle stretch and a pass that failed
   const passes = new Map();
   for (const r of [...rows].reverse()) {
@@ -155,16 +161,18 @@ function derive(data, rows) {
     const rated = mails.filter((m) => m.kind === "ai");
     return { started: time, finished: time, trigger: "push", scope: "new", mailboxes: ["INBOX"], checked: mails.length, matched: mails.filter((m) => m.rules.length).length, actions: mails.filter((m) => m.rules.length).length, rules: perRule,
       ai: rated.length || mails.some((m) => m.kind === "held") ? { rated: rated.length, applied: rated.filter((m) => m.ai.applied.length).length, held: mails.filter((m) => m.kind === "held").length, errors: [] } : null,
-      mails: mails.map((m) => ({ subject: m.subject, from: m.from, name: m.name, mailbox: "INBOX", uid: m.uid, message_id: m.message_id, date: m.date, rules: m.rules, move_to: null, delete: m.delete, seen: null, flag: null, ...(m.ai ? { ai: { category: m.ai.category, importance: m.ai.importance, applied: m.ai.applied, held: m.ai.held } } : {}) })),
+      mails: mails.map((m) => ({ subject: m.subject, from: m.from, name: m.name, mailbox: "INBOX", uid: m.uid, message_id: m.message_id, date: m.date, rules: m.rules, move_to: null, delete: m.delete, seen: null, flag: null, ai: m.ai ? { category: m.ai.category, importance: m.ai.importance, applied: m.ai.applied, held: m.ai.held } : null })),
       mails_more: 0, errors: [], skipped: 0, saved_files: 0, idle: false, runs: 1 };
   });
   runs.push({ started: at(300), finished: at(120), trigger: "auto", scope: "new", mailboxes: ["INBOX"], checked: 0, matched: 0, rules: {}, ai: null, mails: [], mails_more: 0, errors: [], idle: true, runs: 15 });
   runs.push({ started: at(900), finished: at(900), trigger: "auto", scope: "new", mailboxes: ["INBOX"], checked: 2, matched: 0, rules: {}, ai: null, mails: [], mails_more: 0, errors: ["IMAP operation failed: timeout"], idle: false, runs: 1 });
+  for (const r of runs) Object.assign(r, { actions: r.actions ?? r.matched, skipped: r.skipped ?? 0, saved_files: r.saved_files ?? 0 });
   runs.sort((a, b) => (a.started < b.started ? 1 : -1));
   runs.forEach((r, i) => (r.id = runs.length - i));
   const history = data["friedafetch_mail/rules/history"];
   history.runs = runs.slice(0, 200);
   history.total = history.runs.length;
+  history.current = history.current ?? null;
 }
 
 function usageWindows(log) {
@@ -346,9 +354,9 @@ export function install({ data, q }) {
       const active = rulesList.rules.filter((r) => r.enabled && (!m.rule_ids || m.rule_ids.includes(r.id)));
       const actions = rows
         .filter((r) => r.rules.length)
-        .flatMap((r) => active.filter((rule) => r.rules.includes(rule.name)).map((rule) => ({ uid: r.uid, mailbox: "INBOX", subject: r.subject, from: [r.from], rule: rule.name, rule_id: rule.id, ...rule.actions })));
+        .flatMap((r) => active.filter((rule) => r.rules.includes(rule.name)).map((rule) => ({ uid: r.uid, mailbox: "INBOX", subject: r.subject, from: [r.from], message_id: r.message_id, rule: rule.name, rule_id: rule.id, ...rule.actions })));
       const now = new Date().toISOString();
-      return { scope: m.scope || "all", trigger: "manual", dry_run: !!m.dry_run, started: now, finished: now, checked: m.scope === "new" ? 0 : rows.length, matched: m.scope === "new" ? 0 : actions.length, actions: m.scope === "new" ? [] : actions, skipped: [], errors: [] };
+      return { scope: m.scope || "all", trigger: "manual", dry_run: !!m.dry_run, started: now, finished: now, checked_mails: [], checked: m.scope === "new" ? 0 : rows.length, matched: m.scope === "new" ? 0 : actions.length, actions: m.scope === "new" ? [] : actions, skipped: [], errors: [] };
     }
     return undefined;
   };

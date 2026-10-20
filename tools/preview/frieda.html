@@ -54,6 +54,17 @@ const data = {
   ] },
 };
 data["friedafetch/accounts"].accounts[0].approvals_pending = data["friedafetch/approvals/list"].requests.filter((r) => r.status === "pending").length;
+// every field the backend sends (tests/contracts/ws.json; the browser tests check it)
+data["friedafetch/accounts"].version = "__BUILD__"; // the panel's own build: no "new version" hint
+data["friedafetch/overview"].entry_id = "e1";
+data["friedafetch/overview"].usage.last.ok = true;
+const approvals = data["friedafetch/approvals/list"];
+approvals.entry_id = "e1";
+approvals.requests = approvals.requests.map((r) => ({ action: r.tool === "icloud_send_mail" ? "send" : r.tool === "icloud_delete_mail" ? "delete" : "write", params: {}, result: null, error: null, decided_at: r.status === "pending" ? null : r.expires, decided_by: null, user_id: null, ...r }));
+const audit = data["friedafetch/audit/list"];
+audit.entry_id = "e1";
+audit.quota = { item_delete: { used: 3, limit: 50 }, ...audit.quota };
+audit.entries = audit.entries.map((e, i) => ({ id: audit.entries.length - i, account: "erika@example.com", entry_id: "e1", user: null, user_id: null, error: null, params: {}, details: {}, ...e }));
 const el = document.createElement("friedafetch-panel");
 document.body.appendChild(el);
 el.narrow = innerWidth < 870; el.panel = {};

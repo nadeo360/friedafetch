@@ -1,0 +1,156 @@
+{
+ "friedafetch/accounts": {
+  "accounts": [
+   {
+    "allow_delete": "bool",
+    "allow_send": "bool",
+    "apple_id": "str",
+    "approvals_enabled": "bool",
+    "approvals_pending": "num",
+    "entry_id": "str",
+    "extensions": [],
+    "label": "str",
+    "mail_enabled": "bool",
+    "read_only": "bool",
+    "title": "str"
+   }
+  ],
+  "version": "str"
+ },
+ "friedafetch/approvals/list": {
+  "enabled": "bool",
+  "entry_id": "str",
+  "requests": [
+   {
+    "action": "str",
+    "client": "str",
+    "created": "str",
+    "decided_at": "null",
+    "decided_by": "null",
+    "error": "null",
+    "expires": "str",
+    "id": "str",
+    "params": "any",
+    "reason": "str",
+    "result": "null",
+    "status": "str",
+    "summary": "str",
+    "tool": "str",
+    "user_id": "null"
+   }
+  ]
+ },
+ "friedafetch/audit/list": {
+  "entries": [
+   {
+    "account": "str",
+    "action": "str",
+    "client": "null|str",
+    "details": "any",
+    "entry_id": "str",
+    "error": "null|str",
+    "id": "num",
+    "params": "any",
+    "result": "str",
+    "time": "str",
+    "tool": "str",
+    "user": "null",
+    "user_id": "null"
+   }
+  ],
+  "entry_id": "str",
+  "quota": {
+   "item_delete": {
+    "limit": "num",
+    "used": "num"
+   },
+   "mail_modify": {
+    "limit": "num",
+    "used": "num"
+   },
+   "mail_send": {
+    "limit": "num",
+    "used": "num"
+   }
+  }
+ },
+ "friedafetch/overview": {
+  "clients": [],
+  "endpoint": {
+   "active": "bool",
+   "admin_only": "bool",
+   "base_urls": [
+    {
+     "kind": "str",
+     "url": "str"
+    }
+   ],
+   "path": "str",
+   "readonly_path": "str",
+   "tools": "num",
+   "tools_readonly": "num",
+   "tools_write": "num"
+  },
+  "entry_id": "str",
+  "ha_mcp_server": {
+   "installed": "bool",
+   "selected": "bool"
+  },
+  "injection_locks": [],
+  "llm_api": [
+   "str"
+  ],
+  "postfach": {
+   "state": "str",
+   "status": {},
+   "version": "null"
+  },
+  "usage": {
+   "last": {
+    "ok": "bool",
+    "source": "str",
+    "time": "str",
+    "tool": "str"
+   },
+   "month": {
+    "error": "num",
+    "read": "num",
+    "write": "num"
+   },
+   "series": [
+    {
+     "date": "str",
+     "error": "num",
+     "read": "num",
+     "write": "num"
+    }
+   ],
+   "since": "str",
+   "sources": {
+    "friedafetch": "num",
+    "mcp_server": "num"
+   },
+   "today": {
+    "error": "num",
+    "read": "num",
+    "write": "num"
+   },
+   "tools": [
+    {
+     "count": "num",
+     "tool": "str"
+    }
+   ],
+   "total": {
+    "error": "num",
+    "read": "num",
+    "write": "num"
+   },
+   "week": {
+    "error": "num",
+    "read": "num",
+    "write": "num"
+   }
+  }
+ }
+}
