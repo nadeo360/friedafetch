@@ -26,17 +26,17 @@ function makeRows(volume) {
   const now = Date.now();
   const at = (min) => new Date(now - min * 60000).toISOString();
   const base = [
-    { min: 2, name: "Erika Mustermann", from: "erika@example.com", subject: "Test Frieda", type: "personal", importance: 5 },
-    { min: 5, name: "Anna Beispiel", from: "anna@example.com", subject: "Nur ein Test", type: "none" },
-    { min: 40, name: "Praxis Dr. Beispiel", from: "praxis@example.com", subject: "Befund", type: "held" },
-    { min: 40, name: "Gartenmarkt", from: "news@gartenmarkt.example", subject: "🍁 Nur noch 6 Tage: 15% Rabatt mit Code OKT06 bei Gartenmarkt", type: "news" },
-    { min: 40, name: "CI-Server", from: "ci@code.example", subject: "[nadeo360/friedafetch] Run failed: CI - main", type: "ci" },
-    { min: 90, name: "Kundenservice Bank", from: "service@bank.example", subject: "Ihr Ratenkredit - letzte Rate im November", type: "bill", importance: 4, corrected: "Persönlich & wichtig" },
-    { min: 90, name: "Reiseportal", from: "noreply@reiseportal.example", subject: "Wir werden Ihre Karte bald belasten", type: "bill", importance: 4 },
-    { min: 60 * 15, name: "Shop Versand", from: "versand@shop.example", subject: "Ihre Bestellung ist unterwegs", type: "bill" },
-    { min: 60 * 17, name: "Möbelhaus", from: "newsletter@moebel.example", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas", type: "news" },
-    { min: 60 * 21, name: "Schule Sekretariat", from: "sekretariat@schule.example", subject: "Elternabend am Donnerstag", type: "personal", importance: 4 },
-    { min: 60 * 23, name: "Werbung", from: "promo@werbung.example", subject: "Rabatt-Code nur heute", type: "promo" },
+    { id: "test-frieda", min: 2, name: "Erika Mustermann", from: "erika@example.com", subject: "Test Frieda", type: "personal", importance: 5 },
+    { id: "nur-ein-test", min: 5, name: "Anna Beispiel", from: "anna@example.com", subject: "Nur ein Test", type: "none" },
+    { id: "befund", min: 40, name: "Praxis Dr. Beispiel", from: "praxis@example.com", subject: "Befund", type: "held" },
+    { id: "gartenmarkt-rabatt", min: 40, name: "Gartenmarkt", from: "news@gartenmarkt.example", subject: "🍁 Nur noch 6 Tage: 15% Rabatt mit Code OKT06 bei Gartenmarkt", type: "news" },
+    { id: "ci-run-failed", min: 40, name: "CI-Server", from: "ci@code.example", subject: "[nadeo360/friedafetch] Run failed: CI - main", type: "ci" },
+    { id: "ratenkredit", min: 90, name: "Kundenservice Bank", from: "service@bank.example", subject: "Ihr Ratenkredit - letzte Rate im November", type: "bill", importance: 4, corrected: "Persönlich & wichtig" },
+    { id: "karte-belasten", min: 90, name: "Reiseportal", from: "noreply@reiseportal.example", subject: "Wir werden Ihre Karte bald belasten", type: "bill", importance: 4 },
+    { id: "bestellung-unterwegs", min: 60 * 15, name: "Shop Versand", from: "versand@shop.example", subject: "Ihre Bestellung ist unterwegs", type: "bill" },
+    { id: "moebel-wochenende", min: 60 * 17, name: "Möbelhaus", from: "newsletter@moebel.example", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas", type: "news" },
+    { id: "elternabend", min: 60 * 21, name: "Schule Sekretariat", from: "sekretariat@schule.example", subject: "Elternabend am Donnerstag", type: "personal", importance: 4 },
+    { id: "rabatt-code", min: 60 * 23, name: "Werbung", from: "promo@werbung.example", subject: "Rabatt-Code nur heute", type: "promo" },
   ].map((x) => ({ ...x, time: at(x.min) }));
   if (volume) {
     const midnight = new Date(new Date().toDateString()).getTime();
@@ -44,13 +44,13 @@ function makeRows(volume) {
     for (const [daysAgo, n, span] of [[0, 100, now - midnight - 120000], [1, 60, 86400000], [2, 30, 86400000]]) {
       for (let j = 0; j < n; j++, k++) {
         const [name, from, type, subjects] = SENDERS[(k * 7 + j) % SENDERS.length];
-        base.push({ name, from, type: k % 17 === 0 && CATS[type] ? "none" : type, subject: subjects[(k + j) % subjects.length], time: new Date(midnight - daysAgo * 86400000 + Math.round(((j + 0.5) / n) * span)).toISOString() });
+        base.push({ id: `vol-${k}`, name, from, type: k % 17 === 0 && CATS[type] ? "none" : type, subject: subjects[(k + j) % subjects.length], time: new Date(midnight - daysAgo * 86400000 + Math.round(((j + 0.5) / n) * span)).toISOString() });
       }
     }
   }
   base.sort((a, b) => (a.time < b.time ? 1 : -1));
   return base.map((x, i) => {
-    const mid = `<mail-${i}@example>`;
+    const mid = `<${x.id}@example>`;
     const row = { key: mid, message_id: mid, mailbox: "INBOX", uid: 1000 - i, subject: x.subject, from: x.from, name: x.name, date: x.time, time: x.time, trigger: "push", rules: [], move_to: null, delete: false, seen: null, flag: null, ai: null, day: dayOf(x.time) };
     if (x.type === "ci") Object.assign(row, { rules: ["CI-Meldungen löschen"], delete: true });
     else if (x.type === "promo") Object.assign(row, { rules: ["Werbung & Newsletter löschen"], delete: true });
@@ -118,10 +118,81 @@ function assist(m, mailboxes) {
   return { reply, proposal: p, overlap: topic?.overlap || null, topic };
 }
 
+// Runs, ratings and the AI log as the backend keeps them – built from the same mails as the activity.
+function derive(data, rows) {
+  const ai = data["friedafetch_mail/ai"];
+  const account = data["friedafetch_mail/accounts"].accounts[0];
+  const rules = data["friedafetch_mail/rules/list"].rules;
+  Object.assign(account, { core_entry_id: "e1", rules_total: rules.length, rules_enabled: rules.filter((r) => r.enabled).length, digest_time: "07:30", last_run: data["friedafetch_mail/rules/list"].last_run });
+  // iCloud's folders (the trash is "Deleted Messages"), plus two of the user's own
+  data["friedafetch_mail/mailboxes"] = { mailboxes: ["INBOX", "Archive", "Belege", "Company", "Drafts", "Sent Messages", "Junk", "Deleted Messages"] };
+  Object.assign(ai.status, { include_body: false, body_chars: 1000, excluded: 2, block_terms: 3, last_run: rows.find((r) => r.kind === "ai")?.time || null, last_error: null });
+  ai.ratings = rows
+    .filter((r) => r.kind === "ai")
+    .map((r) => ({ id: r.rating_id, time: r.time, mailbox: "INBOX", uid: r.uid, message_id: r.message_id, subject: r.subject, from: r.name, from_domain: r.from.split("@")[1], date: r.date, mode: "act", category: r.original || r.ai.category, importance: r.ai.importance, reason: r.reason, applied: r.ai.applied, corrected: r.original ? r.ai.category : null, suspicious: false }))
+    .reverse();
+  ai.examples = rows.filter((r) => r.corrected).length;
+  // the AI log: one transmission per rated mail, one hold per kill-switch mail, the daily overview, one failure
+  const sort = rows
+    .filter((r) => r.kind === "ai" || r.kind === "held")
+    .map((r) => (r.kind === "held"
+      ? { time: r.time, kind: "sort", entity: "ai_task.mein_ki_modell", trigger: r.trigger, sent: false, ok: true, held_back: [{ type: "term", value: "Diagnose", where: ["subject"] }], fields: [], chars: 0, sender: r.from, subject: r.subject, message_id: r.message_id }
+      : { time: r.time, kind: "sort", entity: "ai_task.mein_ki_modell", trigger: r.trigger, sent: true, ok: true, fields: ["from", "to", "subject", "date"], chars: 1300 + (r.subject.length * 7) % 400, duration: 3.4, sender: r.from, subject: r.subject, message_id: r.message_id }));
+  const at = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const log = [...sort, { time: at(60 * 20), kind: "digest", entity: "ai_task.mein_ki_modell", trigger: "auto", sent: true, ok: true, fields: ["unread", "events", "birthdays", "rules"], chars: 3120, items: 14 },
+    { time: at(60 * 26), kind: "sort", entity: "ai_task.mein_ki_modell", trigger: "push", sent: true, ok: false, error: "Quota exceeded for the Gemini API", fields: ["from", "to", "subject", "date"], chars: 1350, sender: "noreply@reiseportal.example", subject: "Sie haben eine Nachricht von Ihrem Hotel" }]
+    .sort((a, b) => (a.time < b.time ? 1 : -1));
+  ai.usage = { ...usageWindows(log), log };
+  // the runs: one pass per arrival time (push), plus a merged idle stretch and a pass that failed
+  const passes = new Map();
+  for (const r of [...rows].reverse()) {
+    if (!passes.has(r.time)) passes.set(r.time, []);
+    passes.get(r.time).push(r);
+  }
+  const runs = [...passes.entries()].map(([time, mails]) => {
+    const perRule = {};
+    for (const m of mails) for (const rule of m.rules) perRule[rule] = (perRule[rule] || 0) + 1;
+    const rated = mails.filter((m) => m.kind === "ai");
+    return { started: time, finished: time, trigger: "push", scope: "new", mailboxes: ["INBOX"], checked: mails.length, matched: mails.filter((m) => m.rules.length).length, actions: mails.filter((m) => m.rules.length).length, rules: perRule,
+      ai: rated.length || mails.some((m) => m.kind === "held") ? { rated: rated.length, applied: rated.filter((m) => m.ai.applied.length).length, held: mails.filter((m) => m.kind === "held").length, errors: [] } : null,
+      mails: mails.map((m) => ({ subject: m.subject, from: m.from, name: m.name, mailbox: "INBOX", uid: m.uid, message_id: m.message_id, date: m.date, rules: m.rules, move_to: null, delete: m.delete, seen: null, flag: null, ...(m.ai ? { ai: { category: m.ai.category, importance: m.ai.importance, applied: m.ai.applied, held: m.ai.held } } : {}) })),
+      mails_more: 0, errors: [], skipped: 0, saved_files: 0, idle: false, runs: 1 };
+  });
+  runs.push({ started: at(300), finished: at(120), trigger: "auto", scope: "new", mailboxes: ["INBOX"], checked: 0, matched: 0, rules: {}, ai: null, mails: [], mails_more: 0, errors: [], idle: true, runs: 15 });
+  runs.push({ started: at(900), finished: at(900), trigger: "auto", scope: "new", mailboxes: ["INBOX"], checked: 2, matched: 0, rules: {}, ai: null, mails: [], mails_more: 0, errors: ["IMAP operation failed: timeout"], idle: false, runs: 1 });
+  runs.sort((a, b) => (a.started < b.started ? 1 : -1));
+  runs.forEach((r, i) => (r.id = runs.length - i));
+  const history = data["friedafetch_mail/rules/history"];
+  history.runs = runs.slice(0, 200);
+  history.total = history.runs.length;
+}
+
+function usageWindows(log) {
+  const win = (days) => {
+    const since = Date.now() - days * 86400000;
+    const w = { calls: 0, chars: 0, body: 0, held_back: 0, errors: 0, sort: 0, digest: 0, assist: 0, entities: {} };
+    for (const e of log) {
+      if (new Date(e.time).getTime() < since) continue;
+      if (!e.sent) { w.held_back += 1; continue; }
+      w.calls += 1;
+      w.chars += e.chars || 0;
+      w[e.kind] = (w[e.kind] || 0) + 1;
+      if ((e.fields || []).includes("body")) w.body += 1;
+      if (e.ok === false) w.errors += 1;
+      w.entities[e.entity] = (w.entities[e.entity] || 0) + 1;
+    }
+    return w;
+  };
+  return { today: win(1), week: win(7), month: win(30) };
+}
+
 export function install({ data, q }) {
   const rows = makeRows(!!q.get("volume"));
   window.__rows = rows;
+  derive(data, rows);
   const ai = data["friedafetch_mail/ai"];
+  const live = (topic) => window.__live?.["friedafetch_mail/subscribe"]?.({ entry_id: "e1", topic });
+  const rulesList = data["friedafetch_mail/rules/list"];
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const find = (mid) => rows.find((r) => r.message_id === mid);
 
@@ -175,6 +246,7 @@ export function install({ data, q }) {
         ev.push({ kind: "rated", time: at(7), category: r.original || r.ai.category, importance: r.ai.importance, reason: r.reason || "" });
         if (r.ai.applied.length) ev.push({ kind: "ai_applied", time: at(8), applied: r.ai.applied });
         if (r.corrected) ev.push({ kind: "corrected", time: at(3600), before: r.original, after: r.ai.category });
+        if (r.rerated) ev.push({ kind: "rated", again: true, time: r.rerated, category: r.ai.category, importance: r.ai.importance, reason: r.reason || "" });
       }
       return structuredClone({ message_id: r.message_id, subject: r.subject, sender: r.from, date: r.date, mailbox: "INBOX", location: r.folder === "INBOX" ? null : r.folder, category: r.ai?.category || null, importance: r.ai?.importance || null, rating_id: r.rating_id || null, corrected: !!r.corrected, held: r.kind === "held", found: true, events: ev });
     }
@@ -206,6 +278,77 @@ export function install({ data, q }) {
       const results = [...sample.map(([subject, from, before]) => ({ subject, from, before, after: name })), ...Array.from({ length: 20 - sample.length }, (_, k) => ({ subject: `Mail ${k}`, from: "x", before: "Newsletter & Werbung", after: "Newsletter & Werbung" }))];
       ai.status.used_this_hour += 20;
       return { name, tested: 20, held: 0, missing: 0, limit: false, errors: [], results, hits: sample.length };
+    }
+    if (m.type === "friedafetch_mail/ai/rerate") {
+      // works through the messages, one per tick, and reports live – like the background task
+      const keys = [...(m.rating_ids || []).map((id) => rows.find((r) => r.rating_id === id)?.message_id), ...(m.messages || []).map((x) => x.message_id)].filter(Boolean);
+      ai.batch = { state: "running", total: keys.length, done: 0, rated: 0, held: 0, missing: 0, applied: 0, errors: [], apply: !!m.apply, started: new Date().toISOString(), finished: null };
+      const tick = () => {
+        const b = ai.batch;
+        if (b.state !== "running") return;
+        const r = find(keys[b.done]);
+        if (r?.kind === "held") b.held += 1;
+        else if (r) {
+          r.rerated = new Date().toISOString();
+          b.rated += 1;
+          if (m.apply && r.ai?.applied?.length) b.applied += 1;
+        } else b.missing += 1;
+        b.done += 1;
+        if (b.done >= b.total) {
+          b.state = "done";
+          b.finished = new Date().toISOString();
+          live("activity");
+        }
+        live("ai");
+        if (b.state === "running") setTimeout(tick, Number(q.get("tick") || 1200));
+      };
+      setTimeout(tick, Number(q.get("tick") || 1200));
+      return structuredClone(ai);
+    }
+    if (m.type === "friedafetch_mail/ai/rerate/cancel") {
+      if (ai.batch?.state === "running") Object.assign(ai.batch, { state: "cancelled", finished: new Date().toISOString() });
+      return structuredClone(ai);
+    }
+    if (m.type === "friedafetch_mail/ai/run") {
+      await wait(800);
+      ai.status.used_this_hour += 1;
+      return structuredClone({ report: { trigger: "manual", rated: 1, applied: 0, skipped: 0, errors: [], items: [] }, ...ai });
+    }
+    if (m.type === "friedafetch_mail/ai/clear") {
+      ai.ratings = [];
+      return structuredClone(ai);
+    }
+    if (m.type === "friedafetch_mail/ai/usage/clear") {
+      ai.usage = { ...usageWindows([]), log: [] };
+      return structuredClone(ai);
+    }
+    if (m.type === "friedafetch_mail/rules/create") {
+      const rule = { ...m.rule, id: `r${Date.now().toString(36)}`, hits: 0, created: new Date().toISOString() };
+      rulesList.rules.push(rule);
+      return { rule };
+    }
+    if (m.type === "friedafetch_mail/rules/update") {
+      const rule = rulesList.rules.find((r) => r.id === m.rule_id);
+      Object.assign(rule, m.changes);
+      return { rule };
+    }
+    if (m.type === "friedafetch_mail/rules/delete") {
+      rulesList.rules = rulesList.rules.filter((r) => r.id !== m.rule_id);
+      return { deleted: true };
+    }
+    if (m.type === "friedafetch_mail/rules/history/clear") {
+      data["friedafetch_mail/rules/history"].runs = [];
+      return { cleared: true };
+    }
+    if (m.type === "friedafetch_mail/rules/run") {
+      // the example mails the enabled rules hit (all of them in a dry run, nothing changes here)
+      await wait(600);
+      const active = rulesList.rules.filter((r) => r.enabled && (!m.rule_ids || m.rule_ids.includes(r.id)));
+      const actions = rows
+        .filter((r) => r.rules.length)
+        .flatMap((r) => active.filter((rule) => r.rules.includes(rule.name)).map((rule) => ({ uid: r.uid, mailbox: "INBOX", subject: r.subject, from: [r.from], rule: rule.name, rule_id: rule.id, ...rule.actions })));
+      const now = new Date().toISOString();
+      return { scope: m.scope || "all", trigger: "manual", dry_run: !!m.dry_run, started: now, finished: now, checked: m.scope === "new" ? 0 : rows.length, matched: m.scope === "new" ? 0 : actions.length, actions: m.scope === "new" ? [] : actions, skipped: [], errors: [] };
     }
     return undefined;
   };

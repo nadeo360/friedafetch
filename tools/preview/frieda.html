@@ -30,7 +30,8 @@ const b = (r, w, e = 0) => ({ read: r, write: w, error: e });
 const data = {
   "friedafetch/accounts": { accounts: [{ entry_id: "e1", label: "privat", apple_id: "erika@example.com", title: "erika@example.com", mail_enabled: true, read_only: false, allow_send: true, allow_delete: true, approvals_enabled: true, approvals_pending: 0, extensions: ["mail"] }] },
   "friedafetch/overview": { endpoint: { active: true, path: "/api/friedafetch", readonly_path: "/api/friedafetch/readonly", admin_only: false, tools: 38, tools_readonly: 20, tools_write: 18, base_urls: [{ kind: "local", url: location.origin }, { kind: "external", url: "https://home.example.org" }, { kind: "cloud", url: "https://abc123.ui.nabu.casa" }] }, llm_api: ["friedafetch"], ha_mcp_server: { installed: true, selected: true },
-    postfach: { state: "running", version: "1.0.8", status: { rules_total: 8, rules_enabled: 8, auto: true, interval: 5, push: "listening" } },
+    // the same account as the Postfach preview: 4 rules, 3 on; the version comes from the manifest (build.py)
+    postfach: { state: "running", version: "__POSTFACH_VERSION__", status: { rules_total: 4, rules_enabled: 3, auto: true, interval: 5, push: "listening", last_run: { trigger: "auto", finished: iso(2), checked: 0, matched: 0 } } },
     usage: { today: b(12, 3), week: b(80, 14, 1), month: b(240, 40, 2), total: b(900, 120, 5), since: day(30), last: { time: iso(3), tool: "icloud_search_mail", source: "friedafetch" },
       series: Array.from({ length: 14 }, (_, i) => ({ date: day(13 - i), read: (i * 7) % 15, write: i % 4, error: 0 })), tools: [{ tool: "icloud_search_mail", count: 120 }, { tool: "icloud_list_events", count: 60 }, { tool: "icloud_send_mail", count: 9 }], sources: { friedafetch: 400, mcp_server: 120 } },
     clients: [{ name: "Claude", version: "1.0", profile: "full", last_seen: iso(3) }], injection_locks: [] },
@@ -43,13 +44,16 @@ const data = {
     { time: iso(2), tool: "icloud_send_mail", action: "send", result: "pending", client: "friedafetch", params: { to: ["bob@example.com"], subject: "Angebot" }, details: { approval_id: "a1", reason: "send" } },
     { time: iso(3), tool: "icloud_send_mail", action: "send", result: "pending", client: "friedafetch", params: { to: ["eve@example.com"], subject: "Rechnung" }, details: { approval_id: "a2", reason: "send" } },
     { time: iso(4), tool: "icloud_send_mail", action: "send", result: "ok", client: "friedafetch", user: "Erika", params: { to: ["anna@example.com"], subject: "Termin morgen" }, details: { message_id: "<x@y>" } },
-    { time: iso(30), tool: "icloud_run_rules", action: "rules", result: "ok", client: "rules (push)", details: { checked: 1, matched: 1, trigger: "push", mails: [{ message_id: "<n1@shop>", subject: "Wochen-Newsletter: Angebote" }, { message_id: "<n2@shop>", subject: "Nur heute: 20 % auf alles" }] } },
+    // mails of the Postfach preview, so the links lead to their timelines there
+    { time: iso(40), tool: "icloud_run_rules", action: "rules", result: "ok", client: "rules (push)", details: { checked: 3, matched: 1, trigger: "push", mails: [{ message_id: "<ci-run-failed@example>", subject: "[nadeo360/friedafetch] Run failed: CI - main" }] } },
+    { time: iso(40), tool: "friedafetch_mail_ai_sort", action: "rules", result: "ok", client: "ai (push)", details: { checked: 1, matched: 1, trigger: "push", mails: [{ message_id: "<gartenmarkt-rabatt@example>", subject: "🍁 Nur noch 6 Tage: 15% Rabatt mit Code OKT06 bei Gartenmarkt" }] } },
     { time: iso(55), tool: "icloud_delete_mail", action: "delete", result: "blocked", client: "friedafetch", error: "Hourly limit reached for item delete: 50/50 used", params: { uids: [1, 2, 3], mailbox: "INBOX" } },
     { time: iso(80), tool: "icloud_create_event", action: "write", result: "error", client: "mcp_server", error: "Calendar 'Arbeit' not found", params: { summary: "Zahnarzt", calendar_id: "x" } },
-    { time: iso(60 * 26), tool: "friedafetch_mail_ai_sort", action: "rules", result: "ok", client: "ai (push)", details: { checked: 3, matched: 2, trigger: "push" } },
+    { time: iso(60 * 17), tool: "friedafetch_mail_ai_sort", action: "rules", result: "ok", client: "ai (push)", details: { checked: 1, matched: 1, trigger: "push", mails: [{ message_id: "<moebel-wochenende@example>", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas" }] } },
     { time: iso(60 * 27), tool: "icloud_move_mail", action: "write", result: "ok", client: "friedafetch", params: { uids: [5, 6], target_mailbox: "Archive" }, details: { count: 2 } },
   ] },
 };
+data["friedafetch/accounts"].accounts[0].approvals_pending = data["friedafetch/approvals/list"].requests.filter((r) => r.status === "pending").length;
 const el = document.createElement("friedafetch-panel");
 document.body.appendChild(el);
 el.narrow = innerWidth < 870; el.panel = {};

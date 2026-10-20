@@ -64,10 +64,17 @@ def main() -> None:
 
     # one key per build for every panel import, so browsers never keep files of an older build
     build = format(int(datetime.now().timestamp()), "x")
+    versions = {
+        "__FRIEDA_VERSION__": json.loads((FRIEDA / "custom_components" / "friedafetch" / "manifest.json").read_text())["version"],
+        "__POSTFACH_VERSION__": json.loads((args.postfach / "custom_components" / "friedafetch_mail" / "manifest.json").read_text())["version"],
+    }
     # the example backends (mock-*.js) and clickable drafts of ideas that are not in the panels yet (draft-*.js)
     pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("mock-*.js"), *HERE.glob("draft-*.js")]
     for src in pages:
-        (out / src.name).write_text(src.read_text(encoding="utf-8").replace("__BUILD__", build), encoding="utf-8")
+        text = src.read_text(encoding="utf-8").replace("__BUILD__", build)
+        for key, value in versions.items():  # the example data shows the versions of the working trees
+            text = text.replace(key, value)
+        (out / src.name).write_text(text, encoding="utf-8")
     page = (HERE / "index.html").read_text(encoding="utf-8")
     (out / "index.html").write_text(page, encoding="utf-8")
     # the published page gets its document skeleton from the host; locally it needs one
