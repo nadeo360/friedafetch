@@ -1,0 +1,16 @@
+# The tests against the oldest Home Assistant that hacs.json allows (2026.10.0); compiled with hashes to
+# test.txt by scripts/lock_requirements.sh. The pins that belong to a Home Assistant release are left to the resolver.
+pytest-homeassistant-custom-component==0.13.371
+home-assistant-frontend
+hassil
+home-assistant-intents
+gazetteer-matcher
+icalendar==6.3.1
+aioimaplib==2.0.1
+aiosmtplib==5.1.3
+mcp==1.30.0
+anyio==4.14.2
+ruff==0.17.1
+resvg-py
+pillow
+hypothesis==6.168.4

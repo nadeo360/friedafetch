@@ -21,3 +21,8 @@ for name in manifest sbom; do
     --custom-compile-command "scripts/lock_requirements.sh" -o "requirements/$name.txt"
 done
 uv pip compile requirements_dev.txt $OPTS --custom-compile-command "scripts/lock_requirements.sh" -o requirements/test.txt
+# the same tests against the oldest Home Assistant that hacs.json allows and the newest one (CI matrix): bump
+# requirements/ha-minimum/test.in together with hacs.json; Dependabot moves requirements/ha-next on
+for name in ha-minimum ha-next; do
+  uv pip compile "requirements/$name/test.in" $OPTS --custom-compile-command "scripts/lock_requirements.sh" -o "requirements/$name/test.txt"
+done

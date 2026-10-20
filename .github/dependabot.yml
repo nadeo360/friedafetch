@@ -8,6 +8,14 @@ updates:
       interval: weekly
     open-pull-requests-limit: 0
     labels: [dependencies]
+  # the newest Home Assistant for the CI matrix: a pull request (with its test run) for every new release and beta
+  - package-ecosystem: pip
+    directory: "/requirements/ha-next"
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: pytest-homeassistant-custom-component
+    labels: [dependencies]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

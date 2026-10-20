@@ -25,17 +25,30 @@ jobs:
   tests:
     name: pytest against Home Assistant ${{ matrix.ha }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.ha == 'next' }}
     strategy:
       fail-fast: false
       matrix:
-        ha: ["2026.10.1"]
+        # the release requirements_dev.txt follows, the oldest one hacs.json allows, and the newest one (an early
+        # warning: Dependabot moves it on, betas included; it may fail without blocking)
+        include:
+          - ha: "2026.10.1"
+            lock: requirements/test.txt
+          - ha: minimum
+            lock: requirements/ha-minimum/test.txt
+          - ha: next
+            lock: requirements/ha-next/test.txt
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install --require-hashes -r requirements/test.txt
+          cache-dependency-path: ${{ matrix.lock }}
+      - run: pip install --require-hashes -r ${{ matrix.lock }}
+      - name: The minimum is the one hacs.json allows
+        if: matrix.ha == 'minimum'
+        run: python -c "import json, homeassistant.const as c; m = json.load(open('hacs.json'))['homeassistant']; assert c.__version__ == m, (c.__version__, m)"
       - run: pytest -q --timeout=120
 
   manifest:
