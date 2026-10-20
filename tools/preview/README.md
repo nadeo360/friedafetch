@@ -28,5 +28,5 @@ repositories (`.github/workflows/ui.yml`). Locally:
 
 ```bash
 pip install --require-hashes -r requirements/ui.txt && python -m playwright install chromium webkit
-cd tools/preview && python -m pytest --browser chromium --browser webkit   # POSTFACH_DIR=… if not ../friedafetch-mail
+cd tools/preview && python -m pytest -n auto --browser chromium --browser webkit   # POSTFACH_DIR=… if not ../friedafetch-mail
 ```
