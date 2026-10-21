@@ -100,6 +100,7 @@ async def test_status_without_and_with_the_open_mailbox() -> None:
         "highestmodseq": 9002,
         "unseen": 2,
     }
+    assert client.select.await_args.args == ('"INBOX" (CONDSTORE)',)  # obliges the server to name HIGHESTMODSEQ
 
 
 async def test_flags_of_messages_and_changes_since() -> None:

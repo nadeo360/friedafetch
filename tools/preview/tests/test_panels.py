@@ -115,6 +115,16 @@ def test_read_and_flagged_as_the_mailbox_has_it(open_panel) -> None:
     assert "ungelesen" in chips and "markiert" in chips  # the first mail: personal, still unread
 
 
+def test_a_mail_that_left_the_inbox_keeps_its_last_state(open_panel) -> None:
+    """Moved away on another device: read / flagged stay as last seen instead of vanishing (1.0.26)."""
+    panel = open_panel("postfach")
+    flagged = panel.js(
+        "const li = [...root.querySelectorAll('.mlist li.m')].find((l) => l.textContent.includes('Elternabend'));"
+        "return !!li.querySelector('.fl');"
+    )
+    assert flagged
+
+
 def test_accuracy_check_with_another_ai_entity(open_panel) -> None:
     panel = open_panel("postfach", "tab=ai&aislow=300")
     panel.js(

@@ -35,7 +35,7 @@ function makeRows(volume) {
     { id: "karte-belasten", min: 90, name: "Reiseportal", from: "noreply@reiseportal.example", subject: "Wir werden Ihre Karte bald belasten", type: "bill", importance: 4, confidence: "low" },
     { id: "bestellung-unterwegs", min: 60 * 15, name: "Shop Versand", from: "versand@shop.example", subject: "Ihre Bestellung ist unterwegs", type: "bill", confidence: "low" },
     { id: "moebel-wochenende", min: 60 * 17, name: "Möbelhaus", from: "newsletter@moebel.example", subject: "Wochenend-Angebote: bis zu 40 % auf Sofas", type: "news", confidence: "medium" },
-    { id: "elternabend", min: 60 * 21, name: "Schule Sekretariat", from: "sekretariat@schule.example", subject: "Elternabend am Donnerstag", type: "personal", importance: 4 },
+    { id: "elternabend", min: 60 * 21, name: "Schule Sekretariat", from: "sekretariat@schule.example", subject: "Elternabend am Donnerstag", type: "personal", importance: 4, gone: true },
     { id: "rabatt-code", min: 60 * 23, name: "Werbung", from: "promo@werbung.example", subject: "Rabatt-Code nur heute", type: "promo" },
   ].map((x) => ({ ...x, time: at(x.min) }));
   if (volume) {
@@ -71,7 +71,8 @@ function makeRows(volume) {
     row.selectable = !!row.message_id && row.kind !== "rule";
     row.unsure = row.kind === "ai" && row.ai.confidence === "low" && !row.corrected;
     // read / flagged as the mailbox has it (mailstate.py): the newest ones still unread, flagged personal mails
-    row.state = row.folder === "INBOX" ? { seen: i >= 2 && i !== 6, flagged: (row.ai?.applied || []).includes("flagged"), gone: false, checked: new Date(now).toISOString() } : null;
+    // (one was moved out of the inbox on another device: it keeps the state it had there)
+    row.state = row.folder === "INBOX" ? { seen: i >= 2 && i !== 6, flagged: (row.ai?.applied || []).includes("flagged"), gone: !!x.gone, checked: new Date(now).toISOString() } : null;
     return row;
   });
 }

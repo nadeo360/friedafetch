@@ -752,14 +752,16 @@ class ICloudMail:
         """Counters of a mailbox: messages, unseen, uidnext, uidvalidity, and highestmodseq with CONDSTORE.
 
         STATUS answers without opening the mailbox. For the mailbox this connection has open, STATUS may be out of
-        date (RFC 3501), so it is opened again and its unread messages are counted instead.
+        date (RFC 3501), so it is opened again and its unread messages are counted instead – with CONDSTORE as
+        "SELECT mailbox (CONDSTORE)", the form that obliges the server to name HIGHESTMODSEQ.
         """
         names = "MESSAGES UNSEEN UIDNEXT UIDVALIDITY" + (" HIGHESTMODSEQ" if self.condstore else "")
 
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, int]:
             if self._selected == mailbox:
                 self._selected = None
-                response = await client.select(quote_mailbox(mailbox))
+                target = quote_mailbox(mailbox) + (" (CONDSTORE)" if self.condstore else "")
+                response = await client.select(target)
                 if response.result != "OK":
                     raise MailboxNotFound(f"Mailbox '{mailbox}' not found or cannot be opened")
                 self._selected = mailbox
