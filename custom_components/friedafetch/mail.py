@@ -755,9 +755,10 @@ class ICloudMail:
         date (RFC 3501), so it is opened again and its unread messages are counted instead – with CONDSTORE as
         "SELECT mailbox (CONDSTORE)", the form that obliges the server to name HIGHESTMODSEQ.
         """
-        names = "MESSAGES UNSEEN UIDNEXT UIDVALIDITY" + (" HIGHESTMODSEQ" if self.condstore else "")
 
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, int]:
+            # decided once connected: before the first login the capabilities are not known yet
+            names = "MESSAGES UNSEEN UIDNEXT UIDVALIDITY" + (" HIGHESTMODSEQ" if self.condstore else "")
             if self._selected == mailbox:
                 self._selected = None
                 response = None
