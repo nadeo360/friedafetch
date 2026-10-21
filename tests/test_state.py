@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import aioimaplib
+import pytest
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import llm
 from homeassistant.util import dt as dt_util
@@ -23,7 +26,7 @@ from custom_components.friedafetch.const import (
 )
 from custom_components.friedafetch.guard import QUOTA_MAIL_SEND, Guard
 from custom_components.friedafetch.llm_api import API_PROMPT, capability_hints
-from custom_components.friedafetch.mail import ICloudMail
+from custom_components.friedafetch.mail import ICloudMail, MailError
 
 from .conftest import APP_PASSWORD, APPLE_ID
 
@@ -195,6 +198,45 @@ async def test_connections_of_one_account_share_the_mailbox_list() -> None:
     second._run.assert_not_awaited()  # noqa: SLF001
 
 
+def _open(closing: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(transport=SimpleNamespace(is_closing=lambda: closing))
+
+
+async def test_broken_connection_is_replaced_at_once() -> None:
+    """Regression: a connection broken off kept aioimaplib's state, so every command waited for its timeout."""
+    mail = _mail()
+    broken = SimpleNamespace(get_state=lambda: "SELECTED", logout=AsyncMock(), noop=AsyncMock(), protocol=_open(True))
+    fresh = SimpleNamespace(get_state=lambda: "AUTH", protocol=_open())
+    mail._client = broken  # noqa: SLF001
+    mail._last_used = time.monotonic()  # noqa: SLF001 - used a moment ago
+    with patch.object(ICloudMail, "_connect", AsyncMock(return_value=fresh)):
+        assert await mail._ensure() is fresh  # noqa: SLF001
+    broken.noop.assert_not_awaited()
+    await mail.async_close()
+
+
+async def test_command_timeout_reconnects_once() -> None:
+    """aioimaplib's command timeout is no aioimaplib.Error: it is retried on a new connection like the others."""
+    mail = _mail()
+    calls = 0
+
+    async def op(client: object) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise aioimaplib.CommandTimeout(SimpleNamespace())
+        return "ok"
+
+    with patch.object(ICloudMail, "_ensure", AsyncMock(return_value=SimpleNamespace())):
+        assert await mail._run(op) == "ok"  # noqa: SLF001
+
+        async def never(client: object) -> str:
+            raise aioimaplib.CommandTimeout(SimpleNamespace())  # every try: a clear message, not the command
+
+        with pytest.raises(MailError, match="no answer from the server in time"):
+            await mail._run(never)  # noqa: SLF001
+
+
 async def test_idle_connection_is_replaced_without_waiting_for_logout() -> None:
     mail = _mail()
     gate = asyncio.Event()
@@ -202,8 +244,8 @@ async def test_idle_connection_is_replaced_without_waiting_for_logout() -> None:
     async def slow_logout():
         await gate.wait()  # a dead connection never answers
 
-    stale = SimpleNamespace(get_state=lambda: "SELECTED", logout=slow_logout)
-    fresh = SimpleNamespace(get_state=lambda: "AUTH")
+    stale = SimpleNamespace(get_state=lambda: "SELECTED", logout=slow_logout, protocol=_open())
+    fresh = SimpleNamespace(get_state=lambda: "AUTH", protocol=_open())
     mail._client = stale  # noqa: SLF001
     mail._last_used = -10_000.0  # noqa: SLF001 - idle for hours
     with patch.object(ICloudMail, "_connect", AsyncMock(return_value=fresh)):

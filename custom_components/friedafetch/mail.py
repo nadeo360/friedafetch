@@ -36,6 +36,8 @@ _KEEP_UNTIL = 25 * 60  # an idle connection up to this age is checked with NOOP 
 _VANISHED_RE = re.compile(r"^(?:\*\s*)?(?:VANISHED\s+)?\(EARLIER\)\s+([\d:,]+)\s*$", re.IGNORECASE)
 _DEFAULT_WINDOW = 500  # messages inspected when filtering client-side
 MAX_BATCH = 500  # uids per STORE/MOVE/COPY command
+# what a broken connection raises: aioimaplib's command timeout is no aioimaplib.Error
+_CONNECTION_ERRORS = (TimeoutError, OSError, aioimaplib.AioImapException)
 
 HEADER_FIELDS = (
     "FROM TO CC SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE "
@@ -109,6 +111,13 @@ def decode_utf7(name: str) -> str:
                 result.append(name[i : end + 1])
         i = end + 1
     return "".join(result)
+
+
+def _reason(err: BaseException) -> str:
+    """An IMAP failure in words (a command timeout carries only the command, which says nothing to the user)."""
+    if isinstance(err, (TimeoutError, aioimaplib.CommandTimeout)):
+        return "no answer from the server in time"
+    return str(err) or err.__class__.__name__
 
 
 def quote_mailbox(name: str) -> str:
@@ -442,8 +451,8 @@ class ICloudMail:
         try:
             await client.wait_hello_from_server()
             response = await client.login(self._username, self._password)
-        except (TimeoutError, OSError, aioimaplib.Error, aioimaplib.Abort) as err:
-            raise MailError(f"IMAP connection failed: {err}") from err
+        except _CONNECTION_ERRORS as err:
+            raise MailError(f"IMAP connection failed: {_reason(err)}") from err
         if response.result != "OK":
             raise MailAuthError("IMAP login failed - check Apple ID and app-specific password")
         await self._learn_capabilities(client)
@@ -487,6 +496,10 @@ class ICloudMail:
         now = time.monotonic()
         if self._client is not None:
             state = self._client.get_state()
+            protocol = self._client.protocol
+            if protocol is None or protocol.transport is None or protocol.transport.is_closing():
+                # broken off (network, server): aioimaplib keeps its state, a command would wait for its timeout
+                state = "LOGOUT"
             if state in ("AUTH", "SELECTED") and now - self._last_used < _IDLE_RECONNECT_AFTER:
                 return self._client
             if state in ("AUTH", "SELECTED") and now - self._last_used < _KEEP_UNTIL:
@@ -552,22 +565,30 @@ class ICloudMail:
                 return result
             except (MailAuthError, MailboxNotFound, MessageNotFound):
                 raise
-            except (TimeoutError, OSError, aioimaplib.Error, aioimaplib.Abort, MailError) as err:
+            except (*_CONNECTION_ERRORS, MailError) as err:
                 await self._drop()
                 if not retry:
-                    raise MailError(f"IMAP operation failed: {err}") from err
-                _LOGGER.debug("IMAP operation failed, reconnecting: %s", err)
+                    raise MailError(f"IMAP operation failed: {_reason(err)}") from err
+                _LOGGER.debug("IMAP operation failed, reconnecting: %s", _reason(err))
                 client = await self._ensure()
                 try:
                     result = await func(client, *args)
-                except (TimeoutError, OSError, aioimaplib.Error, aioimaplib.Abort) as err2:
+                except _CONNECTION_ERRORS as err2:
                     await self._drop()
-                    raise MailError(f"IMAP operation failed: {err2}") from err2
+                    raise MailError(f"IMAP operation failed: {_reason(err2)}") from err2
                 self._last_used = time.monotonic()
                 return result
 
-    async def _select(self, client: aioimaplib.IMAP4_SSL, mailbox: str) -> None:
+    async def _select(self, client: aioimaplib.IMAP4_SSL, mailbox: str, *, fresh: bool = False) -> None:
+        """Open a mailbox. fresh: as it is now, also when it is open already.
+
+        An open mailbox shows this connection what it held when it was opened. Messages that other devices added
+        or deleted since are known to it only after a NOOP (or a new SELECT): without one, a new message is not
+        found and a deleted one still answers.
+        """
         if self._selected == mailbox:
+            if fresh:
+                await client.noop()
             return
         response = await client.select(quote_mailbox(mailbox))
         if response.result != "OK":
@@ -760,7 +781,7 @@ class ICloudMail:
         """Return the uids matching IMAP search criteria (ascending)."""
 
         async def op(client: aioimaplib.IMAP4_SSL) -> list[int]:
-            await self._select(client, mailbox)
+            await self._select(client, mailbox, fresh=True)
             response = await client.uid_search(*criteria, charset=None)
             if response.result != "OK":
                 raise MailError(f"SEARCH failed: {response.lines}")
@@ -857,7 +878,7 @@ class ICloudMail:
         parts = "(UID FLAGS)" + (f" (CHANGEDSINCE {int(changed_since)})" if changed_since is not None else "")
 
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[int, list[str]]:
-            await self._select(client, mailbox)
+            await self._select(client, mailbox, fresh=True)
             response = await client.uid("fetch", uid_set, parts)
             if response.result != "OK":
                 raise MailError(f"FETCH failed: {response.lines[-1] if response.lines else ''}")
