@@ -120,3 +120,20 @@ async def test_flags_of_messages_and_changes_since() -> None:
     await _with(mail, _fake_client({"CONDSTORE"}, uid=uid, select=client.select))
     await mail.async_flags("INBOX", changed_since=9000)
     assert uid.await_args.args == ("fetch", "1:*", "(UID FLAGS) (CHANGEDSINCE 9000)")
+
+
+async def test_status_opens_plainly_when_select_condstore_is_refused() -> None:
+    mail = _mail()
+    answers = [
+        SimpleNamespace(result="BAD", lines=[b"Invalid arguments"]),
+        SimpleNamespace(result="OK", lines=[b"7 EXISTS", b"OK [UIDVALIDITY 77] ok", b"OK [UIDNEXT 50] ok"]),
+    ]
+    client = _fake_client(
+        {"IMAP4rev1", "CONDSTORE"},
+        select=AsyncMock(side_effect=answers),
+        uid_search=AsyncMock(return_value=SimpleNamespace(result="OK", lines=[b"3", b"SEARCH completed"])),
+    )
+    await _with(mail, client)
+    mail._selected = "INBOX"  # noqa: SLF001
+    assert await mail.async_status("INBOX") == {"messages": 7, "uidvalidity": 77, "uidnext": 50, "unseen": 1}
+    assert [c.args for c in client.select.await_args_list] == [('"INBOX" (CONDSTORE)',), ('"INBOX"',)]

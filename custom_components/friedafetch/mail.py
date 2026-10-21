@@ -760,8 +760,14 @@ class ICloudMail:
         async def op(client: aioimaplib.IMAP4_SSL) -> dict[str, int]:
             if self._selected == mailbox:
                 self._selected = None
-                target = quote_mailbox(mailbox) + (" (CONDSTORE)" if self.condstore else "")
-                response = await client.select(target)
+                response = None
+                if self.condstore:
+                    response = await client.select(quote_mailbox(mailbox) + " (CONDSTORE)")
+                    if response.result != "OK":  # a server that names CONDSTORE but not this form of SELECT
+                        _LOGGER.debug("SELECT (CONDSTORE) refused, opening %s plainly: %s", mailbox, response.lines)
+                        response = None
+                if response is None:
+                    response = await client.select(quote_mailbox(mailbox))
                 if response.result != "OK":
                     raise MailboxNotFound(f"Mailbox '{mailbox}' not found or cannot be opened")
                 self._selected = mailbox
