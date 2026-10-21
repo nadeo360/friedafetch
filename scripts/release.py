@@ -203,9 +203,21 @@ def wait_for_ci(sha: str) -> None:
     deadline = time.monotonic() + CI_TIMEOUT
     settled = -1
     while True:
-        runs = json.loads(
-            run(gh(), "run", "list", "--commit", sha, "--json", "databaseId,workflowName,status,conclusion", "-L", "50")
+        listed = json.loads(
+            run(
+                gh(),
+                "run",
+                "list",
+                "--commit",
+                sha,
+                "--json",
+                "databaseId,workflowName,status,conclusion,event",
+                "-L",
+                "50",
+            )
         )
+        # GitHub's own Dependabot jobs (event "dynamic") look at the dependencies, not at this commit
+        runs = [r for r in listed if r.get("event") != "dynamic"]
         pending = [r for r in runs if r["status"] != "completed"]
         failed = [r for r in runs if r["status"] == "completed" and r["conclusion"] not in OK]
         if failed:
