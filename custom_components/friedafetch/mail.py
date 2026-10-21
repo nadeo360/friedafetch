@@ -495,8 +495,8 @@ class ICloudMail:
                     response = await asyncio.wait_for(self._client.noop(), 10)
                     if response.result == "OK":
                         return self._client
-                except Exception:  # noqa: BLE001, S110 - closed by the server: log in again below
-                    pass
+                except Exception as err:  # noqa: BLE001 - closed by the server: log in again below
+                    _LOGGER.debug("IMAP connection closed while quiet, logging in again: %s", err)
             self._discard()
         self._client = await self._connect()
         return self._client
