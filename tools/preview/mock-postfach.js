@@ -71,8 +71,8 @@ function makeRows(volume) {
     row.selectable = !!row.message_id && row.kind !== "rule";
     row.unsure = row.kind === "ai" && row.ai.confidence === "low" && !row.corrected;
     // read / flagged as the mailbox has it (mailstate.py): the newest ones still unread, flagged personal mails
-    // (one was moved out of the inbox on another device: it keeps the state it had there)
-    row.state = row.folder === "INBOX" ? { seen: i >= 2 && i !== 6, flagged: (row.ai?.applied || []).includes("flagged"), gone: !!x.gone, checked: new Date(now).toISOString() } : null;
+    // (one was moved to the archive on another device: followed there by its Message-ID)
+    row.state = row.folder === "INBOX" ? { seen: i >= 2 && i !== 6, flagged: (row.ai?.applied || []).includes("flagged"), gone: false, mailbox: x.gone ? "Archive" : "INBOX", uid: x.gone ? 9000 + i : row.uid, searched: null, checked: new Date(now).toISOString() } : null;
     return row;
   });
 }
@@ -246,9 +246,10 @@ export function install({ data, q }) {
       const i = rows.findIndex((r) => r.message_id === m.message_id);
       const r = rows[i];
       const checked = new Date().toISOString();
-      if (!r || i % 13 === 7) return { found: false, mailbox: null, trash: false, checked };
+      if (!r || i % 13 === 7) return { found: false, mailbox: null, uid: null, trash: false, checked };
       const place = i % 6 === 5 ? (r.folder === "Archive" ? "INBOX" : "Archive") : r.folder;
-      return place === TRASH ? { found: true, mailbox: "Deleted Messages", trash: true, checked } : { found: true, mailbox: place, trash: false, checked };
+      const uid = place === "INBOX" ? r.uid : 9000 + i;
+      return place === TRASH ? { found: true, mailbox: "Deleted Messages", uid, trash: true, checked } : { found: true, mailbox: place, uid, trash: false, checked };
     }
     if (m.type === "friedafetch_mail/mail/timeline") {
       await wait(Number(q.get("tlslow") || 50));
