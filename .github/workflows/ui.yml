@@ -1,8 +1,9 @@
 name: Panels in the browser
 
-# Both panels with the example data of the dev preview, in Chromium and WebKit (the engine of Safari and of the Home
+# Frieda's panel with the example data of the dev preview, in Chromium and WebKit (the engine of Safari and of the Home
 # Assistant app on iPhone and iPad), on desktop and phone sizes: every scenario must load without script errors,
-# missing icons or horizontal overflow, and the regression tests of tools/preview/tests must pass.
+# missing icons or horizontal overflow, and the regression tests of tools/preview/tests must pass. Frieda Postfach's
+# panel is tested in its own repository (on the harness of tools/preview/harness.py).
 
 on:
   push:
@@ -14,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  # the Frieda Postfach panel shown next to Frieda's (its released state)
+  # Frieda Postfach is checked out for the build of the preview only (its panel is tested in its own repository)
   POSTFACH_REF: main
 
 jobs:

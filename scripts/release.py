@@ -11,7 +11,10 @@ and never releases what CI has not passed:
 
  1. dev is clean and contains everything of origin/main (merged Dependabot pull requests), the tag is new;
  2. the manifest gets the version (one commit "Version X" on dev, if needed);
- 3. ruff and the tests run (not with --skip-tests);
+ 3. what CI runs, run here first (not with --skip-tests), on the commit to be released next to the other
+    repository's origin/main – exactly what CI will see: ruff, the tests (with the IMAP tests where Dovecot is
+    installed), bandit, the type check and the browser tests, in environments with the pinned versions of the
+    requirement locks (built once in ~/.cache/friedafetch-release, again when a lock changes);
  4. main takes dev by fast-forward and is pushed; the remote is checked to have exactly that commit;
  5. every CI run of that commit has to succeed;
  6. the release is created with the notes (German, then English after a line "---");
@@ -26,6 +29,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -39,20 +43,112 @@ CI_TIMEOUT = 45 * 60  # seconds
 ASSET_TIMEOUT = 20 * 60
 POLL = 20
 OK = {"success", "skipped", "neutral"}
+CACHE = Path.home() / ".cache" / "friedafetch-release"
+# the other repository (its origin/main is what this one's CI checks out) and how its tests are told where it is
+OTHER = {"friedafetch": ("friedafetch-mail", "POSTFACH_DIR"), "friedafetch_mail": ("ha-icloud-mcp", "FRIEDA_DIR")}
+DOVECOT = ["/opt/homebrew/opt/dovecot/sbin/dovecot", "/usr/local/opt/dovecot/sbin/dovecot", "/usr/sbin/dovecot"]
 
 
 class ReleaseError(Exception):
     pass
 
 
-def run(*args: str, capture: bool = True, cwd: Path | None = None) -> str:
+def run(*args: str | Path, capture: bool = True, cwd: Path | None = None, env: dict[str, str] | None = None) -> str:
     """A command whose failure stops the release (with its output); never part of a pipe."""
+    args = tuple(str(a) for a in args)
     print("  $", " ".join(args), flush=True)
-    done = subprocess.run(args, cwd=cwd, capture_output=capture, text=True, check=False)  # noqa: S603
+    done = subprocess.run(  # noqa: S603
+        args, cwd=cwd, capture_output=capture, text=True, check=False, env={**os.environ, **env} if env else None
+    )
     if done.returncode != 0:
         detail = (done.stderr or done.stdout or "").strip() if capture else ""
         raise ReleaseError(f"{' '.join(args[:3])} … failed ({done.returncode})" + (f":\n{detail}" if detail else ""))
     return (done.stdout or "").strip() if capture else ""
+
+
+def _pins(locks: list[Path]) -> list[str]:
+    """The pinned requirements of hash-locked files, without the hashes (they are for Linux wheels; CI checks them)."""
+    pins: set[str] = set()
+    for lock in locks:
+        for line in lock.read_text(encoding="utf-8").splitlines():
+            line = line.split("#", 1)[0].rstrip(" \\")
+            if "==" in line and not line.startswith((" ", "-")):
+                pins.add(line.strip())
+    return sorted(pins)
+
+
+def ci_env(name: str, locks: list[Path], *, browsers: bool = False) -> Path:
+    """A Python environment with the pinned versions CI installs; rebuilt only when the locks change."""
+    pins = _pins([lock for lock in locks if lock.exists()])
+    key = hashlib.sha256("\n".join(pins).encode()).hexdigest()
+    venv = CACHE / name
+    python = venv / "bin" / "python"
+    stored = (venv / ".key").read_text(encoding="utf-8") if (venv / ".key").exists() else ""
+    if not python.exists() or stored != key:
+        print(f"  building the {name} environment (pinned versions of {', '.join(lock.name for lock in locks)})")
+        shutil.rmtree(venv, ignore_errors=True)
+        CACHE.mkdir(parents=True, exist_ok=True)
+        reqs = CACHE / f"{name}.txt"
+        reqs.write_text("\n".join(pins) + "\n", encoding="utf-8")
+        uv = shutil.which("uv") or os.environ.get("UV")
+        if uv:
+            run(uv, "venv", "-q", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", venv)
+            run(uv, "pip", "install", "-q", "--python", python, "-r", reqs)
+        else:
+            run(sys.executable, "-m", "venv", venv)
+            run(python, "-m", "pip", "install", "-q", "-r", reqs)
+        (venv / ".key").write_text(key, encoding="utf-8")
+    if browsers:
+        run(python, "-m", "playwright", "install", "chromium", "webkit")
+    return python
+
+
+def ci_checks(root: Path, domain: str) -> None:
+    """What CI runs, on HEAD next to the other repository's origin/main, in throwaway worktrees."""
+    other_name, other_env = OTHER[domain]
+    other = Path(os.environ.get(other_env) or root.parent / other_name)
+    run("git", "-C", other, "fetch", "-q", "origin")
+    tmp = Path(tempfile.mkdtemp(prefix="release-"))
+    here, there = tmp / "self", tmp / "other"
+    run("git", "worktree", "add", "-q", "--detach", here, "HEAD", cwd=root)
+    run("git", "-C", other, "worktree", "add", "-q", "--detach", there, "origin/main")
+    try:
+        if domain == "friedafetch_mail":  # CI links Frieda in the same way
+            (here / "custom_components" / "friedafetch").symlink_to(there / "custom_components" / "friedafetch")
+        reqs = here / "requirements"
+        python = ci_env(f"{domain}-ci", [reqs / "test.txt", reqs / "types.txt", reqs / "lint.txt", reqs / "bandit.txt"])
+        run(python, "-m", "ruff", "check", ".", cwd=here)
+        run(python, "-m", "ruff", "format", "--check", ".", cwd=here)
+        dovecot = shutil.which("dovecot") or next((d for d in DOVECOT if Path(d).exists()), None)
+        if (here / "tests_imap").exists() and not dovecot:
+            print("  ! no Dovecot here: the IMAP tests are skipped locally (CI runs them)", flush=True)
+        env = {"IMAP_TESTS_REQUIRED": "1"} if dovecot and (here / "tests_imap").exists() else None
+        run(python, "-m", "pytest", "-q", "-p", "no:cacheprovider", capture=False, cwd=here, env=env)
+        if (reqs / "bandit.txt").exists():
+            run(python, "-m", "bandit", "-q", "-r", "custom_components", "-c", "pyproject.toml", cwd=here)
+        if (reqs / "types.txt").exists():
+            run(python.parent / "basedpyright", capture=False, cwd=here)
+        preview = here / "tools" / "preview"
+        if (preview / "tests").exists():
+            ui_lock = reqs / "ui.txt" if (reqs / "ui.txt").exists() else there / "requirements" / "ui.txt"
+            ui = ci_env("ui", [ui_lock], browsers=True)
+            browsers = ["--browser", "chromium", "--browser", "webkit"]
+            run(
+                ui,
+                "-m",
+                "pytest",
+                "-q",
+                "-n",
+                "auto",
+                *browsers,
+                capture=False,
+                cwd=preview,
+                env={other_env: str(there)},
+            )
+    finally:
+        run("git", "worktree", "remove", "--force", here, cwd=root)
+        run("git", "-C", other, "worktree", "remove", "--force", there)
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def gh() -> str:
@@ -202,13 +298,11 @@ def release(version: str, notes: Path, *, dry_run: bool, skip_tests: bool) -> No
             run("git", "add", str(path))
             run("git", "commit", "-q", "-m", f"Version {version}")
 
-    print("3. lint and tests", flush=True)
+    print("3. what CI runs, here first", flush=True)
     if skip_tests:
         print("  (skipped)", flush=True)
     else:
-        run(sys.executable, "-m", "ruff", "check", ".", cwd=root)
-        run(sys.executable, "-m", "ruff", "format", "--check", ".", cwd=root)
-        run(sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests", capture=False, cwd=root)
+        ci_checks(root, domain)
 
     if dry_run:
         print(f"Dry run done: {title(manifest, version)} would be released from {run('git', 'rev-parse', 'HEAD')[:7]}.")
@@ -257,7 +351,7 @@ def main() -> int:
     parser.add_argument("--notes", type=Path, help="release notes (Markdown: German, '---', English)")
     parser.add_argument("--draft", action="store_true", help="print a notes skeleton from the commits and stop")
     parser.add_argument("--dry-run", action="store_true", help="check and test only: no commit, push or release")
-    parser.add_argument("--skip-tests", action="store_true", help="leave out ruff and the tests (CI still runs)")
+    parser.add_argument("--skip-tests", action="store_true", help="leave out the local CI checks (CI still runs)")
     args = parser.parse_args()
     try:
         if args.draft:

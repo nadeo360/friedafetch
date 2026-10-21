@@ -118,30 +118,8 @@
       ["tab=activity&scene=fpaging", "Seiten im Änderungsprotokoll"],
       ["update=1", "Hinweis: neue Version"],
     ],
-    postfach: [
-      ["", "Aktivität"],
-      ["volume=1", "Aktivität: ~100 Mails am Tag"],
-      ["scene=pick", "Auswählen (ganzer Tag)"],
-      ["volume=1&scene=rerating", "Neu bewerten: Fortschritt"],
-      ["volume=1&scene=rerating&waitafter=2&tick=1500", "Neu bewerten: wartet aufs Stundenlimit"],
-      ["scene=unsure", "Ansicht: Unsicher"],
-      ["scene=loc", "Ort: inzwischen verschoben"],
-      ["scene=gone", "Ort: nicht mehr gefunden"],
-      ["scene=runs", "Durchgänge"],
-      ["pending=1&scene=runs", "Laufender Push-Durchgang"],
-      ["scene=link", "Link aus dem Änderungsprotokoll"],
-      ["tab=rules", "Regeln"],
-      ["tab=rules&scene=edit", "Regel bearbeiten"],
-      ["tab=rules&scene=menu", "Ausführen-Menü"],
-      ["tab=ai", "KI-Sortierung"],
-      ["tab=ai&scene=check", "Treffsicherheit prüfen"],
-      ["tab=ai&scene=catedit", "Kategorie bearbeiten"],
-      ["tab=ai&scene=assist", "Kategorie mit Frieda: Gespräch"],
-      ["tab=ai&scene=assistcard", "Kategorie mit Frieda: Vorschlag"],
-      ["tab=aiu", "KI-Protokoll"],
-      ["tab=aiu&scene=confirm", "Bestätigungsdialog"],
-      ["update=1", "Hinweis: neue Version"],
-    ],
+    // the scenarios of Frieda Postfach come from its repository (tools/preview/scenarios.json, see build.py)
+    postfach: __POSTFACH_SCENARIOS__,
   };
   const KEY = "frieda-dev-preview";
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;

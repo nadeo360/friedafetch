@@ -2,8 +2,10 @@
 """Builds the dev preview of the Frieda and Frieda Postfach panels with example data.
 
 The panels are taken unchanged from the working trees of both repositories; only the absolute import of Frieda UI
-(/friedafetch_static/ui.js, served by Home Assistant) is pointed at the copy next to it. The result in dist/ is a
-static site: serve it locally with
+(/friedafetch_static/ui.js, served by Home Assistant) is pointed at the copy next to it. Each repository keeps the
+example pages of its own panel: frieda.html here, postfach.html, mock-postfach.js and scenarios.json in Frieda
+Postfach's tools/preview (without them only Frieda's page is built). The result in dist/ is a static site: serve it
+locally with
 
     python3 -m http.server -d tools/preview/dist 8767     # then open http://127.0.0.1:8767/local.html
 
@@ -77,13 +79,21 @@ def main() -> None:
         )["version"],
     }
     # the example backends (mock-*.js) and clickable drafts of ideas that are not in the panels yet (draft-*.js)
-    pages = [HERE / "frieda.html", HERE / "postfach.html", *HERE.glob("mock-*.js"), *HERE.glob("draft-*.js")]
+    postfach_pages = args.postfach / "tools" / "preview"
+    pages = [HERE / "frieda.html", *HERE.glob("mock-*.js"), *HERE.glob("draft-*.js")]
+    scenarios: list = []
+    if (postfach_pages / "postfach.html").exists():
+        pages += [postfach_pages / "postfach.html", *postfach_pages.glob("mock-*.js")]
+        scenarios = json.loads((postfach_pages / "scenarios.json").read_text(encoding="utf-8"))
+    else:
+        print(f"no example pages of Frieda Postfach in {postfach_pages}: only Frieda's page is built")
     for src in pages:
         text = src.read_text(encoding="utf-8").replace("__BUILD__", build)
         for key, value in versions.items():  # the example data shows the versions of the working trees
             text = text.replace(key, value)
         (out / src.name).write_text(text, encoding="utf-8")
     page = (HERE / "index.html").read_text(encoding="utf-8")
+    page = page.replace("__POSTFACH_SCENARIOS__", json.dumps(scenarios, ensure_ascii=False))
     (out / "index.html").write_text(page, encoding="utf-8")
     # the published page gets its document skeleton from the host; locally it needs one
     (out / "local.html").write_text(
