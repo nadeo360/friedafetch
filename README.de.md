@@ -415,6 +415,9 @@ ruff check . && ruff format .
 
 Home Assistant 2026.10 benötigt Python ≥ 3.14.2.
 
+Die Typprüfung ist `basedpyright` (requirements/types.txt); Befunde von vor ihrer Einführung stehen in
+`.basedpyright/baseline.json`, nur neue lassen sie scheitern.
+
 ### Releases
 
 `scripts/release.py VERSION --notes NOTES.md` veröffentlicht aus einem sauberen `dev`: Es hält an, wenn `origin/main`

@@ -79,6 +79,8 @@ function makeRows(volume) {
 
 const matches = (row, view, query) => {
   if (view === "unsure" && !row.unsure) return false;
+  if (view === "unread" && row.state?.seen !== false) return false;
+  if (view === "flagged" && !row.state?.flagged) return false;
   if (view.startsWith("k:") && row.kind !== view.slice(2)) return false;
   if (view.startsWith("f:") && row.folder !== view.slice(2)) return false;
   if (!query) return true;
@@ -232,7 +234,9 @@ export function install({ data, q }) {
       }
       const offset = m.offset || 0;
       const unsure = rows.filter((r) => r.unsure).length;
-      return structuredClone({ items: hits.slice(offset, offset + (m.limit || 50)), total: hits.length, selectable: hits.filter((r) => r.selectable).length, days, counts: { all: rows.length, unsure, kinds, folders } });
+      const unread = rows.filter((r) => r.state?.seen === false).length;
+      const flagged = rows.filter((r) => r.state?.flagged).length;
+      return structuredClone({ items: hits.slice(offset, offset + (m.limit || 50)), total: hits.length, selectable: hits.filter((r) => r.selectable).length, days, counts: { all: rows.length, unsure, unread, flagged, kinds, folders } });
     }
     if (m.type === "friedafetch_mail/activity/select") {
       return { messages: rows.filter((r) => matches(r, m.view || "all", (m.query || "").trim()) && r.selectable && (!m.day || r.day === m.day)).map((r) => ({ key: r.key, message_id: r.message_id, mailbox: r.mailbox })) };
@@ -264,6 +268,7 @@ export function install({ data, q }) {
         ev.push({ kind: "rated", time: at(7), category: r.original || r.ai.category, importance: r.ai.importance, confidence: r.ai.confidence, reason: r.reason || "" });
         if (r.ai.applied.length) ev.push({ kind: "ai_applied", time: at(8), applied: r.ai.applied });
         if (r.corrected) ev.push({ kind: "corrected", time: at(3600), before: r.original, after: r.ai.category });
+        for (const x of r.acted || []) ev.push({ kind: "acted", time: x.time, action: x.action, mailbox: x.mailbox });
         if (r.rerated) ev.push({ kind: "rated", again: true, time: r.rerated, category: r.ai.category, importance: r.ai.importance, confidence: r.ai.confidence, reason: r.reason || "" });
       }
       return structuredClone({ message_id: r.message_id, subject: r.subject, sender: r.from, date: r.date, mailbox: "INBOX", location: r.folder === "INBOX" ? null : r.folder, category: r.ai?.category || null, importance: r.ai?.importance || null, confidence: r.ai?.confidence || null, rating_id: r.rating_id || null, corrected: !!r.corrected, held: r.kind === "held", found: true, events: ev });
@@ -299,6 +304,36 @@ export function install({ data, q }) {
         .map((r) => ({ ...r, first: r.before, expected: null, confidence: "high" }));
       ai.status.used_this_hour += 20;
       return { name, tested: 20, held: 0, missing: 0, limit: false, errors: [], results, hits: sample.length };
+    }
+    if (m.type === "friedafetch_mail/mail/act") {
+      // read / flag / archive / back / trash, like the real backend (moved mails are found again in the next look)
+      await wait(Number(q.get("actslow") || 250));
+      const target = { archive: "Archive", inbox: "INBOX", trash: "Deleted Messages" }[m.action] || null;
+      let done = 0;
+      for (const key of m.keys) {
+        const r = rows.find((x) => x.key === key);
+        if (!r) continue;
+        r.state = r.state || { seen: true, flagged: false, gone: false, mailbox: "INBOX", uid: r.uid, searched: null, checked: new Date().toISOString() };
+        if (m.action === "seen" || m.action === "unseen") r.state.seen = m.action === "seen";
+        if (m.action === "flag" || m.action === "unflag") r.state.flagged = m.action === "flag";
+        if (target) Object.assign(r.state, { mailbox: target, uid: 9500 + done });
+        (r.acted ||= []).push({ time: new Date().toISOString(), action: m.action, mailbox: target });
+        done += 1;
+      }
+      live("activity");
+      return { action: m.action, done, failed: [], skipped: 0 };
+    }
+    if (m.type === "friedafetch_mail/mail/text") {
+      await wait(Number(q.get("textslow") || 300));
+      const r = find(m.message_id);
+      if (!r) return { found: false };
+      const text = `Hallo,\n\nhier ist der Text zu „${r.subject}“ – Beispieltext der Vorschau.\n\nViele Grüße\n${r.name}`;
+      return { found: true, mailbox: r.state?.mailbox || "INBOX", text, truncated: false, attachments: r.kind === "ai" && r.ai.category.startsWith("Rechnungen") ? ["Rechnung.pdf"] : [], suspicious: false };
+    }
+    if (m.type === "friedafetch_mail/ai/apply") {
+      await wait(400);
+      const r = rows.find((x) => x.rating_id === m.rating_id);
+      return { rating: { id: m.rating_id, corrected: r?.ai?.category || null, applied: [] } };
     }
     if (m.type === "friedafetch_mail/ai/check") {
       await wait(Number(q.get("aislow") || 1500));

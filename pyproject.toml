@@ -30,3 +30,18 @@ exclude_dirs = ["tests", ".venv", ".venv314"]
 # not available inside Home Assistant; expat protects against entity expansion). B406 flags xml.sax.saxutils.escape,
 # which only escapes text.
 skips = ["B101", "B314", "B405", "B406"]
+
+[tool.basedpyright]
+# type check of the integration (CI): pyright's standard rules
+include = ["custom_components/friedafetch"]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+reportMissingModuleSource = false
+# Home Assistant re-exports its helpers (websocket_api, http) without __all__; importing them from there is its own convention
+reportPrivateImportUsage = false
+# entities override Home Assistant's cached properties with @property (as Home Assistant's own integrations do)
+reportIncompatibleVariableOverride = false
+reportIncompatibleMethodOverride = false
+# what was found when the check came (narrowing that pyright cannot follow, gaps in library type hints) is in
+# .basedpyright/baseline.json; CI fails on every new finding, and the baseline only shrinks
+baselineFile = ".basedpyright/baseline.json"

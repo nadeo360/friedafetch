@@ -1,0 +1,2 @@
+# Type check (CI job "Types"): basedpyright, pyright with Node.js as a Python wheel; compiled with hashes to types.txt
+basedpyright==1.40.2

@@ -125,6 +125,59 @@ def test_a_mail_that_left_the_inbox_keeps_its_last_state(open_panel) -> None:
     assert flagged
 
 
+def test_views_for_unread_and_flagged(open_panel) -> None:
+    panel = open_panel("postfach")
+    panel.click('.rail [data-action="act-view"][data-v="unread"]', 600)
+    assert panel.text(".lhead h2") == "Ungelesen" and panel.count(".mlist li.m") == panel.count(".mlist li.m.unread")
+    panel.click('.rail [data-action="act-view"][data-v="flagged"]', 600)
+    assert panel.count(".mlist li.m") == panel.count(".mlist li.m .fl") > 0
+
+
+def test_a_rule_from_the_open_mail(open_panel) -> None:
+    panel = open_panel("postfach")
+    panel.click('.rtop [data-action="rule-from-mail"]', 600)
+    assert panel.js("return el._s.tab;") == "rules"
+    assert panel.js("return root.querySelector('#rule-name, [id^=\"rule-name\"]')?.value || el._s.editing.name;") == (
+        "Mails von Erika Mustermann"
+    )
+    assert panel.js("return el._s.editing.conditions[0].value;") == "erika@example.com"
+
+
+def test_acting_on_the_open_mail(open_panel) -> None:
+    """Archive from the reading pane: the timeline shows it; flag with the keyboard (s)."""
+    panel = open_panel("postfach")
+    panel.click('.rtop [data-action="mail-act"][data-v="archive"]', 1200)
+    steps = panel.js("return [...root.querySelectorAll('.reader ol.tl li .what strong')].map((n) => n.textContent);")
+    assert steps[-1] == "Von dir archiviert"
+    assert panel.count('.rtop [data-action="mail-act"][data-v="inbox"]') == 1  # now it offers the way back
+    panel.js("root.querySelector('.mlist [data-action=\"act-open\"]').focus();")
+    panel.page.keyboard.press("j")
+    panel.js("await wait(600);")
+    first = panel.js("return el._s.act.open;")
+    assert first != "<test-frieda@example>"
+    flagged = panel.js("return !!el._actItem(el._s.act.open).state?.flagged;")
+    panel.page.keyboard.press("s")
+    panel.js("await wait(900);")
+    assert panel.js("return !!el._actItem(el._s.act.open).state?.flagged;") is not flagged
+
+
+def test_the_text_of_a_mail_on_request(open_panel) -> None:
+    panel = open_panel("postfach", "textslow=50")
+    panel.click('[data-action="mail-text"]', 500)
+    assert "Beispieltext der Vorschau" in panel.text(".mtext .body")
+
+
+def test_a_correction_asks_for_the_new_categorys_action(open_panel) -> None:
+    panel = open_panel("postfach")
+    panel.js(
+        "const s = root.querySelector('.reader select.catsel'); s.value = 'Newsletter & Werbung';"
+        "s.dispatchEvent(new Event('change')); await wait(700);"
+    )
+    assert "Newsletter & Werbung" in panel.text(".askline")
+    panel.click('[data-action="apply-yes"]', 900)
+    assert panel.count(".askline") == 0 and panel.count(".content .error") == 0
+
+
 def test_accuracy_check_with_another_ai_entity(open_panel) -> None:
     panel = open_panel("postfach", "tab=ai&aislow=300")
     panel.js(
