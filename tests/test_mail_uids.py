@@ -137,3 +137,27 @@ async def test_status_opens_plainly_when_select_condstore_is_refused() -> None:
     mail._selected = "INBOX"  # noqa: SLF001
     assert await mail.async_status("INBOX") == {"messages": 7, "uidvalidity": 77, "uidnext": 50, "unseen": 1}
     assert [c.args for c in client.select.await_args_list] == [('"INBOX" (CONDSTORE)',), ('"INBOX"',)]
+
+
+async def test_a_quiet_connection_is_checked_instead_of_logging_in_again() -> None:
+    import time  # noqa: PLC0415
+
+    mail = _mail()
+    client = _fake_client({"IMAP4rev1"}, noop=AsyncMock(return_value=SimpleNamespace(result="OK", lines=[])))
+    client.get_state = lambda: "SELECTED"
+    mail._client = client  # noqa: SLF001
+    mail._last_used = time.monotonic() - 10 * 60  # noqa: SLF001 - quiet for 10 minutes (one look)
+    mail._connect = AsyncMock()  # noqa: SLF001
+    assert await mail._ensure() is client  # noqa: SLF001
+    mail._connect.assert_not_awaited()  # noqa: SLF001
+    client.noop = AsyncMock(side_effect=TimeoutError)  # closed by the server meanwhile
+    mail._connect.return_value = "new"  # noqa: SLF001
+    assert await mail._ensure() == "new"  # noqa: SLF001
+
+
+def test_vanished_lines() -> None:
+    from custom_components.friedafetch.mail import _VANISHED_RE  # noqa: PLC0415
+
+    assert _VANISHED_RE.match("(EARLIER) 41,43:45").group(1) == "41,43:45"
+    assert _VANISHED_RE.match("* VANISHED (EARLIER) 7").group(1) == "7"
+    assert _VANISHED_RE.match("1 FETCH (UID 2 FLAGS ())") is None

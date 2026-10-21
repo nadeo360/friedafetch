@@ -31,6 +31,9 @@ _FETCH_START_RE = re.compile(rb"^\*?\s*(\d+) FETCH \((.*)$", re.DOTALL)
 _LITERAL_RE = re.compile(rb"\{(\d+)\}\s*$")
 _LIST_RE = re.compile(rb'^\((?P<flags>[^)]*)\)\s+(?P<delim>"[^"]*"|NIL)\s+(?P<name>.+)$')
 _IDLE_RECONNECT_AFTER = 8 * 60
+_KEEP_UNTIL = 25 * 60  # an idle connection up to this age is checked with NOOP instead of logging in again
+# "VANISHED (EARLIER) 41,43:45" – aioimaplib hands it on without the word VANISHED
+_VANISHED_RE = re.compile(r"^(?:\*\s*)?(?:VANISHED\s+)?\(EARLIER\)\s+([\d:,]+)\s*$", re.IGNORECASE)
 _DEFAULT_WINDOW = 500  # messages inspected when filtering client-side
 MAX_BATCH = 500  # uids per STORE/MOVE/COPY command
 
@@ -200,6 +203,19 @@ def _parse_date(value: str | None) -> str | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.isoformat(timespec="minutes")
+
+
+class _Forward:
+    """Hands untagged answers of another name (VANISHED) to a running command; has no tag of its own."""
+
+    tag = "*"
+    untagged_resp_name = "VANISHED"
+
+    def __init__(self, target: Any) -> None:
+        self._target = target
+
+    def __getattr__(self, name: str) -> Any:  # everything else the protocol asks of a command: the target's
+        return getattr(self._target, name)
 
 
 @dataclass
@@ -416,6 +432,7 @@ class ICloudMail:
         self._shared: dict[str, Any] = shared if shared is not None else {}
         self._uidvalidity: dict[str, int] = {}
         self._closing: set[asyncio.Task] = set()
+        self._qresync_on = False  # ENABLE QRESYNC succeeded on the current connection
 
     # ---------------------------------------------------------- connection
     async def _connect(self) -> aioimaplib.IMAP4_SSL:
@@ -430,6 +447,14 @@ class ICloudMail:
         if response.result != "OK":
             raise MailAuthError("IMAP login failed - check Apple ID and app-specific password")
         await self._learn_capabilities(client)
+        self._qresync_on = False
+        if "QRESYNC" in self.capabilities:
+            # FETCH ... (CHANGEDSINCE n VANISHED) then also names the messages that left a mailbox (RFC 7162)
+            try:
+                response = await asyncio.wait_for(client.enable("QRESYNC"), self._timeout)
+                self._qresync_on = response.result == "OK"
+            except Exception as err:  # noqa: BLE001 - without it, moved mails are noticed by the full look
+                _LOGGER.debug("IMAP ENABLE QRESYNC failed: %s", err)
         self._selected = None
         self._last_used = time.monotonic()
         return client
@@ -448,6 +473,11 @@ class ICloudMail:
         return list(self._shared.get("capabilities") or [])
 
     @property
+    def qresync(self) -> bool:
+        """QRESYNC is on for this connection: changes since a modseq also name the messages that left a mailbox."""
+        return self._qresync_on
+
+    @property
     def condstore(self) -> bool:
         """The server keeps a change counter per mailbox (RFC 7162: CONDSTORE, or QRESYNC that includes it)."""
         caps = set(self.capabilities)
@@ -459,6 +489,14 @@ class ICloudMail:
             state = self._client.get_state()
             if state in ("AUTH", "SELECTED") and now - self._last_used < _IDLE_RECONNECT_AFTER:
                 return self._client
+            if state in ("AUTH", "SELECTED") and now - self._last_used < _KEEP_UNTIL:
+                # quiet for a while (a look every 10 minutes): still open? Then no new login
+                try:
+                    response = await asyncio.wait_for(self._client.noop(), 10)
+                    if response.result == "OK":
+                        return self._client
+                except Exception:  # noqa: BLE001, S110 - closed by the server: log in again below
+                    pass
             self._discard()
         self._client = await self._connect()
         return self._client
@@ -824,6 +862,43 @@ class ICloudMail:
             if response.result != "OK":
                 raise MailError(f"FETCH failed: {response.lines[-1] if response.lines else ''}")
             return {item.uid: list(item.flags or []) for item in parse_fetch(response.lines) if item.uid is not None}
+
+        return await self._run(op)
+
+    async def async_changes(self, mailbox: str, since: int, uids: list[int]) -> tuple[dict[int, list[str]], set[int]]:
+        """With QRESYNC: the flags changed since a modseq, and which of the given UIDs left the mailbox since then."""
+        if not self.qresync:
+            raise MailError("QRESYNC is not on for this connection")
+
+        async def op(client: aioimaplib.IMAP4_SSL) -> tuple[dict[int, list[str]], set[int]]:
+            await self._select(client, mailbox)
+            protocol = client.protocol
+            command = aioimaplib.aioimaplib.FetchCommand(
+                protocol.new_tag(),
+                "1:*",
+                f"(UID FLAGS) (CHANGEDSINCE {int(since)} VANISHED)",
+                prefix="UID",
+                loop=protocol.loop,
+                timeout=self._timeout,
+            )
+            # aioimaplib passes a command only the untagged answers of its own name: VANISHED is routed to it here
+            protocol.pending_async_commands["VANISHED"] = _Forward(command)
+            try:
+                response = await asyncio.wait_for(protocol.execute(command), self._timeout)
+            finally:
+                protocol.pending_async_commands.pop("VANISHED", None)
+            if response.result != "OK":
+                raise MailError(f"FETCH failed: {response.lines[-1] if response.lines else ''}")
+            ranges: list[tuple[int, int]] = []
+            for line in response.lines:
+                text = bytes(line).decode(errors="replace") if isinstance(line, (bytes, bytearray)) else str(line)
+                if m := _VANISHED_RE.search(text):
+                    for part in m.group(1).split(","):
+                        low, _, high = part.partition(":")
+                        ranges.append((min(int(low), int(high or low)), max(int(low), int(high or low))))
+            vanished = {u for u in uids if any(low <= u <= high for low, high in ranges)}
+            flags = {i.uid: list(i.flags or []) for i in parse_fetch(response.lines) if i.uid is not None}
+            return flags, vanished
 
         return await self._run(op)
 
