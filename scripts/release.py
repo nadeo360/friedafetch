@@ -113,42 +113,41 @@ def ci_checks(root: Path, domain: str) -> None:
     run("git", "worktree", "add", "-q", "--detach", here, "HEAD", cwd=root)
     run("git", "-C", other, "worktree", "add", "-q", "--detach", there, "origin/main")
     try:
-        if domain == "friedafetch_mail":  # CI links Frieda in the same way
-            (here / "custom_components" / "friedafetch").symlink_to(there / "custom_components" / "friedafetch")
-        reqs = here / "requirements"
-        python = ci_env(f"{domain}-ci", [reqs / "test.txt", reqs / "types.txt", reqs / "lint.txt", reqs / "bandit.txt"])
-        run(python, "-m", "ruff", "check", ".", cwd=here)
-        run(python, "-m", "ruff", "format", "--check", ".", cwd=here)
-        dovecot = shutil.which("dovecot") or next((d for d in DOVECOT if Path(d).exists()), None)
-        if (here / "tests_imap").exists() and not dovecot:
-            print("  ! no Dovecot here: the IMAP tests are skipped locally (CI runs them)", flush=True)
-        env = {"IMAP_TESTS_REQUIRED": "1"} if dovecot and (here / "tests_imap").exists() else None
-        run(python, "-m", "pytest", "-q", "-p", "no:cacheprovider", capture=False, cwd=here, env=env)
-        if (reqs / "bandit.txt").exists():
-            run(python, "-m", "bandit", "-q", "-r", "custom_components", "-c", "pyproject.toml", cwd=here)
-        if (reqs / "types.txt").exists():
-            run(python.parent / "basedpyright", "--pythonpath", python, capture=False, cwd=here)
-        preview = here / "tools" / "preview"
-        if (preview / "tests").exists():
-            ui_lock = reqs / "ui.txt" if (reqs / "ui.txt").exists() else there / "requirements" / "ui.txt"
-            ui = ci_env("ui", [ui_lock], browsers=True)
-            browsers = ["--browser", "chromium", "--browser", "webkit"]
-            run(
-                ui,
-                "-m",
-                "pytest",
-                "-q",
-                "-n",
-                "auto",
-                *browsers,
-                capture=False,
-                cwd=preview,
-                env={other_env: str(there)},
-            )
+        _checks(here, there, domain, other_env)
+    except ReleaseError as err:
+        raise ReleaseError(
+            f"{err}\n\nChecked next to {other_name} at origin/main, as CI will. If this change needs something of "
+            f"{other_name} that is only on its dev branch, release {other_name} first."
+        ) from err
     finally:
         run("git", "worktree", "remove", "--force", here, cwd=root)
         run("git", "-C", other, "worktree", "remove", "--force", there)
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _checks(here: Path, there: Path, domain: str, other_env: str) -> None:
+    """ruff, the tests, bandit, the type check and the browser tests in the worktree of the commit to release."""
+    if domain == "friedafetch_mail":  # CI links Frieda in the same way
+        (here / "custom_components" / "friedafetch").symlink_to(there / "custom_components" / "friedafetch")
+    reqs = here / "requirements"
+    python = ci_env(f"{domain}-ci", [reqs / "test.txt", reqs / "types.txt", reqs / "lint.txt", reqs / "bandit.txt"])
+    run(python, "-m", "ruff", "check", ".", cwd=here)
+    run(python, "-m", "ruff", "format", "--check", ".", cwd=here)
+    dovecot = shutil.which("dovecot") or next((d for d in DOVECOT if Path(d).exists()), None)
+    if (here / "tests_imap").exists() and not dovecot:
+        print("  ! no Dovecot here: the IMAP tests are skipped locally (CI runs them)", flush=True)
+    env = {"IMAP_TESTS_REQUIRED": "1"} if dovecot and (here / "tests_imap").exists() else None
+    run(python, "-m", "pytest", "-q", "-p", "no:cacheprovider", capture=False, cwd=here, env=env)
+    if (reqs / "bandit.txt").exists():
+        run(python, "-m", "bandit", "-q", "-r", "custom_components", "-c", "pyproject.toml", cwd=here)
+    if (reqs / "types.txt").exists():
+        run(python.parent / "basedpyright", "--pythonpath", python, capture=False, cwd=here)
+    preview = here / "tools" / "preview"
+    if (preview / "tests").exists():
+        ui_lock = reqs / "ui.txt" if (reqs / "ui.txt").exists() else there / "requirements" / "ui.txt"
+        ui = ci_env("ui", [ui_lock], browsers=True)
+        browsers = ["--browser", "chromium", "--browser", "webkit"]
+        run(ui, "-m", "pytest", "-q", "-n", "auto", *browsers, capture=False, cwd=preview, env={other_env: str(there)})
 
 
 def gh() -> str:
