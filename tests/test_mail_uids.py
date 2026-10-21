@@ -47,7 +47,6 @@ async def test_select_remembers_uidvalidity() -> None:
 def _fake_client(caps: set[str], **commands) -> SimpleNamespace:
     open_transport = SimpleNamespace(is_closing=lambda: False)
     protocol = SimpleNamespace(capabilities=set(caps), capability=AsyncMock(), transport=open_transport)
-    commands.setdefault("noop", AsyncMock(return_value=SimpleNamespace(result="OK", lines=[])))
     return SimpleNamespace(protocol=protocol, get_state=lambda: "AUTH", **commands)
 
 

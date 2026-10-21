@@ -580,15 +580,14 @@ class ICloudMail:
                 return result
 
     async def _select(self, client: aioimaplib.IMAP4_SSL, mailbox: str, *, fresh: bool = False) -> None:
-        """Open a mailbox. fresh: as it is now, also when it is open already.
+        """Open a mailbox. fresh: open it again when it is open already, to see it as it is now.
 
-        An open mailbox shows this connection what it held when it was opened. Messages that other devices added
-        or deleted since are known to it only after a NOOP (or a new SELECT): without one, a new message is not
-        found and a deleted one still answers.
+        An open mailbox shows this connection what it held when it was opened: a message that another device added
+        is not found and a deleted one still answers. A folder deleted and created again (with new UIDs) may even go
+        on answering for the old one. Opening it again costs one command, like a NOOP, and also brings its current
+        UIDVALIDITY.
         """
-        if self._selected == mailbox:
-            if fresh:
-                await client.noop()
+        if self._selected == mailbox and not fresh:
             return
         response = await client.select(quote_mailbox(mailbox))
         if response.result != "OK":
