@@ -127,7 +127,7 @@ def ci_checks(root: Path, domain: str) -> None:
         if (reqs / "bandit.txt").exists():
             run(python, "-m", "bandit", "-q", "-r", "custom_components", "-c", "pyproject.toml", cwd=here)
         if (reqs / "types.txt").exists():
-            run(python.parent / "basedpyright", capture=False, cwd=here)
+            run(python.parent / "basedpyright", "--pythonpath", python, capture=False, cwd=here)
         preview = here / "tools" / "preview"
         if (preview / "tests").exists():
             ui_lock = reqs / "ui.txt" if (reqs / "ui.txt").exists() else there / "requirements" / "ui.txt"
