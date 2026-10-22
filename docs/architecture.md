@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.31 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.32 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -217,14 +217,14 @@ flowchart TB
 | `__init__.py` | Attach to the Frieda entry (waits for it; a repair while Frieda is older than `MIN_FRIEDA_VERSION`), open an own IMAP connection for background work (`mail_factory`), create rule engine, AI sorter, activity, mail state and “For you”, timer, push watcher, the look every 10 minutes, daily overview and weekly review, notification buttons, `send_digest` service, re-attach on Frieda reloads. |
 | `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status, event `friedafetch_mail_rule_matched` (max. 25 per run). |
 | `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login; reports new mail and changed flags or vanished messages separately. |
-| `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure and a time limit (also the confidence and, optionally, a date read in the mail), kill switch (`blocked_reasons`), important senders rated at least important, category actions, corrections (also by moving a mail) as examples, re-rating in batches that wait for the hourly limit, accuracy check, category assistant, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`; every rated mail goes into the activity at once. |
+| `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure and a time limit (also the confidence and, optionally, a date read in the mail), kill switch (`blocked_reasons`), important senders rated at least important, category actions, corrections (also by moving a mail) as examples, senders the AI rated the same way three times in a row sorted without it (rechecked every tenth time), re-rating in batches that wait for the hourly limit and stop at once when cancelled, accuracy check, category assistant, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`; every rated mail goes into the activity at once. |
 | `activity.py` | `ActivityLog`: one line per mail (30 days, max. 3000) with what rules and AI did, the steps of its timeline, its state (read, flagged, folder, UID) and the per-folder memory of the look (MODSEQ, UIDVALIDITY); views and search for the panel. |
 | `mailstate.py` | `MailState`, the look: keeps read/flagged and the folder of the newest 500 lines current, folder by folder – QRESYNC (changes and vanished messages), CONDSTORE (changes only) or one FETCH; a message counts as gone only when a UID SEARCH confirms it, and is then found again by its Message-ID; a renumbered folder (UIDVALIDITY) has its messages looked for again. |
 | `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good. |
 | `insights.py` | “For you”: calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. |
 | `timeline.py` | Timeline of one message from the activity's steps, the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays, waiting replies and calendar proposals; optional phrasing by an AI Task (kill switch applied). |
-| `tools.py`, `link.py`, `live.py` | Rule tools for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
+| `tools.py`, `link.py`, `live.py` | Rule tools and the tools of “For you” (`icloud_mail_for_you`, `icloud_add_proposed_event`) for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), next birthday. |
 | `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. |
@@ -561,6 +561,8 @@ checks the zip against the tagged source.
 | ADR-31 | Every repository tests its own panel; the release script runs what CI runs before pushing | A pipeline that expects a failure and fixes it afterwards wastes a release; a change in one repository must not fail the other's CI | Shared harness in Frieda; Frieda is released first when Frieda Postfach needs it |
 | ADR-32 | “For you” is worked out locally and acts only on a click; dates come from the rating call that runs anyway | Helpful suggestions must not cost privacy or extra AI calls, and must never act on their own | Without AI sorting there are no calendar proposals; all other parts work without AI |
 | ADR-33 | A rated mail is written to the activity at once; one AI call has a time limit | A local model takes about a minute per mail; a pass with several mails, or one call that hangs, kept mails out of the activity | The pass entry still follows at its end; a mail without an answer is rated in the next pass |
+| ADR-34 | Sort known senders without the AI | With a local model every call takes about a minute; a sender the AI rated the same way, sure of it, three times in a row is predictable | Fewer calls and nothing sent for them; an AI look every tenth time, after a correction and for suspicious subjects keeps it honest; no dates from such mails (they come only with an AI call) |
+| ADR-35 | “For you” as tools for assistants, through the existing extension interface | The user wants to ask Assist or Claude what is important; the data is already worked out locally | One reading tool and one writing tool (calendar, not offered read-only); subjects are marked as third-party content; the writing call is in the change log once |
 
 ---
 
@@ -609,6 +611,8 @@ flowchart LR
 | Q12 | The Wi-Fi of the HA host drops while the IMAP connection is open | The next command notices it at once and logs in again; no pass waits for a timeout |
 | Q13 | A local AI model hangs during a pass with three new mails | Mails already rated are in the activity; after 5 minutes the pass ends with an error, the rest is rated next time |
 | Q14 | A mail says “Grillen am Samstag um 18 Uhr” | A calendar proposal for Saturday 18:00; nothing is entered until the user clicks “Add” |
+| Q15 | The user cancels a re-rating while the local model is answering | The batch stops within moments, the answer is not waited for, the panel shows “Cancelling …” at once |
+| Q16 | The shop's fourth invoice arrives after three sure “Bills” ratings | Sorted as “Bills” without an AI call; the hourly limit is untouched |
 
 ---
 
@@ -651,4 +655,5 @@ flowchart LR
 | **Activity** | Frieda Postfach's list of the mails it saw, one line per mail, with its state and timeline |
 | **Look** | The regular comparison of the activity with the mailbox (read, flagged, folder) |
 | **For you** | Tab with calendar proposals, waiting replies, rule suggestions, subscriptions, important senders and the week |
+| **Known sender** | A sender the AI rated the same way, sure of it, three times in a row; sorted without the AI |
 | **Random walk** | A test that changes mail at random and compares the activity with the server after every look |
