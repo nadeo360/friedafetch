@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.5, Frieda Postfach 1.0.7 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.31 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -27,7 +27,12 @@ Frieda makes a personal Apple iCloud account usable for AI assistants through Ho
 Frieda Postfach is the optional part that **acts on its own**:
 
 - **Inbox rules** (conditions → actions) on new mail via push (IMAP IDLE) or a timer, and on demand.
-- **AI sorting** (opt-in): an AI Task entity rates new mail (category, importance, reason) and may sort it.
+- **AI sorting** (opt-in): an AI Task entity rates new mail (category, importance, confidence, reason) and may sort
+  it; corrections teach it, an accuracy check measures it, a category assistant helps to describe new categories.
+- **Activity** like a mail program: one line per mail with what rules and AI did, its timeline, and its current state
+  (read, flagged, folder) kept in step with the mailbox; read, flag, archive or move it to the trash from the panel.
+- **For you:** dates from mails as calendar proposals, mail waiting for a reply, rule suggestions, subscriptions with
+  unsubscribe, important senders from contact groups, a weekly review – worked out locally, acted on only by a click.
 - **Daily overview**, **sensors and events** for automations (unread mail, rule matches, push state, important mail,
   AI usage, birthdays), storing attachments (receipts) by rule.
 
@@ -94,7 +99,8 @@ flowchart LR
   postfach -- via Frieda's clients --> icloud
   postfach -- opt-in: rate mail, phrase overview --> ai
   frieda -- approvals --> phone
-  postfach -- overview, important mail --> phone
+  postfach -- overview, important mail, dates --> phone
+  phone -- notification buttons --> postfach
 ```
 
 | Partner | Exchanged | Direction |
@@ -103,8 +109,8 @@ flowchart LR
 | Assist agents / HA MCP server | LLM API tool calls inside Home Assistant | in |
 | Owner | Options flows, sidebar panels, approvals | in |
 | Apple iCloud | Calendars, contacts, mail, notes | out |
-| AI Task provider | Mail headers (optionally text excerpts) for rating; overview data for phrasing – only when switched on | out |
-| Companion app / notify | Approval requests with actions, daily overview, important-mail notices | out |
+| AI Task provider | Mail headers (optionally text excerpts) for rating – the same call also names a date it reads; overview data for phrasing; the user's own words in the category assistant – only when switched on | out |
+| Companion app / notify | Approval requests with actions, daily overview, weekly review, notices of important mail and important senders with buttons (read, archive, add to calendar) | out / in |
 
 ### 3.2 Technical context
 
@@ -115,10 +121,10 @@ flowchart LR
 | Panels / WebSocket | `/friedafetch`, `/frieda-postfach`; commands `friedafetch/*`, `friedafetch_mail/*` | HA session, admin only |
 | Static files | `/friedafetch_static`, `/friedafetch_mail_static` (panel JS, icons) | none (no data) |
 | CalDAV / CardDAV | `https://caldav.icloud.com/`, `https://contacts.icloud.com/` (aiohttp) | Apple ID + app-specific password (Basic) |
-| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); with Frieda Postfach also one session for background work and one IDLE session for push | same |
+| IMAP | `imap.mail.me.com:993` (TLS, aioimaplib); with Frieda Postfach also one session for background work and one IDLE session for push; CONDSTORE/QRESYNC (RFC 7162) where the server offers them | same |
 | SMTP | `smtp.mail.me.com:587` (STARTTLS, aiosmtplib) | same |
 | AI Task | `ai_task.async_generate_data` / service `ai_task.generate_data` | HA-internal; the entity's provider handles its own credentials |
-| Events | `friedafetch_action` (every writing action), mobile action events for approvals; with Frieda Postfach `friedafetch_mail_rule_matched`, `friedafetch_mail_rated`, `friedafetch_mail_important` | HA event bus |
+| Events | `friedafetch_action` (every writing action), mobile action events for approvals; with Frieda Postfach `friedafetch_mail_rule_matched`, `friedafetch_mail_rated`, `friedafetch_mail_important`, and `mobile_app_notification_action` for its notification buttons (`FRIEDA_POSTFACH_<action>_<id>`) | HA event bus |
 
 ---
 
@@ -129,9 +135,9 @@ flowchart LR
 | Security | Every tool passes one base class (`ICloudTool.async_call`): option gates → approval check → guard (quotas, policies) → execution → audit. Writing tools carry MCP annotations. Deleting means “to trash”. |
 | Transparency | Change log (audit) for every change, usage counters for every call, a “Sent to AI” log for every transmission, panels that show all of it. |
 | Privacy | AI features off by default; explicit switch **and** entity; headers only unless text is allowed; local kill switch before anything is sent. |
-| Reliability | Push with a timer as safety net; reconnect with backoff; every background step catches its own errors; first runs set a baseline instead of processing backlog. |
+| Reliability | Push with a timer as safety net; reconnect with backoff; every background step catches its own errors; first runs set a baseline instead of processing backlog; IMAP behaviour is tested against a real server, including random walks that compare the activity with what the server has. |
 | Maintainability | Split into a pure connector (Frieda) and an automation extension (Frieda Postfach) with a small, explicit extension interface; plain web-component panels without a build step; extensive pytest suites. |
-| Supply chain | Pinned GitHub Actions (SHA), Dependabot, pip-audit, Bandit, CodeQL, Scorecard; release zip with SBOM and build-provenance attestation. |
+| Supply chain | Pinned GitHub Actions (SHA), Dependabot, pip-audit, Bandit, CodeQL, Scorecard; release zip with SBOM and build-provenance attestation; a release script that runs what CI runs before anything is pushed. |
 
 ---
 
@@ -155,6 +161,8 @@ flowchart TB
     rules[Rule engine<br/>rules.py]
     idle[Push watcher<br/>idle.py]
     ai[AI sorter<br/>ai.py]
+    act[Activity + mail state<br/>activity.py · mailstate.py]
+    fy[For you<br/>insights.py]
     digest[Daily overview<br/>digest.py]
     ui2[Panel + WebSocket]
     tools2[Rule tools<br/>tools.py]
@@ -167,12 +175,17 @@ flowchart TB
   ai --> clients
   idle --> rules
   idle --> ai
+  rules --> act
+  ai --> act
+  act --> clients
+  fy --> clients
+  ai -. dates .-> fy
 ```
 
 | Building block | Responsibility |
 |---|---|
 | **Frieda** | Connection to one iCloud account per config entry, all tools, both entry points, guard rails, panel “Frieda” (overview, usage, approvals, change log). No background jobs, no file writes of its own (except the optional attachment store). |
-| **Frieda Postfach** | Attaches to a Frieda account, adds rules, push, AI sorting, overview, sensors, events and the panel “Frieda Postfach”. Has no credentials of its own. |
+| **Frieda Postfach** | Attaches to a Frieda account, adds rules, push, AI sorting, the activity with its mail state, “For you”, overview, sensors, events and the panel “Frieda Postfach”. Has no credentials of its own. |
 | **Extension interface** | `ICloudClients.extensions[name]` holds an object with optional `tool_classes`, `rule_matcher(mailbox)` and `status()`; signals `friedafetch_account_ready` / `friedafetch_account_unloaded`. |
 
 ### 5.2 Level 2 – Frieda
@@ -185,7 +198,7 @@ flowchart TB
 | `llm_api.py` | Tool list, option filter (`tool_allowed`, `build_tools`), prompt and the Home Assistant LLM API; re-exports the public names. |
 | `mcp_http.py` | Stateless Streamable-HTTP MCP server (MCP SDK); profiles *full* and *readonly*; tool name suffixes for several accounts; records client names from `initialize`. |
 | `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV over aiohttp, iCalendar via `icalendar`, own vCard parser; contacts cache (ETag/CTag) kept encrypted in memory. |
-| `mail.py`, `notes.py` | IMAP (aioimaplib, own connection handling, `BODY.PEEK`; idle connections are replaced at once and logged out in the background), SMTP sending, notes via the IMAP “Notes” mailbox. |
+| `mail.py`, `notes.py` | IMAP (aioimaplib, own connection handling, `BODY.PEEK`; capabilities read after login; CONDSTORE `STATUS … HIGHESTMODSEQ` and `CHANGEDSINCE`, QRESYNC `VANISHED`; a quiet connection is checked with NOOP, a broken one is noticed at once and replaced, a command timeout is retried once on a new connection; looks and searches open a folder again so they see other devices' changes), SMTP sending, notes via the IMAP “Notes” mailbox. |
 | `guard.py` | Hourly quotas, recipient policy (any / contacts / allow list), protected and hidden calendars/mailboxes. |
 | `approvals.py` | Parks critical calls (send, delete, mass actions), notifies (persistent + actionable mobile notification), executes on approval, expires after a timeout; delayed sending as a request that executes itself when the delay is over. |
 | `state.py` | Per-account store for quota usage, injection locks and the approval list (written shortly after each change and on unload). |
@@ -195,22 +208,26 @@ flowchart TB
 | `insights.py`, `unsubscribe.py`, `attachments.py` | Free slots, birthdays, duplicates, mailbox statistics; RFC 8058 one-click unsubscribe with SSRF protection; safe attachment storage. |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (accounts, overview, usage, audit, approvals) and the web-component panel; texts and styles are separate modules loaded with the panel's version query. |
 | `frontend/ui.js` | **Frieda UI**, the shared design library of all panels: helpers, base components, data tables, menus, confirmation dialog, movable widgets and column switches; layouts stored per HA user (ADR-21/22). |
-| `config_flow.py`, `install_check.py`, `diagnostics.py` | Setup/options (menu: tools, security, approvals), detection of stale copies, redacted diagnostics. |
+| `config_flow.py`, `install_check.py`, `diagnostics.py` | Setup/options (menu: tools, security, approvals), detection of stale copies, redacted diagnostics (incl. IMAP capabilities). |
 
 ### 5.3 Level 2 – Frieda Postfach
 
 | Module | Content |
 |---|---|
-| `__init__.py` | Attach to the Frieda entry (waits for it), open an own IMAP connection for background work (`mail_factory`), create rule engine and AI sorter, timer, push watcher, daily overview schedule, `send_digest` service, re-attach on Frieda reloads. |
+| `__init__.py` | Attach to the Frieda entry (waits for it; a repair while Frieda is older than `MIN_FRIEDA_VERSION`), open an own IMAP connection for background work (`mail_factory`), create rule engine, AI sorter, activity, mail state and “For you”, timer, push watcher, the look every 10 minutes, daily overview and weekly review, notification buttons, `send_digest` service, re-attach on Frieda reloads. |
 | `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status, event `friedafetch_mail_rule_matched` (max. 25 per run). |
-| `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login. |
-| `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure, kill switch (`blocked_reasons`), category actions, corrections as examples, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`. |
-| `timeline.py` | Timeline of one message from the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
-| `digest.py` | Collects unread mail, rule activity, events, birthdays; optional phrasing by an AI Task (kill switch applied). |
-| `tools.py`, `link.py` | Rule tools for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`. |
-| `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state, important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), next birthday. |
-| `frontend.py`, `frontend/panel.js` | WebSocket commands (rules, runs, history, AI) and the panel; mailbox names are loaded alongside, so the page never waits for iCloud. |
-
+| `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login; reports new mail and changed flags or vanished messages separately. |
+| `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure and a time limit (also the confidence and, optionally, a date read in the mail), kill switch (`blocked_reasons`), important senders rated at least important, category actions, corrections (also by moving a mail) as examples, re-rating in batches that wait for the hourly limit, accuracy check, category assistant, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`; every rated mail goes into the activity at once. |
+| `activity.py` | `ActivityLog`: one line per mail (30 days, max. 3000) with what rules and AI did, the steps of its timeline, its state (read, flagged, folder, UID) and the per-folder memory of the look (MODSEQ, UIDVALIDITY); views and search for the panel. |
+| `mailstate.py` | `MailState`, the look: keeps read/flagged and the folder of the newest 500 lines current, folder by folder – QRESYNC (changes and vanished messages), CONDSTORE (changes only) or one FETCH; a message counts as gone only when a UID SEARCH confirms it, and is then found again by its Message-ID; a renumbered folder (UIDVALIDITY) has its messages looked for again. |
+| `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good. |
+| `insights.py` | “For you”: calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. |
+| `timeline.py` | Timeline of one message from the activity's steps, the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
+| `digest.py` | Collects unread mail, rule activity, events, birthdays, waiting replies and calendar proposals; optional phrasing by an AI Task (kill switch applied). |
+| `tools.py`, `link.py`, `live.py` | Rule tools for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
+| `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), next birthday. |
+| `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. |
 ---
 
 ## 6. Runtime view
@@ -267,15 +284,17 @@ sequenceDiagram
   else allowed and within hourly limit
     S->>K: instructions with mail as untrusted data, fixed structure
     K-->>S: category, importance, reason
-    S->>S: validate, log transmission, store rating
+    S->>S: validate, log transmission, store rating, line in the activity
     opt mode "act"
       S->>M: mark read, flag, move (never delete)
     end
   end
+  R->>R: one history entry for the pass (rules and AI)
 ```
 
 The timer (default every 5 minutes) runs the same sequence for all mailboxes with rules and acts as safety net
-when push is interrupted.
+when push is interrupted. A rated mail is in the activity at once; the pass itself is written when it is done. An AI
+call that gives no answer within 5 minutes ends the pass; the mail is rated in the next one.
 
 ### 6.3 Start-up and re-attachment
 
@@ -292,6 +311,37 @@ executes it and writes the result to the change log; denial or expiry (default 1
 uses the same request type the other way round: when the delay is over it executes itself, “Cancel” discards it.
 The list is stored (`friedafetch.state.<entry>`), the closures are not: a request that is still open at a restart
 is closed as expired (a delayed mail as cancelled) and never executed later.
+
+### 6.5 The look: read, flagged and the folder of the activity's mails
+
+```mermaid
+sequenceDiagram
+  participant W as MailWatcher / timer
+  participant S as MailState
+  participant M as IMAP (Frieda)
+  participant A as ActivityLog
+  W->>S: flags changed or message vanished (debounced), after a pass, every 10 min
+  loop per folder of the tracked lines
+    S->>M: STATUS (HIGHESTMODSEQ, UIDVALIDITY)
+    alt nothing changed
+      S->>S: done for this folder
+    else QRESYNC
+      S->>M: UID FETCH 1:* (FLAGS) (CHANGEDSINCE n VANISHED)
+    else renumbered, regularly (hourly, with QRESYNC every 6 h) or without CONDSTORE
+      S->>M: UID FETCH of the tracked UIDs (FLAGS), missing ones confirmed by UID SEARCH
+    end
+    S->>A: read / flagged, gone
+  end
+  S->>M: SEARCH by Message-ID for the gone ones (max. 10 per look)
+  S->>A: new folder and UID; a move into another category's folder corrects the AI
+```
+
+### 6.6 For you: a date from a mail into the calendar
+
+The AI names a date in the same call that rates the mail. `insights.py` keeps it as a proposal (past dates and
+suspicious mails are left out) and shows it on the tab; the notification of an important mail gets the button “Add to
+calendar”. Only that click or the panel's button writes the event – into the chosen calendar, never into one Frieda
+protects – and notes it in the change log and the mail's timeline.
 
 ---
 
@@ -331,6 +381,8 @@ flowchart LR
 | `friedafetch.state.<entry>` | Quota usage of the last hour, active injection locks, approval requests (parameters shortened as in the change log) |
 | `friedafetch.rules.<frieda entry>` | Rules, last UIDs, last run, run history (used by Frieda Postfach) |
 | `friedafetch_mail.ai.<frieda entry>` | Categories, ratings (200), corrections (30), hourly budget, AI usage log (300) |
+| `friedafetch_mail.activity.<frieda entry>` | Activity lines (30 days, max. 3000) with their steps and state, the look's memory per folder |
+| `friedafetch_mail.insights.<frieda entry>` | Calendar proposals (30), waiting replies, dismissed suggestions, unsubscribed senders, the inbox position for important senders, the week of the last review |
 | Attachment folder (optional) | Stored attachments below an allowed path (`allowlist_external_dirs`) |
 
 ---
@@ -360,7 +412,13 @@ flowchart LR
 - **File safety** for attachments: allowed base path, safe names, resolved path must stay inside, size limit,
   de-duplication by hash.
 - **AI sorting:** opt-in (switch + entity), no tools for the AI, answer validated against the category list,
-  actions limited to move/read/flag, kill switch, hourly limit.
+  actions limited to move/read/flag, kill switch, hourly limit, time limit per call.
+- **Acting from the panel and notifications:** mail actions go through the same guard rails as the tools
+  (read-only mode, protected and hidden folders, the hourly quota, the trash only with “allow deleting”), never delete
+  for good and are written to the change log; a calendar entry from a proposal or unsubscribing from a newsletter
+  happens only on the user's click (unsubscribing behind a confirmation, with the SSRF protection above).
+- **For you stays local:** proposals, replies, suggestions and subscriptions are worked out from the mailbox, the
+  activity and the contacts inside Home Assistant; a date the AI reads comes from the rating call that runs anyway.
 
 ### 8.2 Transparency and observability
 
@@ -372,7 +430,8 @@ flowchart LR
 | Usage (`usage.py`) | Tool calls per day/tool/source, reading vs. writing, errors, connected MCP clients |
 | “Sent to AI” (`ai.py`) | Every transmission to an AI (purpose, entity, fields, characters) and every mail held back with all reasons |
 | Run history (`rules.py`) | Manual, automatic and push runs; empty automatic runs merged |
-| Diagnostics, repair issues | Redacted configuration; stale copies, moved rules |
+| Activity and mail timeline (`activity.py`, `timeline.py`) | Per mail: arrival, rules, AI transmission and rating, corrections, actions, calendar entries – and where it is now |
+| Diagnostics, repair issues | Redacted configuration, IMAP capabilities, state of the look, counts of the activity and of “For you”; stale copies, moved rules, a Frieda too old for Frieda Postfach |
 
 ### 8.3 Persistence
 
@@ -383,13 +442,19 @@ keeps every vCard encrypted (AES-256-GCM, random key per process, ciphertext bou
 is cached once per account and shared by all its IMAP connections.
 
 Mail automation asks the server only for new UIDs (`UID n:*`) and stores UIDVALIDITY per mailbox; when the server
-renumbers a mailbox, nothing is processed and the starting point is set again.
+renumbers a mailbox, nothing is processed and the starting point is set again. The look keeps HIGHESTMODSEQ and
+UIDVALIDITY per folder with the activity, so after a restart it asks only for what changed meanwhile; a folder with a
+new UIDVALIDITY has its messages found again by Message-ID instead of trusting old UIDs. The mailbox list is read
+again when a message is not found in the known folders (a folder created on another device).
 
 ### 8.4 Error handling
 
 Tools never raise into the client: errors become structured results with `code` (`not_found`, `blocked`,
 `auth`, `conflict`, `invalid_arguments`, `failed`). Background jobs (timer, push, AI, overview) catch and log
-errors and continue; the AI sorter keeps the UID of a failed call for the next run.
+errors and continue; the AI sorter keeps the UID of a failed or timed-out call for the next run; the look reports
+each kind of failure once in the log and as `error` on the push sensor. A broken IMAP connection is noticed before
+the next command (not after its timeout) and replaced; a command timeout is retried once on a new connection and
+otherwise reported in words (“no answer from the server in time”).
 
 ### 8.5 User interface
 
@@ -401,7 +466,14 @@ Live updates: whatever changes an account's data (change log, approvals, counter
 runs and AI sorting in Frieda Postfach) sends a dispatcher signal with the account and a topic (`live.py`). Open
 panels subscribe through `friedafetch/subscribe` and `friedafetch_mail/subscribe` and reload only that part, a moment
 later and only when no menu, dialog, editor or input is in use. New rows light up once. A 60-second timer remains for
-relative times and as fallback.
+relative times and as fallback. When the app comes back from the background or the connection returns, the panel
+subscribes again and reloads everything, repeating a failed attempt a few times; until it worked, it keeps showing
+what it had (no tab disappears because one request failed during the reconnect).
+
+Frieda Postfach's panel works like a mail program: the activity as a list with views and search, the open mail beside
+it on wide screens and as a sheet on phones, actions as icon buttons and keyboard shortcuts, its text on request, the
+timeline below. A **dev preview** (`tools/preview`) shows both panels with example data only; it is the base of the
+browser tests and published for review after every panel change.
 
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
@@ -417,18 +489,38 @@ SECURITY.md and this document.
 
 ### 8.7 Testing and quality assurance
 
-pytest with `pytest-homeassistant-custom-component` (Frieda ~156 tests, Frieda Postfach ~68 tests; Postfach tests
-run against Frieda's `main`), property-based tests with Hypothesis for everything that parses third-party data
-(vCard, MIME, FETCH responses, modified UTF-7, dates, unsubscribe links, sanitising, injection detection, rule
-conditions, regex safety, kill switch; 200 examples per test in CI), Ruff (lint/format/security rules), hassfest, HACS validation, pip-audit, Bandit,
-CodeQL, OpenSSF Scorecard, a pixel check of the icons. External services are mocked; the AI Task call is patched
-through `ai._generate`.
+pytest with `pytest-homeassistant-custom-component` (Frieda ~170 tests, Frieda Postfach ~145; Postfach tests run
+against Frieda's `main`, in parallel with pytest-xdist), property-based tests with Hypothesis for everything that
+parses third-party data (vCard, MIME, FETCH responses, modified UTF-7, dates, unsubscribe links, sanitising, injection
+detection, rule conditions, regex safety, kill switch; 200 examples per test in CI), Ruff (lint/format/security
+rules), basedpyright (type check against a baseline), hassfest, HACS validation, pip-audit, Bandit, CodeQL, OpenSSF
+Scorecard, a pixel check of the icons. External services are mocked; the AI Task call is patched through
+`ai._generate`.
 
+**Against a real IMAP server** (`tests_imap/`, Frieda Postfach): Dovecot runs as a process of the user (plain IMAP on
+127.0.0.1, configurations for 2.3 and 2.4) and covers what mocks cannot show – CONDSTORE, QRESYNC, IDLE, moves,
+searches, the mail actions and “For you”. Its **random walks** let a second mail program read, flag, move, copy and
+delete at random (also into folders created meanwhile and a folder created again with new UIDs), while Frieda acts
+from the panel and connections break off; after every look the activity is compared line by line with what the
+server has, with QRESYNC, CONDSTORE only and neither. A failure names the seed that repeats it. CI runs them in their
+own job; before a release that touches the look, longer walks run locally.
+
+**Browser tests** (Playwright, Chromium and WebKit, desktop and phone): every repository tests its own panel on the
+dev preview, on the shared harness `tools/preview/harness.py`. **Contract tests** record the shape of every websocket
+answer from the real backend (`tests/contracts/ws.json`); the preview's mock must answer the same way.
 ### 8.8 Build and release
 
 GitHub Actions build the zip on a published release, check that the manifest version matches the tag, add SHA-256
 and (Frieda) a CycloneDX SBOM, and attest the build provenance. Actions are pinned to commit SHAs and kept current by
-Dependabot. Frieda and Frieda Postfach are released together when an interface changes.
+Dependabot. Frieda and Frieda Postfach are released together when an interface changes – Frieda first, since
+Frieda Postfach's checks run against Frieda's `main`; Frieda Postfach names the Frieda it needs
+(`MIN_FRIEDA_VERSION`) and shows a repair while an older one is installed.
+
+`scripts/release.py` releases from a clean `dev`: it sets the version, runs locally what CI runs (Ruff, pytest incl.
+the IMAP tests where Dovecot is installed, Bandit, basedpyright, the browser tests) in throwaway worktrees next to the
+other repository's `main` and with the pinned versions of CI, moves `main` on by fast-forward, waits for every
+workflow of the pushed commit (GitHub's own Dependabot jobs excepted), creates the release from bilingual notes and
+checks the zip against the tagged source.
 
 ---
 
@@ -462,6 +554,13 @@ Dependabot. Frieda and Frieda Postfach are released together when an interface c
 | ADR-24 | One run-history entry per pass of rules and AI sorting | Both act on the same new mail one after the other; showing them apart hid what happened to a message | Timer and push write the entry after the AI step; AI-only passes (no rules, "rate newest") get their own entry; up to 20 messages per pass are kept locally |
 | ADR-25 | Panels update live through Home Assistant's websocket, not through polling or an external broker | Tables lagged up to 30 s behind; a message broker (e.g. Kafka) would add a server without benefit for one instance | Dispatcher signal per change, websocket subscription per open panel, reload of the changed part only; 60-s timer as fallback |
 | ADR-26 | A message timeline links existing records by Message-ID instead of keeping a new per-message log | The steps were spread over four views; a new log would store more mail data | Runs, AI log, ratings and change-log entries carry the Message-ID (it survives moves, the UID does not); older entries are matched by subject and sender; the timeline is assembled on request |
+| ADR-27 | Keep read/flagged in step with CONDSTORE/QRESYNC, folder by folder, with a full FETCH as fallback | A FETCH of all tracked messages every few minutes is slow for many folders; the server knows what changed | One STATUS per folder when nothing changed; without the extensions the same look reads all flags; the memory per folder survives restarts |
+| ADR-28 | A message counts as gone only after a UID SEARCH confirms it, and is followed by its Message-ID | FETCH answers that left messages out made read/flagged disappear; UIDs change with every move | One more command for missing messages; max. 10 searches per look; a message found nowhere is looked for again after a day |
+| ADR-29 | Test IMAP against a real Dovecot, including random walks against a model-free truth (a second client) | Mocks had passed while the real server behaved differently (SELECT forms, answers without messages, broken connections) | A Dovecot job in CI; found and fixed: broken connections, command timeouts, stale views of an open folder, folders created meanwhile or created again |
+| ADR-30 | Open a folder again (SELECT) for looks and searches instead of trusting an open one | An open folder shows the connection what it held when it was opened; a folder created again may even answer for the old one | One command per look and search, like a NOOP; fresh UIDVALIDITY each time |
+| ADR-31 | Every repository tests its own panel; the release script runs what CI runs before pushing | A pipeline that expects a failure and fixes it afterwards wastes a release; a change in one repository must not fail the other's CI | Shared harness in Frieda; Frieda is released first when Frieda Postfach needs it |
+| ADR-32 | “For you” is worked out locally and acts only on a click; dates come from the rating call that runs anyway | Helpful suggestions must not cost privacy or extra AI calls, and must never act on their own | Without AI sorting there are no calendar proposals; all other parts work without AI |
+| ADR-33 | A rated mail is written to the activity at once; one AI call has a time limit | A local model takes about a minute per mail; a pass with several mails, or one call that hangs, kept mails out of the activity | The pass entry still follows at its end; a mail without an answer is rated in the next pass |
 
 ---
 
@@ -485,6 +584,7 @@ flowchart LR
   P --> P2[Kill switch before sending]
   R --> R1[Push with fallback]
   R --> R2[Errors do not stop jobs]
+  R --> R3[Activity matches the server]
   M --> M1[Small modules, tests]
   M --> M2[HA/HACS validation green]
 ```
@@ -505,6 +605,10 @@ flowchart LR
 | Q8 | A user wants to know what the AI did today | Panel “Frieda”: usage and change log; panel “Frieda Postfach”: ratings and “Sent to AI” |
 | Q9 | Home Assistant restarts after an AI used up the sending quota and triggered the injection lock | Quota and lock are still in effect; an approval that was open is shown as expired and never executed |
 | Q10 | An assistant sends a mail by mistake, delayed sending is 60 s | The mail is listed with “Cancel”; cancelled in the panel or the notification, it is never sent |
+| Q11 | A mail is read on the iPhone and moved to a folder created there a minute ago | Seconds later (push of the flag change) the activity shows it read and in the new folder |
+| Q12 | The Wi-Fi of the HA host drops while the IMAP connection is open | The next command notices it at once and logs in again; no pass waits for a timeout |
+| Q13 | A local AI model hangs during a pass with three new mails | Mails already rated are in the activity; after 5 minutes the pass ends with an error, the rest is rated next time |
+| Q14 | A mail says “Grillen am Samstag um 18 Uhr” | A calendar proposal for Saturday 18:00; nothing is entered until the user clicks “Add” |
 
 ---
 
@@ -519,7 +623,9 @@ flowchart LR
 | Push covers only the inbox | Other mailboxes only every N minutes | Documented; timer as fallback |
 | HACS list icon only from the HA brands CDN | Placeholder icon in HACS lists | Not solvable without the brands repository; logo inside the integration works in HA |
 | Single maintainer | Bus factor 1 | Documentation, tests, automated releases |
-| Live behaviour of some features (unsubscribe, attachments, AI providers) only partly tested against real services | Unknown edge cases | Unit tests with mocks; feedback from real use |
+| Live behaviour of some features (unsubscribe, attachments, AI providers, “For you” with real contact groups and calendars) only partly tested against real services | Unknown edge cases | Unit tests with mocks, IMAP against Dovecot; feedback from real use |
+| Dovecot is not iCloud | iCloud may answer IMAP differently than the test server | Behaviour that differed before is pinned by tests; diagnostics show the capabilities and the state of the look |
+| A local AI model is slow (about a minute per mail) | Passes take minutes, the hourly limit is reached later | Rated mails show at once; time limit per call; re-rating waits for the hourly limit |
 
 ---
 
@@ -540,3 +646,9 @@ flowchart LR
 | **Dry run** | Rule run that only reports what would happen |
 | **Baseline** | Highest UID at the first run; only newer mail is processed automatically |
 | **HACS** | Home Assistant Community Store, installs custom integrations from GitHub releases |
+| **CONDSTORE / QRESYNC** | IMAP extensions (RFC 7162): a change counter per folder (HIGHESTMODSEQ), changes since a counter, and the messages that left a folder (VANISHED) |
+| **UIDVALIDITY** | Number of a folder's UID series; when it changes, all UIDs of the folder mean other messages |
+| **Activity** | Frieda Postfach's list of the mails it saw, one line per mail, with its state and timeline |
+| **Look** | The regular comparison of the activity with the mailbox (read, flagged, folder) |
+| **For you** | Tab with calendar proposals, waiting replies, rule suggestions, subscriptions, important senders and the week |
+| **Random walk** | A test that changes mail at random and compares the activity with the server after every look |
