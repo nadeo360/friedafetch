@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.23, Frieda Postfach 1.0.32 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.23, Frieda Postfach 1.0.33 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -33,7 +33,7 @@ Frieda Postfach ist der optionale Teil, der **selbstständig handelt**:
 - **Aktivität** wie ein Mailprogramm: eine Zeile pro Mail mit dem, was Regeln und KI getan haben, ihrem Verlauf und
   ihrem aktuellen Stand (gelesen, markiert, Ordner), abgeglichen mit dem Postfach; lesen, markieren, archivieren oder
   in den Papierkorb legen direkt im Panel.
-- **Für dich:** Termine aus Mails als Kalendervorschläge, Mails, die auf Antwort warten, Regelvorschläge, Abos mit
+- **Für dich:** Termine aus Mails als Kalendervorschläge, Pakete unterwegs, Mails, die auf Antwort warten, Regelvorschläge, Abos mit
   Abmelden, wichtige Absender aus Kontaktgruppen, ein Wochenrückblick – lokal ermittelt, ausgeführt nur per Klick.
 - **Tagesüberblick**, **Sensoren und Ereignisse** für Automationen (ungelesene Mails, Regeltreffer, Push-Status,
   wichtige Mails, KI-Nutzung, Geburtstage), Ablage von Anhängen (Belegen) per Regel.
@@ -220,14 +220,15 @@ flowchart TB
 | `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status, Ereignis `friedafetch_mail_rule_matched` (max. 25 pro Lauf). |
 | `idle.py` | `MailWatcher`: eigene IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen; meldet neue Mails und geänderte Flags oder verschwundene Mails getrennt. |
 | `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur und Zeitlimit (auch die Sicherheit und, wenn gewünscht, ein in der Mail gelesenes Datum), Killswitch (`blocked_reasons`), wichtige Absender mindestens als wichtig bewertet, Kategorie-Aktionen, Korrekturen (auch durch Verschieben einer Mail) als Beispiele, Absender, die die KI dreimal in Folge gleich bewertet hat, ohne sie sortiert (jedes zehnte Mal neu geprüft), Neubewertung in Stapeln, die auf das Stundenlimit warten und beim Abbrechen sofort stoppen, Treffsicherheits-Prüfung, Kategorie-Assistent, Nutzungsprotokoll, Ereignisse `friedafetch_mail_rated` und `friedafetch_mail_important`; jede bewertete Mail kommt sofort in die Aktivität. |
-| `activity.py` | `ActivityLog`: eine Zeile pro Mail (30 Tage, max. 3.000) mit dem, was Regeln und KI getan haben, den Schritten ihres Verlaufs, ihrem Stand (gelesen, markiert, Ordner, UID) und dem Gedächtnis des Abgleichs pro Ordner (MODSEQ, UIDVALIDITY); Ansichten und Suche für das Panel. |
+| `activity.py` | `ActivityLog`: eine Zeile pro Mail (30 Tage, max. 3.000) – zu Unterhaltungen gruppiert über In-Reply-To und, ohne diesen Bezug, über den Betreff einer Antwort – mit dem, was Regeln und KI getan haben, den Schritten ihres Verlaufs, ihrem Stand (gelesen, markiert, Ordner, UID) und dem Gedächtnis des Abgleichs pro Ordner (MODSEQ, UIDVALIDITY); Ansichten und Suche für das Panel. |
 | `mailstate.py` | `MailState`, der Abgleich: hält gelesen/markiert und den Ordner der neuesten 500 Zeilen aktuell, Ordner für Ordner – QRESYNC (Änderungen und verschwundene Mails), CONDSTORE (nur Änderungen) oder ein FETCH; eine Mail gilt erst als weg, wenn eine UID-SEARCH das bestätigt, und wird dann per Message-ID wiedergefunden; in einem neu nummerierten Ordner (UIDVALIDITY) werden die Mails neu gesucht. |
 | `locate.py`, `actions.py` | Wo eine Mail jetzt liegt (SEARCH nach Message-ID, zuerst die Ordner, die Frieda kennt, der Papierkorb zuletzt, die Ordnerliste neu gelesen, wenn sie nicht gefunden wird); Aktionen aus Panel und Benachrichtigungen (gelesen, ungelesen, markieren, archivieren, zurück in den Posteingang, Papierkorb) unter Friedas Leitplanken, nie endgültig löschen. |
-| `insights.py` | „Für dich“: Kalendervorschläge aus den Daten der KI (eingetragen nur per Klick, nie in einen geschützten Kalender), gesendete Mails ohne Antwort (per Bezug oder von dieser Person), Regelvorschläge aus dem, wohin der Nutzer die Mails eines Absenders verschiebt, Newsletter von 30 Tagen mit Abmelden, wichtige Absender aus Kontaktgruppen und genannten Adressen, die Woche und der Wochenrückblick. |
+| `packages.py` | Pakete aus Versandmails, mit Mustern und ohne KI: Versanddienst, Sendungsnummer (nur neben einem Wort wie „Sendungsnummer“, in einem Link des Versanddienstes oder in unverwechselbarer Form), Status, voraussichtlicher Tag und Zeitfenster; der Verfolgungslink wird aus der Adresse des Versanddienstes gebildet, nie aus der Mail übernommen. |
+| `insights.py` | „Für dich“: Pakete (Versandmails einmal gelesen, gleich nach einem Durchgang und im regelmäßigen Blick; Ereignis `friedafetch_mail_package` bei einer Änderung), Kalendervorschläge aus den Daten der KI (eingetragen nur per Klick, nie in einen geschützten Kalender), gesendete Mails ohne Antwort (per Bezug oder von dieser Person), Regelvorschläge aus dem, wohin der Nutzer die Mails eines Absenders verschiebt, Newsletter von 30 Tagen mit Abmelden, wichtige Absender aus Kontaktgruppen und genannten Adressen, die Woche und der Wochenrückblick. |
 | `timeline.py` | Verlauf einer Mail aus den Schritten der Aktivität, Ausführungen, KI-Protokoll und Bewertungen, verknüpft über die Message-ID (WebSocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Sammelt ungelesene Mails, Regelaktivität, Termine, Geburtstage, offene Antworten und Kalendervorschläge; optional Formulierung durch einen AI Task (mit Killswitch). |
 | `tools.py`, `link.py`, `live.py` | Regel-Tools und die Tools von „Für dich“ (`icloud_mail_for_you`, `icloud_add_proposed_event`) für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`; Themen der Live-Aktualisierung (`rules`, `ai`, `activity`, `insights`). |
-| `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), nächster Geburtstag. |
+| `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), Pakete unterwegs, nächster Geburtstag. |
 | `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, Betreffzeilen oder Texte). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. |
 ---
@@ -387,7 +388,7 @@ flowchart LR
 | `friedafetch.rules.<frieda-entry>` | Regeln, letzte UIDs, letzter Lauf, Verlauf (genutzt von Frieda Postfach) |
 | `friedafetch_mail.ai.<frieda-entry>` | Kategorien, Bewertungen (200), Korrekturen (30), Stundenbudget, KI-Nutzungsprotokoll (300) |
 | `friedafetch_mail.activity.<frieda-entry>` | Zeilen der Aktivität (30 Tage, max. 3.000) mit ihren Schritten und ihrem Stand, das Gedächtnis des Abgleichs pro Ordner |
-| `friedafetch_mail.insights.<frieda-entry>` | Kalendervorschläge (30), offene Antworten, ausgeblendete Vorschläge, abgemeldete Absender, die Position im Posteingang für wichtige Absender, die Woche des letzten Rückblicks |
+| `friedafetch_mail.insights.<frieda-entry>` | Pakete (21 Tage) und die schon gelesenen Versandmails, Kalendervorschläge (30), offene Antworten, ausgeblendete Vorschläge, abgemeldete Absender, die Position im Posteingang für wichtige Absender, die Woche des letzten Rückblicks |
 | Anhang-Ordner (optional) | Gespeicherte Anhänge unterhalb eines erlaubten Pfads (`allowlist_external_dirs`) |
 
 ---
@@ -580,6 +581,8 @@ legt das Release aus zweisprachigen Notizen an und prüft das Zip gegen den geta
 | ADR-33 | Eine bewertete Mail wird sofort in die Aktivität geschrieben; ein KI-Aufruf hat ein Zeitlimit | Ein lokales Modell braucht etwa eine Minute pro Mail; ein Durchgang mit mehreren Mails oder ein hängender Aufruf hielt Mails aus der Aktivität fern | Der Eintrag des Durchgangs folgt weiterhin an seinem Ende; eine Mail ohne Antwort wird im nächsten Durchgang bewertet |
 | ADR-34 | Bekannte Absender ohne KI sortieren | Mit einem lokalen Modell dauert jeder Aufruf etwa eine Minute; ein Absender, den die KI dreimal in Folge gleich und sicher eingeordnet hat, ist vorhersehbar | Weniger Aufrufe, für diese Mails wird nichts gesendet; eine Prüfung durch die KI jedes zehnte Mal, nach einer Korrektur und bei verdächtigen Betreffzeilen hält es ehrlich; aus solchen Mails kommen keine Termine (die gibt es nur mit einem KI-Aufruf) |
 | ADR-35 | „Für dich“ als Tools für Assistenten, über die vorhandene Erweiterungs-Schnittstelle | Der Nutzer will Assist oder Claude fragen, was wichtig ist; die Daten sind lokal schon ermittelt | Ein lesendes und ein schreibendes Tool (Kalender, im Nur-Lesen-Modus nicht angeboten); Betreffzeilen sind als Fremdinhalt gekennzeichnet; der schreibende Aufruf steht einmal im Änderungsprotokoll |
+| ADR-36 | Pakete mit Mustern erkennen, nicht mit der KI; Verfolgungslinks aus dem Versanddienst bilden | Versandmails folgen wenigen Formaten der Versanddienste; ein KI-Aufruf pro Mail wäre langsam und sendete mehr Text; ein Link in einer Mail kann Phishing sein | Unbekannte Versanddienste und Formate fehlen (das Paket erscheint ohne Nummer); eine Versandmail wird einmal gelesen, die gelesenen IDs werden gemerkt |
+| ADR-37 | Unterhaltungen aus In-Reply-To, mit dem Betreff einer Antwort als Rückfallebene | Bezüge verknüpfen eine Antwort genau mit ihrer Mail; Antworten auf die eigenen Antworten des Nutzers beziehen sich auf eine Mail, die nicht in der Aktivität steht | Eine Antwort ohne Bezug schließt sich der letzten Mail mit gleichem Betreff aus 30 Tagen an; kurze Betreffzeilen („Re: Hi“) schließen sich nichts an; die eigenen Antworten werden beim Öffnen einer Unterhaltung in „Gesendet“ gesucht |
 
 ---
 
@@ -630,6 +633,8 @@ flowchart LR
 | Q14 | Eine Mail sagt „Grillen am Samstag um 18 Uhr“ | Ein Kalendervorschlag für Samstag 18:00; eingetragen wird erst, wenn der Nutzer auf „Eintragen“ klickt |
 | Q15 | Der Nutzer bricht eine Neubewertung ab, während das lokale Modell antwortet | Die Neubewertung stoppt in Augenblicken, auf die Antwort wird nicht gewartet, das Panel zeigt sofort „Wird abgebrochen …“ |
 | Q16 | Die vierte Rechnung des Shops kommt nach drei sicheren Bewertungen als „Rechnungen“ | Ohne KI-Aufruf als „Rechnungen“ eingeordnet; das Stundenlimit bleibt unberührt |
+| Q17 | DHL schreibt „Ihre Sendung kommt heute zwischen 10 und 14 Uhr“ | Sekunden nach dem Push zeigt das Paket „kommt heute, 10:00–14:00“, der Sensor zählt es, und `friedafetch_mail_package` wird einmal ausgelöst |
+| Q18 | Die Schule antwortet mit „Re: Elternabend“ auf die Antwort des Nutzers | Die Aktivität zeigt eine Zeile mit „3“; die geöffnete Mail zeigt die Einladung, die Antwort des Nutzers und die Rückmeldung der Schule |
 
 ---
 
@@ -672,5 +677,7 @@ flowchart LR
 | **Aktivität** | Die Liste der Mails, die Frieda Postfach gesehen hat, eine Zeile pro Mail, mit Stand und Verlauf |
 | **Abgleich** | Der regelmäßige Vergleich der Aktivität mit dem Postfach (gelesen, markiert, Ordner) |
 | **Für dich** | Tab mit Kalendervorschlägen, offenen Antworten, Regelvorschlägen, Abos, wichtigen Absendern und der Woche |
+| **Unterhaltung** | Über In-Reply-To (oder den Betreff einer Antwort) verknüpfte Mails; eine Zeile in der Aktivität |
+| **Paket** | Eine in Versandmails erkannte Sendung: Versanddienst, Nummer, Status, voraussichtlicher Tag |
 | **Bekannter Absender** | Ein Absender, den die KI dreimal in Folge gleich und sicher eingeordnet hat; ohne KI sortiert |
 | **Zufallslauf** | Ein Test, der Mails zufällig ändert und nach jedem Abgleich die Aktivität mit dem Server vergleicht |
