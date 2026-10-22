@@ -14,7 +14,9 @@ import functools
 import os
 import subprocess
 import sys
+import tempfile
 import threading
+import urllib.request
 from collections.abc import Iterator
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +27,11 @@ from playwright.sync_api import Browser, Page
 
 PREVIEW = Path(__file__).resolve().parent
 POSTFACH = Path(os.environ.get("POSTFACH_DIR") or PREVIEW.parent.parent.parent / "friedafetch-mail")
+
+# the icon module the preview pages import (2.8 MB): fetched once per run and handed to every page from memory –
+# loading it from the CDN for each of the ~150 pages made some of them time out on a busy machine
+ICONS_URL = "https://cdn.jsdelivr.net/npm/@mdi/js@7.4.47/+esm"
+ICONS_FILE = Path(tempfile.gettempdir()) / "frieda-preview-mdi-js-7.4.47.mjs"
 
 DESKTOP = {"viewport": {"width": 1400, "height": 900}}
 PHONE = {"viewport": {"width": 393, "height": 852}, "device_scale_factor": 3, "has_touch": True}
@@ -76,13 +83,32 @@ class Panel:
         return self.js(f"return root.querySelectorAll({selector!r}).length;")
 
 
+@functools.cache
+def _icons() -> bytes:
+    """The icon module, from a file shared by the parallel workers (written atomically), else from the CDN once."""
+    if not ICONS_FILE.exists():
+        with urllib.request.urlopen(ICONS_URL, timeout=60) as answer:  # noqa: S310 - a fixed https URL
+            data = answer.read()
+        part = ICONS_FILE.with_suffix(f".{os.getpid()}.part")
+        part.write_bytes(data)
+        part.replace(ICONS_FILE)
+    return ICONS_FILE.read_bytes()
+
+
 @pytest.fixture
 def open_panel(browser: Browser, site: str) -> Any:
     """open_panel("postfach", "scene=pick", phone=False, dark=False) -> Panel, ready to use."""
     contexts = []
+    icons = _icons()
 
     def _open(name: str, query: str = "", *, phone: bool = False, dark: bool = False) -> Panel:
         context = browser.new_context(**(PHONE if phone else DESKTOP))
+        context.route(
+            ICONS_URL,
+            lambda route: route.fulfill(
+                body=icons, content_type="text/javascript", headers={"access-control-allow-origin": "*"}
+            ),
+        )
         contexts.append(context)
         page = context.new_page()
         panel = Panel(page, "friedafetch-panel" if name == "frieda" else "friedafetch-mail-panel")
