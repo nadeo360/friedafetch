@@ -4,6 +4,7 @@
     scripts/release.py --draft                        # notes skeleton from the commits since the last tag
     scripts/release.py 2.0.17 --notes notes.md --dry-run
     scripts/release.py 2.0.17 --notes notes.md        # the release itself
+    scripts/release.py 2.0.17 --notes notes.md --resume   # go on after a stop once main was pushed (CI, release)
 
 The same file serves Frieda and Frieda Postfach (the integration is the one real folder in custom_components). Run
 it with the Python that has the test requirements (ruff, pytest), from a clean `dev`. It stops at the first problem
@@ -21,6 +22,9 @@ and never releases what CI has not passed:
  7. the zip the release workflow attaches is downloaded: its checksum, its version and every file are compared with
     the tagged source;
  8. back to dev.
+
+GitHub now and then leaves a run "in progress" although every job of it has finished: such a run counts by its jobs
+once it has not changed for STUCK seconds.
 """
 
 from __future__ import annotations
@@ -37,11 +41,13 @@ import sys
 import tempfile
 import time
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 CI_TIMEOUT = 45 * 60  # seconds
 ASSET_TIMEOUT = 20 * 60
 POLL = 20
+STUCK = 5 * 60  # a run whose jobs all finished and that has not changed for so long counts by its jobs
 OK = {"success", "skipped", "neutral"}
 CACHE = Path.home() / ".cache" / "friedafetch-release"
 # the other repository (its origin/main is what this one's CI checks out) and how its tests are told where it is
@@ -194,6 +200,20 @@ def check_notes(path: Path) -> None:
         print("  ! the notes have no line '---' between the German and the English part", flush=True)
 
 
+def _finished_by_jobs(run_id: int, updated: str) -> str | None:
+    """A run GitHub did not close: its result from its jobs, once it has not changed for a while (else None)."""
+    try:
+        age = (datetime.now(UTC) - datetime.fromisoformat(updated.replace("Z", "+00:00"))).total_seconds()
+    except ValueError:
+        return None
+    if age < STUCK:
+        return None
+    jobs = json.loads(run(gh(), "run", "view", str(run_id), "--json", "jobs"))["jobs"]
+    if not jobs or any(j["status"] != "completed" for j in jobs):
+        return None
+    return "success" if all(j["conclusion"] in OK for j in jobs) else "failure"
+
+
 def wait_for_ci(sha: str) -> None:
     """Every workflow run of the pushed commit must finish successfully.
 
@@ -211,13 +231,22 @@ def wait_for_ci(sha: str) -> None:
                 "--commit",
                 sha,
                 "--json",
-                "databaseId,workflowName,status,conclusion,event",
+                "databaseId,workflowName,status,conclusion,event,updatedAt",
                 "-L",
                 "50",
             )
         )
         # GitHub's own Dependabot jobs (event "dynamic") look at the dependencies, not at this commit
         runs = [r for r in listed if r.get("event") != "dynamic"]
+        for r in runs:
+            if r["status"] != "completed" and (result := _finished_by_jobs(r["databaseId"], r.get("updatedAt") or "")):
+                print(f"  CI: {r['workflowName']} – all jobs done, GitHub did not close the run", flush=True)
+                r.update(status="completed", conclusion=result)
+        # a later run of the same workflow (started by hand after a stuck one) decides for it
+        newest: dict[str, dict] = {}
+        for r in sorted(runs, key=lambda r: r["databaseId"]):
+            newest[r["workflowName"]] = r
+        runs = list(newest.values())
         pending = [r for r in runs if r["status"] != "completed"]
         failed = [r for r in runs if r["status"] == "completed" and r["conclusion"] not in OK]
         if failed:
@@ -231,7 +260,10 @@ def wait_for_ci(sha: str) -> None:
         else:
             settled = -1
         if time.monotonic() > deadline:
-            raise ReleaseError(f"CI did not finish within {CI_TIMEOUT // 60} minutes – nothing was released")
+            raise ReleaseError(
+                f"CI did not finish within {CI_TIMEOUT // 60} minutes – nothing was released; "
+                "once it has, run this again with --resume"
+            )
         print(f"  CI: {len(runs) - len(pending)} of {len(runs)} runs done, waiting …", flush=True)
         time.sleep(POLL)
 
@@ -272,6 +304,32 @@ def verify_assets(tag: str, domain: str, version: str) -> None:
             if zf.read(name) != blob:
                 raise ReleaseError(f"{name} in the zip differs from the tagged source")
     print(f"  {domain}.zip: checksum, version {version} and all {len(names)} files match the tag", flush=True)
+
+
+def resume(version: str, notes: Path) -> None:
+    """After a stop once main was pushed (CI too slow, a run GitHub did not close): wait for CI, then release."""
+    root = Path(run("git", "rev-parse", "--show-toplevel"))
+    domain, manifest = integration(root)
+    tag = f"v{version}"
+    check_notes(notes)
+    run("git", "fetch", "origin", "--tags")
+    if manifest["version"] != version:
+        raise ReleaseError(f"the manifest says {manifest['version']}, not {version}: nothing to resume")
+    if run("git", "tag", "--list", tag):
+        raise ReleaseError(f"the tag {tag} exists already")
+    sha = run("git", "rev-parse", "origin/main")
+    if run("git", "rev-parse", "HEAD") != sha:
+        raise ReleaseError("origin/main is not this commit: run the release without --resume")
+    print("5. CI", flush=True)
+    wait_for_ci(sha)
+    print(f"6. release {tag}", flush=True)
+    run(
+        gh(), "release", "create", tag, "--target", sha, "--title", title(manifest, version), "--notes-file", str(notes)
+    )
+    print("7. release assets", flush=True)
+    run("git", "fetch", "origin", "--tags")
+    verify_assets(tag, domain, version)
+    print(f"Released {title(manifest, version)}: {run(gh(), 'release', 'view', tag, '--json', 'url', '-q', '.url')}")
 
 
 def release(version: str, notes: Path, *, dry_run: bool, skip_tests: bool) -> None:
@@ -363,6 +421,7 @@ def main() -> int:
     parser.add_argument("--draft", action="store_true", help="print a notes skeleton from the commits and stop")
     parser.add_argument("--dry-run", action="store_true", help="check and test only: no commit, push or release")
     parser.add_argument("--skip-tests", action="store_true", help="leave out the local CI checks (CI still runs)")
+    parser.add_argument("--resume", action="store_true", help="main is pushed already: wait for CI, then release")
     args = parser.parse_args()
     try:
         if args.draft:
@@ -370,7 +429,10 @@ def main() -> int:
             return 0
         if not args.version or not args.notes:
             parser.error("version and --notes are needed (or --draft)")
-        release(args.version, args.notes, dry_run=args.dry_run, skip_tests=args.skip_tests)
+        if args.resume:
+            resume(args.version, args.notes)
+        else:
+            release(args.version, args.notes, dry_run=args.dry_run, skip_tests=args.skip_tests)
     except ReleaseError as err:
         print(f"\nStopped: {err}", file=sys.stderr)
         return 1

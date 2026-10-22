@@ -353,6 +353,10 @@ it, waits until every CI run of that commit has passed, creates the GitHub relea
 English), and then checks the zip the release workflow attached – checksum, version and every file against the
 tagged source. `--dry-run` only checks and tests; `--draft` prints a notes skeleton from the commits since the last
 release.
+A CI run that GitHub still shows as running five minutes after its last job finished counts by its jobs
+(GitHub sometimes never closes a run). If the script stops while waiting anyway, `--resume` continues the same
+version later: it checks that the tag does not exist yet and `main` is the pushed commit, waits for CI again, creates
+the release and checks the zip.
 
 ### Artwork
 

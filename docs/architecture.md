@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.33 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.35 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -221,12 +221,13 @@ flowchart TB
 | `activity.py` | `ActivityLog`: one line per mail (30 days, max. 3000) – grouped into conversations by In-Reply-To and, without it, by the subject of a reply – with what rules and AI did, the steps of its timeline, its state (read, flagged, folder, UID) and the per-folder memory of the look (MODSEQ, UIDVALIDITY); views and search for the panel. |
 | `mailstate.py` | `MailState`, the look: keeps read/flagged and the folder of the newest 500 lines current, folder by folder – QRESYNC (changes and vanished messages), CONDSTORE (changes only) or one FETCH; a message counts as gone only when a UID SEARCH confirms it, and is then found again by its Message-ID; a renumbered folder (UIDVALIDITY) has its messages looked for again. |
 | `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good. |
-| `packages.py` | Parcels from shipping mails, with patterns and without AI: carrier, tracking number (only next to a word like “Sendungsnummer”, in a carrier's link or in an unmistakable form), status, expected day and time window; the tracking link is built from the carrier's address, never taken from the mail – for a parcel without a carrier, a known shop's order page. Updates without a number join the sender's open parcel of the last week; a carrier mail naming the shop joins the shop's order; when the patterns learn more (`PARSER`), the shipping mails of the last weeks are read again. |
-| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. |
+| `packages.py` | Parcels from shipping mails, with patterns and without AI: carrier, tracking number (only next to a word like “Sendungsnummer”, in a carrier's link or in an unmistakable form), status, expected day and time window; the tracking link is built from the carrier's address, never taken from the mail – for a parcel without a carrier, a known shop's order page. Updates without a number join the sender's open parcel of the last week; a carrier mail naming the shop joins the shop's order; when the patterns learn more (`PARSER`), the shipping mails of the last weeks are read again. Each parcel keeps the mails it was put together from (`sources`, max. 10), so “Where from?” can show them and a correction can recompute it. |
+| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. Corrections of parcels by the user: merge two, take a mail out as its own parcel, not a parcel, never parcels from a sender's domain (`parcel_ignored`, undoable). |
 | `timeline.py` | Timeline of one message from the activity's steps, the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays, waiting replies and calendar proposals; optional phrasing by an AI Task (kill switch applied). |
 | `tools.py`, `link.py`, `live.py` | Rule tools and the tools of “For you” (`icloud_mail_for_you`, `icloud_add_proposed_event`) for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), parcels on their way, next birthday. |
+| `health.py`, `throttle.py`, `binary_sensor.py` | `Health` looks at push (not listening for 15 minutes), the look, the AI's last call, a pass running for over 10 minutes, iCloud's throttling and “For you”; the binary sensor *Problem* shows the reasons, and a problem that lasts an hour becomes a repair that goes away by itself. `Throttle` recognises iCloud's “slow down” answers (`[THROTTLED]`, `[LIMIT]`, too many connections) and pauses timer, push passes and the look for 5 minutes, doubled up to an hour. |
 | `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. |
 ---
@@ -427,12 +428,12 @@ flowchart LR
 |---|---|
 | Change log (`audit.py`, panel “Frieda”) | Every writing action incl. rule runs and AI sorting, with result and parameters (no bodies) |
 | Event `friedafetch_action` | Same data for automations (e.g. alarm on mass deletion) |
-| Events and sensors of Frieda Postfach | Rule matches and AI ratings as events; unread mail, matches today, push state, important mail and AI usage as sensors |
+| Events and sensors of Frieda Postfach | Rule matches and AI ratings as events; unread mail, matches today, push state, important mail and AI usage as sensors; the binary sensor *Problem* with its reasons (`health.py`) |
 | Usage (`usage.py`) | Tool calls per day/tool/source, reading vs. writing, errors, connected MCP clients |
 | “Sent to AI” (`ai.py`) | Every transmission to an AI (purpose, entity, fields, characters) and every mail held back with all reasons |
 | Run history (`rules.py`) | Manual, automatic and push runs; empty automatic runs merged |
 | Activity and mail timeline (`activity.py`, `timeline.py`) | Per mail: arrival, rules, AI transmission and rating, corrections, actions, calendar entries – and where it is now |
-| Diagnostics, repair issues | Redacted configuration, IMAP capabilities, state of the look, counts of the activity and of “For you”; stale copies, moved rules, a Frieda too old for Frieda Postfach |
+| Diagnostics, repair issues | Redacted configuration, IMAP capabilities, state of the look, counts of the activity and of “For you”; stale copies, moved rules, a Frieda too old for Frieda Postfach, a problem of Frieda Postfach that lasts an hour |
 
 ### 8.3 Persistence
 
@@ -455,7 +456,9 @@ Tools never raise into the client: errors become structured results with `code` 
 errors and continue; the AI sorter keeps the UID of a failed or timed-out call for the next run; the look reports
 each kind of failure once in the log and as `error` on the push sensor. A broken IMAP connection is noticed before
 the next command (not after its timeout) and replaced; a command timeout is retried once on a new connection and
-otherwise reported in words (“no answer from the server in time”).
+otherwise reported in words (“no answer from the server in time”). When iCloud asks to slow down, the background
+work pauses (5 minutes, doubled with every further throttled answer up to an hour) instead of logging in again at
+once; the first throttled answer of a pause is logged once, and the problem sensor shows until when.
 
 ### 8.5 User interface
 
@@ -490,7 +493,7 @@ SECURITY.md and this document.
 
 ### 8.7 Testing and quality assurance
 
-pytest with `pytest-homeassistant-custom-component` (Frieda ~170 tests, Frieda Postfach ~145; Postfach tests run
+pytest with `pytest-homeassistant-custom-component` (Frieda ~170 tests, Frieda Postfach ~185; Postfach tests run
 against Frieda's `main`, in parallel with pytest-xdist), property-based tests with Hypothesis for everything that
 parses third-party data (vCard, MIME, FETCH responses, modified UTF-7, dates, unsubscribe links, sanitising, injection
 detection, rule conditions, regex safety, kill switch; 200 examples per test in CI), Ruff (lint/format/security
@@ -506,9 +509,14 @@ from the panel and connections break off; after every look the activity is compa
 server has, with QRESYNC, CONDSTORE only and neither. A failure names the seed that repeats it. CI runs them in their
 own job; before a release that touches the look, longer walks run locally.
 
+**Hostile input**: the parcel patterns run on generated and very long texts (Hypothesis plus a time limit against
+catastrophic backtracking); **upgrade tests** start from stores written by older versions (e.g. 1.0.30 and 1.0.33)
+and check that nothing is lost and new fields are filled in.
+
 **Browser tests** (Playwright, Chromium and WebKit, desktop and phone): every repository tests its own panel on the
 dev preview, on the shared harness `tools/preview/harness.py`. **Contract tests** record the shape of every websocket
-answer from the real backend (`tests/contracts/ws.json`); the preview's mock must answer the same way.
+answer from the real backend (`tests/contracts/ws.json`); the preview's mock must answer the same way. With `?xss=1` the mock fills subjects, senders, reasons and parcels with
+markup and script; a browser test checks that the panel shows it only as text and runs nothing.
 ### 8.8 Build and release
 
 GitHub Actions build the zip on a published release, check that the manifest version matches the tag, add SHA-256
@@ -521,7 +529,9 @@ Frieda Postfach's checks run against Frieda's `main`; Frieda Postfach names the 
 the IMAP tests where Dovecot is installed, Bandit, basedpyright, the browser tests) in throwaway worktrees next to the
 other repository's `main` and with the pinned versions of CI, moves `main` on by fast-forward, waits for every
 workflow of the pushed commit (GitHub's own Dependabot jobs excepted), creates the release from bilingual notes and
-checks the zip against the tagged source.
+checks the zip against the tagged source. A run GitHub still shows as running five minutes after its last job
+finished counts by its jobs; if the script stops while waiting anyway, `--resume` finishes the same version
+(tag absent, `main` at the pushed commit, CI again, release, zip check).
 
 ---
 
@@ -566,6 +576,10 @@ checks the zip against the tagged source.
 | ADR-35 | “For you” as tools for assistants, through the existing extension interface | The user wants to ask Assist or Claude what is important; the data is already worked out locally | One reading tool and one writing tool (calendar, not offered read-only); subjects are marked as third-party content; the writing call is in the change log once |
 | ADR-36 | Recognise parcels with patterns, not with the AI; build tracking links from the carrier | Shipping mails follow a few carriers' formats; an AI call per mail would be slow and send more text; a link in a mail may be phishing | Unknown carriers and formats are missed (the parcel shows without number); a shipping mail is read once, the parsed IDs are kept |
 | ADR-37 | Conversations from In-Reply-To, with the subject of a reply as fallback | References tie a reply to its mail exactly; answers to the user's own answers refer to a mail not in the activity | A reply without reference joins the latest mail of the same subject within 30 days; short subjects (“Re: Hi”) join nothing; the user's own answers are searched in the sent mail when a conversation is opened |
+| ADR-38 | One problem sensor per account, and a repair only after an hour | The user should see at a glance whether the automation works, without reading the log; short outages (a router restart) are normal | The reasons are attributes for automations; the repair goes away by itself; push gets 15 minutes to reconnect before it counts |
+| ADR-39 | Pause the background work when iCloud throttles, with a doubling pause | Logging in again at once makes throttling worse and may lock the account for longer | Mail that arrives during a pause is processed up to an hour later; the tools of Frieda are not paused |
+| ADR-40 | Parcels keep their source mails and can be corrected by the user | Patterns will sometimes join or split wrongly; a correction must be possible and understandable without AI | Up to 10 source summaries per parcel in the store; corrections recompute the parcel from them; ignored sender domains are kept until undone |
+| ADR-41 | The release script judges a stuck CI run by its jobs and can resume | GitHub sometimes keeps a finished run “in progress” for good, and a release stopped after the push had to be finished by hand | Five minutes after the last job a run counts as finished; `--resume` refuses when the tag exists or `main` moved |
 
 ---
 
@@ -618,6 +632,10 @@ flowchart LR
 | Q16 | The shop's fourth invoice arrives after three sure “Bills” ratings | Sorted as “Bills” without an AI call; the hourly limit is untouched |
 | Q17 | DHL writes “Ihre Sendung kommt heute zwischen 10 und 14 Uhr” | Seconds after the push the parcel shows “arrives today, 10:00–14:00”, the sensor counts it and `friedafetch_mail_package` fires once |
 | Q18 | The school answers “Re: Elternabend” to the user's reply | The activity shows one line with “3”; the open mail lists the invitation, the user's answer and the school's reply |
+| Q19 | iCloud answers a pass with “NO [THROTTLED]” | Background work pauses 5 minutes, one line in the log, the problem sensor shows `throttled` and until when; the next pass after the pause picks up the mail |
+| Q20 | The local AI is unreachable for over an hour | The problem sensor is on with `ai` within the next pass; after an hour a repair names the account and the reason; it goes away after the next successful rating |
+| Q21 | A shop's order mail and DHL's mail for it were shown as two parcels | Under “Where from?” the user merges them; the parcel shows both mails, the carrier link and the shop; *As its own parcel* undoes it |
+| Q22 | A mail subject contains `<img src=x onerror=…>` | Activity, timeline, For you and parcels show the text literally; no script runs |
 
 ---
 
@@ -635,6 +653,7 @@ flowchart LR
 | Live behaviour of some features (unsubscribe, attachments, AI providers, “For you” with real contact groups and calendars) only partly tested against real services | Unknown edge cases | Unit tests with mocks, IMAP against Dovecot; feedback from real use |
 | Dovecot is not iCloud | iCloud may answer IMAP differently than the test server | Behaviour that differed before is pinned by tests; diagnostics show the capabilities and the state of the look |
 | A local AI model is slow (about a minute per mail) | Passes take minutes, the hourly limit is reached later | Rated mails show at once; time limit per call; re-rating waits for the hourly limit |
+| iCloud throttles or limits connections | Passes and the look fail for a while | Doubling pause instead of new logins (ADR-39); the problem sensor and, after an hour, a repair make it visible |
 
 ---
 
@@ -658,6 +677,8 @@ flowchart LR
 | **CONDSTORE / QRESYNC** | IMAP extensions (RFC 7162): a change counter per folder (HIGHESTMODSEQ), changes since a counter, and the messages that left a folder (VANISHED) |
 | **UIDVALIDITY** | Number of a folder's UID series; when it changes, all UIDs of the folder mean other messages |
 | **Activity** | Frieda Postfach's list of the mails it saw, one line per mail, with its state and timeline |
+| **Problem sensor** | Binary sensor of an account in Frieda Postfach, on while push, the look, the AI, a pass, throttling or “For you” has a problem; the reasons are its attributes |
+| **Throttling** | iCloud's answer to too many requests (`[THROTTLED]`, `[LIMIT]`, too many connections); Frieda Postfach then pauses its background work |
 | **Look** | The regular comparison of the activity with the mailbox (read, flagged, folder) |
 | **For you** | Tab with calendar proposals, waiting replies, rule suggestions, subscriptions, important senders and the week |
 | **Conversation** | Mails linked by In-Reply-To (or by the subject of a reply); one line in the activity |

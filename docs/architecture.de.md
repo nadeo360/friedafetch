@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.23, Frieda Postfach 1.0.33 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.23, Frieda Postfach 1.0.35 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -223,12 +223,13 @@ flowchart TB
 | `activity.py` | `ActivityLog`: eine Zeile pro Mail (30 Tage, max. 3.000) – zu Unterhaltungen gruppiert über In-Reply-To und, ohne diesen Bezug, über den Betreff einer Antwort – mit dem, was Regeln und KI getan haben, den Schritten ihres Verlaufs, ihrem Stand (gelesen, markiert, Ordner, UID) und dem Gedächtnis des Abgleichs pro Ordner (MODSEQ, UIDVALIDITY); Ansichten und Suche für das Panel. |
 | `mailstate.py` | `MailState`, der Abgleich: hält gelesen/markiert und den Ordner der neuesten 500 Zeilen aktuell, Ordner für Ordner – QRESYNC (Änderungen und verschwundene Mails), CONDSTORE (nur Änderungen) oder ein FETCH; eine Mail gilt erst als weg, wenn eine UID-SEARCH das bestätigt, und wird dann per Message-ID wiedergefunden; in einem neu nummerierten Ordner (UIDVALIDITY) werden die Mails neu gesucht. |
 | `locate.py`, `actions.py` | Wo eine Mail jetzt liegt (SEARCH nach Message-ID, zuerst die Ordner, die Frieda kennt, der Papierkorb zuletzt, die Ordnerliste neu gelesen, wenn sie nicht gefunden wird); Aktionen aus Panel und Benachrichtigungen (gelesen, ungelesen, markieren, archivieren, zurück in den Posteingang, Papierkorb) unter Friedas Leitplanken, nie endgültig löschen. |
-| `packages.py` | Pakete aus Versandmails, mit Mustern und ohne KI: Versanddienst, Sendungsnummer (nur neben einem Wort wie „Sendungsnummer“, in einem Link des Versanddienstes oder in unverwechselbarer Form), Status, voraussichtlicher Tag und Zeitfenster; der Verfolgungslink wird aus der Adresse des Versanddienstes gebildet, nie aus der Mail übernommen – für ein Paket ohne Versanddienst die Bestellseite eines bekannten Shops. Updates ohne Nummer gehören zum offenen Paket desselben Absenders der letzten Woche; eine Mail des Versanddienstes, die den Shop nennt, zur Bestellung des Shops; lernen die Muster dazu (`PARSER`), werden die Versandmails der letzten Wochen neu gelesen. |
-| `insights.py` | „Für dich“: Pakete (Versandmails einmal gelesen, gleich nach einem Durchgang und im regelmäßigen Blick; Ereignis `friedafetch_mail_package` bei einer Änderung), Kalendervorschläge aus den Daten der KI (eingetragen nur per Klick, nie in einen geschützten Kalender), gesendete Mails ohne Antwort (per Bezug oder von dieser Person), Regelvorschläge aus dem, wohin der Nutzer die Mails eines Absenders verschiebt, Newsletter von 30 Tagen mit Abmelden, wichtige Absender aus Kontaktgruppen und genannten Adressen, die Woche und der Wochenrückblick. |
+| `packages.py` | Pakete aus Versandmails, mit Mustern und ohne KI: Versanddienst, Sendungsnummer (nur neben einem Wort wie „Sendungsnummer“, in einem Link des Versanddienstes oder in unverwechselbarer Form), Status, voraussichtlicher Tag und Zeitfenster; der Verfolgungslink wird aus der Adresse des Versanddienstes gebildet, nie aus der Mail übernommen – für ein Paket ohne Versanddienst die Bestellseite eines bekannten Shops. Updates ohne Nummer gehören zum offenen Paket desselben Absenders der letzten Woche; eine Mail des Versanddienstes, die den Shop nennt, zur Bestellung des Shops; lernen die Muster dazu (`PARSER`), werden die Versandmails der letzten Wochen neu gelesen. Jedes Paket behält die Mails, aus denen es zusammengesetzt ist (`sources`, max. 10), damit „Woher?“ sie zeigen und eine Korrektur es neu berechnen kann. |
+| `insights.py` | „Für dich“: Pakete (Versandmails einmal gelesen, gleich nach einem Durchgang und im regelmäßigen Blick; Ereignis `friedafetch_mail_package` bei einer Änderung), Kalendervorschläge aus den Daten der KI (eingetragen nur per Klick, nie in einen geschützten Kalender), gesendete Mails ohne Antwort (per Bezug oder von dieser Person), Regelvorschläge aus dem, wohin der Nutzer die Mails eines Absenders verschiebt, Newsletter von 30 Tagen mit Abmelden, wichtige Absender aus Kontaktgruppen und genannten Adressen, die Woche und der Wochenrückblick. Korrekturen von Paketen durch den Nutzer: zwei zusammenführen, eine Mail als eigenes Paket herausnehmen, kein Paket, nie Pakete von der Domain eines Absenders (`parcel_ignored`, zurücknehmbar). |
 | `timeline.py` | Verlauf einer Mail aus den Schritten der Aktivität, Ausführungen, KI-Protokoll und Bewertungen, verknüpft über die Message-ID (WebSocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Sammelt ungelesene Mails, Regelaktivität, Termine, Geburtstage, offene Antworten und Kalendervorschläge; optional Formulierung durch einen AI Task (mit Killswitch). |
 | `tools.py`, `link.py`, `live.py` | Regel-Tools und die Tools von „Für dich“ (`icloud_mail_for_you`, `icloud_add_proposed_event`) für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`; Themen der Live-Aktualisierung (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), Pakete unterwegs, nächster Geburtstag. |
+| `health.py`, `throttle.py`, `binary_sensor.py` | `Health` schaut auf Push (lauscht seit 15 Minuten nicht), den Abgleich, den letzten KI-Aufruf, einen Durchlauf über 10 Minuten, iCloud-Drosselung und „Für dich“; der binäre Sensor *Problem* zeigt die Gründe, und ein Problem, das eine Stunde anhält, wird zur Reparaturmeldung, die von selbst verschwindet. `Throttle` erkennt iCloud-Antworten zum Bremsen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen) und pausiert Takt, Push-Durchläufe und Abgleich 5 Minuten, verdoppelt bis zu einer Stunde. |
 | `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, Betreffzeilen oder Texte). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. |
 ---
@@ -435,12 +436,12 @@ flowchart LR
 |---|---|
 | Änderungsprotokoll (`audit.py`, Panel „Frieda“) | Jede schreibende Aktion inkl. Regelläufen und KI-Sortierung, mit Ergebnis und Parametern (ohne Mail-Inhalte) |
 | Ereignis `friedafetch_action` | Dieselben Daten für Automationen (z. B. Alarm bei Massenlöschung) |
-| Ereignisse und Sensoren von Frieda Postfach | Regeltreffer und KI-Bewertungen als Ereignisse; ungelesene Mails, Treffer heute, Push-Status, wichtige Mails und KI-Nutzung als Sensoren |
+| Ereignisse und Sensoren von Frieda Postfach | Regeltreffer und KI-Bewertungen als Ereignisse; ungelesene Mails, Treffer heute, Push-Status, wichtige Mails und KI-Nutzung als Sensoren; der binäre Sensor *Problem* mit seinen Gründen (`health.py`) |
 | Nutzung (`usage.py`) | Tool-Aufrufe pro Tag/Tool/Herkunft, lesend vs. schreibend, Fehler, verbundene MCP-Clients |
 | „An KI übermittelt“ (`ai.py`) | Jede Übermittlung an eine KI (Zweck, Entität, Felder, Zeichen) und jede zurückgehaltene Mail mit allen Gründen |
 | Verlauf (`rules.py`) | Manuelle, automatische und Push-Läufe; leere automatische Läufe zusammengefasst |
 | Aktivität und Verlauf einer Mail (`activity.py`, `timeline.py`) | Pro Mail: Eingang, Regeln, Übermittlung an die KI und Bewertung, Korrekturen, Aktionen, Kalendereinträge – und wo sie jetzt liegt |
-| Diagnosedaten, Reparaturmeldungen | Geschwärzte Konfiguration, IMAP-Fähigkeiten, Stand des Abgleichs, Zahlen zu Aktivität und „Für dich“; veraltete Kopien, verschobene Regeln, ein für Frieda Postfach zu altes Frieda |
+| Diagnosedaten, Reparaturmeldungen | Geschwärzte Konfiguration, IMAP-Fähigkeiten, Stand des Abgleichs, Zahlen zu Aktivität und „Für dich“; veraltete Kopien, verschobene Regeln, ein für Frieda Postfach zu altes Frieda, ein Problem von Frieda Postfach, das eine Stunde anhält |
 
 ### 8.3 Persistenz
 
@@ -466,7 +467,9 @@ protokollieren Fehler und laufen weiter; der KI-Sortierer behält die UID eines 
 Aufrufs für den nächsten Lauf; der Abgleich meldet jede Art von Fehler einmal im Log und als `error` am Push-Sensor.
 Eine abgerissene IMAP-Verbindung wird vor dem nächsten Befehl erkannt (nicht erst nach dessen Zeitüberschreitung) und
 ersetzt; eine Befehls-Zeitüberschreitung wird einmal auf neuer Verbindung wiederholt und sonst verständlich gemeldet
-(„keine Antwort vom Server“).
+(„keine Antwort vom Server“). Bittet iCloud ums Bremsen, pausiert die Hintergrundarbeit (5 Minuten, mit jeder
+weiteren gedrosselten Antwort verdoppelt bis zu einer Stunde), statt sich sofort neu anzumelden; die erste
+gedrosselte Antwort einer Pause wird einmal protokolliert, und der Problem-Sensor zeigt, bis wann.
 
 ### 8.5 Bedienoberfläche
 
@@ -504,7 +507,7 @@ READMEs, SECURITY.md und dieses Dokument.
 
 ### 8.7 Test und Qualitätssicherung
 
-pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 170 Tests, Frieda Postfach ca. 145; die
+pytest mit `pytest-homeassistant-custom-component` (Frieda ca. 170 Tests, Frieda Postfach ca. 185; die
 Postfach-Tests laufen gegen Friedas `main`, parallel mit pytest-xdist), eigenschaftsbasierte Tests mit Hypothesis für
 alles, was Fremddaten verarbeitet (vCard, MIME, FETCH-Antworten, modifiziertes UTF-7, Datumsangaben, Abmelde-Links,
 Bereinigung, Injection-Erkennung, Regel-Bedingungen, Regex-Sicherheit, Killswitch; 200 Beispiele pro Test in der CI),
@@ -521,10 +524,15 @@ abreißen; nach jedem Abgleich wird die Aktivität Zeile für Zeile mit dem Stan
 nur CONDSTORE und ohne beides. Ein Fehler nennt den Startwert, der ihn wiederholt. Die CI führt sie in einem eigenen
 Job aus; vor einem Release, das den Abgleich betrifft, laufen lokal längere Zufallsläufe.
 
+**Feindliche Eingaben**: Die Paket-Muster laufen auf erzeugten und sehr langen Texten (Hypothesis plus ein Zeitlimit
+gegen katastrophales Backtracking); **Upgrade-Tests** starten mit Speicherständen älterer Versionen (z. B. 1.0.30
+und 1.0.33) und prüfen, dass nichts verloren geht und neue Felder gefüllt werden.
+
 **Browsertests** (Playwright, Chromium und WebKit, Desktop und Handy): Jedes Repository testet sein eigenes Panel auf
 der Dev-Vorschau, mit dem gemeinsamen Gerüst `tools/preview/harness.py`. **Vertragstests** halten die Form jeder
 WebSocket-Antwort des echten Backends fest (`tests/contracts/ws.json`); die Attrappe der Vorschau muss genauso
-antworten.
+antworten. Mit `?xss=1` füllt die Attrappe Betreffzeilen, Absender, Begründungen und Pakete mit Markup und
+Skript; ein Browsertest prüft, dass das Panel sie nur als Text zeigt und nichts ausführt.
 ### 8.8 Build und Release
 
 GitHub Actions bauen das Zip bei einem veröffentlichten Release, prüfen, dass die Manifest-Version zum Tag passt,
@@ -538,7 +546,10 @@ Frieda Postfach nennt das Frieda, das es braucht (`MIN_FRIEDA_VERSION`), und zei
 ausführt (Ruff, pytest inkl. der IMAP-Tests, wo Dovecot installiert ist, Bandit, basedpyright, die Browsertests) – in
 Wegwerf-Arbeitskopien neben dem `main` des anderen Repositorys und mit den gepinnten Versionen der CI –, schiebt `main`
 per Fast-Forward nach, wartet auf jeden Workflow des gepushten Commits (außer GitHubs eigenen Dependabot-Läufen),
-legt das Release aus zweisprachigen Notizen an und prüft das Zip gegen den getaggten Quelltext.
+legt das Release aus zweisprachigen Notizen an und prüft das Zip gegen den getaggten Quelltext. Ein Lauf, den GitHub
+fünf Minuten nach dem Ende seines letzten Jobs noch als laufend zeigt, zählt nach seinen Jobs; bricht das Skript
+beim Warten trotzdem ab, schließt `--resume` dieselbe Version ab (Tag fehlt, `main` auf dem gepushten Commit, erneut
+CI, Release, Zip-Prüfung).
 
 ---
 
@@ -583,6 +594,10 @@ legt das Release aus zweisprachigen Notizen an und prüft das Zip gegen den geta
 | ADR-35 | „Für dich“ als Tools für Assistenten, über die vorhandene Erweiterungs-Schnittstelle | Der Nutzer will Assist oder Claude fragen, was wichtig ist; die Daten sind lokal schon ermittelt | Ein lesendes und ein schreibendes Tool (Kalender, im Nur-Lesen-Modus nicht angeboten); Betreffzeilen sind als Fremdinhalt gekennzeichnet; der schreibende Aufruf steht einmal im Änderungsprotokoll |
 | ADR-36 | Pakete mit Mustern erkennen, nicht mit der KI; Verfolgungslinks aus dem Versanddienst bilden | Versandmails folgen wenigen Formaten der Versanddienste; ein KI-Aufruf pro Mail wäre langsam und sendete mehr Text; ein Link in einer Mail kann Phishing sein | Unbekannte Versanddienste und Formate fehlen (das Paket erscheint ohne Nummer); eine Versandmail wird einmal gelesen, die gelesenen IDs werden gemerkt |
 | ADR-37 | Unterhaltungen aus In-Reply-To, mit dem Betreff einer Antwort als Rückfallebene | Bezüge verknüpfen eine Antwort genau mit ihrer Mail; Antworten auf die eigenen Antworten des Nutzers beziehen sich auf eine Mail, die nicht in der Aktivität steht | Eine Antwort ohne Bezug schließt sich der letzten Mail mit gleichem Betreff aus 30 Tagen an; kurze Betreffzeilen („Re: Hi“) schließen sich nichts an; die eigenen Antworten werden beim Öffnen einer Unterhaltung in „Gesendet“ gesucht |
+| ADR-38 | Ein Problem-Sensor pro Konto, eine Reparaturmeldung erst nach einer Stunde | Der Nutzer soll auf einen Blick sehen, ob die Automatik funktioniert, ohne das Log zu lesen; kurze Ausfälle (Neustart des Routers) sind normal | Die Gründe sind Attribute für Automationen; die Reparaturmeldung verschwindet von selbst; Push hat 15 Minuten zum Neuverbinden, bevor es zählt |
+| ADR-39 | Die Hintergrundarbeit pausieren, wenn iCloud drosselt, mit sich verdoppelnder Pause | Sofortiges Neuanmelden verschlimmert die Drosselung und kann das Konto länger sperren | Mails, die in einer Pause kommen, werden bis zu einer Stunde später verarbeitet; Friedas Tools pausieren nicht |
+| ADR-40 | Pakete behalten ihre Quellmails und können vom Nutzer korrigiert werden | Muster werden manchmal falsch zusammenführen oder trennen; eine Korrektur muss ohne KI möglich und nachvollziehbar sein | Bis zu 10 Quell-Zusammenfassungen pro Paket im Speicher; Korrekturen berechnen das Paket daraus neu; übergangene Absender-Domains bleiben bis zum Zurücknehmen |
+| ADR-41 | Das Release-Skript beurteilt einen hängenden CI-Lauf nach seinen Jobs und kann fortsetzen | GitHub lässt einen fertigen Lauf manchmal dauerhaft „in Arbeit“, und ein nach dem Push abgebrochenes Release musste von Hand fertiggestellt werden | Fünf Minuten nach dem letzten Job zählt ein Lauf als fertig; `--resume` verweigert, wenn der Tag existiert oder `main` sich bewegt hat |
 
 ---
 
@@ -635,6 +650,10 @@ flowchart LR
 | Q16 | Die vierte Rechnung des Shops kommt nach drei sicheren Bewertungen als „Rechnungen“ | Ohne KI-Aufruf als „Rechnungen“ eingeordnet; das Stundenlimit bleibt unberührt |
 | Q17 | DHL schreibt „Ihre Sendung kommt heute zwischen 10 und 14 Uhr“ | Sekunden nach dem Push zeigt das Paket „kommt heute, 10:00–14:00“, der Sensor zählt es, und `friedafetch_mail_package` wird einmal ausgelöst |
 | Q18 | Die Schule antwortet mit „Re: Elternabend“ auf die Antwort des Nutzers | Die Aktivität zeigt eine Zeile mit „3“; die geöffnete Mail zeigt die Einladung, die Antwort des Nutzers und die Rückmeldung der Schule |
+| Q19 | iCloud beantwortet einen Durchlauf mit „NO [THROTTLED]“ | Die Hintergrundarbeit pausiert 5 Minuten, eine Zeile im Log, der Problem-Sensor zeigt `throttled` und bis wann; der nächste Durchlauf nach der Pause holt die Mail ab |
+| Q20 | Die lokale KI ist über eine Stunde nicht erreichbar | Der Problem-Sensor ist mit dem nächsten Durchlauf an (`ai`); nach einer Stunde nennt eine Reparaturmeldung Konto und Grund; sie verschwindet nach der nächsten erfolgreichen Bewertung |
+| Q21 | Die Bestellmail eines Shops und die DHL-Mail dazu wurden als zwei Pakete gezeigt | Unter „Woher?“ führt der Nutzer sie zusammen; das Paket zeigt beide Mails, den Link des Versanddienstes und den Shop; *Als eigenes Paket* macht es rückgängig |
+| Q22 | Ein Betreff enthält `<img src=x onerror=…>` | Aktivität, Verlauf, Für dich und Pakete zeigen den Text wörtlich; kein Skript läuft |
 
 ---
 
@@ -652,6 +671,7 @@ flowchart LR
 | Manche Funktionen (Abmelden, Anhänge, KI-Anbieter, „Für dich“ mit echten Kontaktgruppen und Kalendern) nur teilweise gegen echte Dienste getestet | Unbekannte Randfälle | Unit-Tests mit Mocks, IMAP gegen Dovecot; Rückmeldungen aus dem Einsatz |
 | Dovecot ist nicht iCloud | iCloud kann IMAP anders beantworten als der Testserver | Früher abweichendes Verhalten ist durch Tests festgehalten; Diagnosedaten zeigen die Fähigkeiten und den Stand des Abgleichs |
 | Ein lokales KI-Modell ist langsam (etwa eine Minute pro Mail) | Durchgänge dauern Minuten, das Stundenlimit wird später erreicht | Bewertete Mails erscheinen sofort; Zeitlimit pro Aufruf; die Neubewertung wartet auf das Stundenlimit |
+| iCloud drosselt oder begrenzt Verbindungen | Durchläufe und Abgleich schlagen eine Weile fehl | Sich verdoppelnde Pause statt neuer Anmeldungen (ADR-39); der Problem-Sensor und nach einer Stunde eine Reparaturmeldung machen es sichtbar |
 
 ---
 
@@ -675,6 +695,8 @@ flowchart LR
 | **CONDSTORE / QRESYNC** | IMAP-Erweiterungen (RFC 7162): ein Änderungszähler pro Ordner (HIGHESTMODSEQ), Änderungen seit einem Zählerstand und die Mails, die einen Ordner verlassen haben (VANISHED) |
 | **UIDVALIDITY** | Nummer der UID-Reihe eines Ordners; ändert sie sich, meinen alle UIDs des Ordners andere Mails |
 | **Aktivität** | Die Liste der Mails, die Frieda Postfach gesehen hat, eine Zeile pro Mail, mit Stand und Verlauf |
+| **Problem-Sensor** | Binärer Sensor eines Kontos in Frieda Postfach, an, solange Push, Abgleich, KI, ein Durchlauf, Drosselung oder „Für dich“ ein Problem hat; die Gründe sind seine Attribute |
+| **Drosselung** | iCloud-Antwort auf zu viele Anfragen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen); Frieda Postfach pausiert dann seine Hintergrundarbeit |
 | **Abgleich** | Der regelmäßige Vergleich der Aktivität mit dem Postfach (gelesen, markiert, Ordner) |
 | **Für dich** | Tab mit Kalendervorschlägen, offenen Antworten, Regelvorschlägen, Abos, wichtigen Absendern und der Woche |
 | **Unterhaltung** | Über In-Reply-To (oder den Betreff einer Antwort) verknüpfte Mails; eine Zeile in der Aktivität |

@@ -426,6 +426,10 @@ Fast-Forward nach und pusht, wartet, bis jeder CI-Lauf dieses Commits bestanden 
 Notizen an (Deutsch, `---`, Englisch) und prüft danach das Zip, das der Release-Workflow anhängt – Prüfsumme, Version
 und jede Datei gegen den getaggten Quellstand. `--dry-run` prüft und testet nur; `--draft` gibt ein Gerüst für die
 Notizen aus den Commits seit dem letzten Release aus.
+Ein CI-Lauf, den GitHub fünf Minuten nach dem Ende seines letzten Jobs noch als laufend zeigt, zählt nach seinen
+Jobs (GitHub schließt einen Lauf manchmal nie ab). Bricht das Skript beim Warten trotzdem ab, setzt `--resume`
+dieselbe Version später fort: Es prüft, dass es den Tag noch nicht gibt und `main` der gepushte Commit ist, wartet
+erneut auf die CI, legt das Release an und prüft das Zip.
 
 ### Grafiken
 
