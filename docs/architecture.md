@@ -334,7 +334,7 @@ sequenceDiagram
     S->>A: read / flagged, gone
   end
   S->>M: SEARCH by Message-ID for the gone ones (max. 10 per look)
-  S->>A: new folder and UID; a move into another category's folder corrects the AI
+  S->>A: new folder and UID – a move into another category's folder corrects the AI
 ```
 
 ### 6.6 For you: a date from a mail into the calendar

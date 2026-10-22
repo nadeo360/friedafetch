@@ -339,7 +339,7 @@ sequenceDiagram
     S->>A: gelesen / markiert, weg
   end
   S->>M: SEARCH nach Message-ID für die verschwundenen (max. 10 pro Abgleich)
-  S->>A: neuer Ordner und UID; ein Verschieben in den Ordner einer anderen Kategorie korrigiert die KI
+  S->>A: neuer Ordner und UID – ein Verschieben in den Ordner einer anderen Kategorie korrigiert die KI
 ```
 
 ### 6.6 Für dich: ein Termin aus einer Mail in den Kalender
