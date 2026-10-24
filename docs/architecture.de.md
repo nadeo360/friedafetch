@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.23, Frieda Postfach 1.0.36 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.24, Frieda Postfach 1.0.37 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -231,7 +231,7 @@ flowchart TB
 | `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), Pakete unterwegs, nächster Geburtstag. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` schaut auf Push (lauscht seit 15 Minuten nicht), den Abgleich, den letzten KI-Aufruf, einen Durchlauf über 10 Minuten, iCloud-Drosselung und „Für dich“; der binäre Sensor *Problem* zeigt die Gründe, und ein Problem, das eine Stunde anhält, wird zur Reparaturmeldung, die von selbst verschwindet. `Throttle` erkennt iCloud-Antworten zum Bremsen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen) und pausiert Takt, Push-Durchläufe und Abgleich 5 Minuten, verdoppelt bis zu einer Stunde. |
 | `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, Betreffzeilen oder Texte). |
-| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. `card.js`: die Dashboard-Karte (Pakete, wichtige Mails von heute, Probleme), für jedes Dashboard registriert; sie liest nur die Sensoren des Kontos. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. `card.js`: die Dashboard-Karte (Pakete, wichtige Mails von heute, Probleme), für jedes Dashboard registriert; sie liest nur die Sensoren des Kontos. `rules/preview` probiert einen Regelentwurf an den neuesten 300 Mails der Aktivität. |
 ---
 
 ## 6. Laufzeitsicht
@@ -502,6 +502,16 @@ Tab, eine andere Mail im Lesebereich – gleitet einmal herein (180 ms); mit „
 Pakete zeigen ihre Schritte und das heutige Zeitfenster, „Deine Woche“ kleine Verlaufslinien, der Lesebereich die
 Sicherheit der KI als dreistufige Anzeige – jeweils mit zugänglichem Namen statt Tooltip.
 
+**Lesen und Finden:** Der Text einer Mail wird im Panel in das Neue, den zitierten Verlauf und die Signatur geteilt
+(beides eingeklappt); Weblinks werden zu Chips, die ihren Host nennen, andere Schemata bleiben Text. Eine Unterhaltung
+erscheint als Nachrichten, eine KI-Kategorie hat überall eine Farbe. ⌘K / Strg+K öffnet eine Befehlspalette (Tabs,
+Aktionen, Regeln, Kategorien, auf dem Server gesuchte Mails); wie die Rückgängig-Leiste liegt sie außerhalb des neu
+gezeichneten Bereichs und macht ihn `inert`, solange sie offen ist. Der Regel-Editor sagt die Regel als Satz und zeigt
+eine Live-Vorschau aus der Aktivität (ADR-45). Auf dem Handy wandern die Tabs nach unten, die geöffnete Mail wird eine
+eigene Seite im Browserverlauf (die Zurück-Geste schließt sie), langes Drücken wählt eine Mail aus und Herunterziehen
+lädt die Liste neu. Tasten, die das Panel behandelt, erreichen die Tastenkürzel von Home Assistant nicht. Friedas Panel
+hat dieselben Tasten (1–3, /, ?) und das Gleiten.
+
 Barrierefreiheit steckt in Frieda UI, damit jedes Panel sie bekommt: Panels zeichnen ihren Inhalt komplett neu, und
 `keepFocus()` setzt den Fokus danach wieder auf dasselbe Bedienelement (bzw. in einen geöffneten Dialog und zurück
 zu seinem Auslöser). `mount()` hält eine Live-Region außerhalb des neu gezeichneten Bereichs und macht alles außer
@@ -610,6 +620,8 @@ CI, Release, Zip-Prüfung).
 | ADR-42 | Rückgängig statt Bestätigungsdialog für Zurücknehmbares; das Backend benennt das Rückgängig | Eine Frage vor jedem Archivieren oder Ausblenden bremst und wird ungelesen weggeklickt; nur das Backend weiß, welche Mails sich wirklich geändert haben und wo jede war | Jede Mail-Aktion antwortet mit ihrer Umkehrung (oder keiner); die Regeln behalten die zuletzt gelöschte im Speicher; „Für dich“ behält ein Abbild, das verweigert wird, sobald sich die Listen anders geändert haben; Dialoge bleiben für Leeren, Abmelden, Neu bewerten und Läufe über das ganze Postfach |
 | ADR-43 | Eine Dashboard-Karte, die die Entitäten des Kontos liest, nicht die WebSocket-Befehle | Dashboards nutzen auch Personen ohne Admin-Rechte, und die Befehle des Panels verlangen einen Admin; die Sensoren tragen schon, was ein Blick braucht | Die Karte funktioniert ohne Panel; sie findet ihre Entitäten über den Übersetzungsschlüssel (oder ihre Attribute); eine Mail öffnen führt weiter ins Panel |
 | ADR-44 | Eine Zusammenfassung pro abgeschlossener Woche für die Verlaufslinien behalten | Die Aktivität behält 30 Tage, acht Wochen lassen sich daraus nicht zählen | Ein kleines Dict im Speicher von „Für dich“ (12 Wochen); eine Woche wird einmal notiert, solange die Aktivität sie ganz enthält, eine Woche vor der ersten bekannten Mail bleibt weg |
+| ADR-45 | Einen Regelentwurf an der Aktivität vorschauen, nicht am Postfach | Eine iCloud-Suche pro Tastendruck wäre langsam und kostet Anfragen; die Aktivität hält Absender und Betreff der letzten 30 Tage schon | Die Vorschau ist sofort und lokal; Bedingungen auf An/Cc lassen sich dort nicht prüfen und sagen das; dieselbe Prüfung (und Regex-Sicherheit) wie gespeicherte Regeln |
+| ADR-46 | Überlagerungen, die Neuzeichnen überstehen müssen (Rückgängig-Leiste, Befehlspalette), liegen außerhalb des neu gezeichneten Bereichs | Das Panel zeichnet bei jeder Änderung seinen ganzen Inhalt neu; ein Eingabefeld oder ein Countdown darin verlöre den Fokus oder begänne neu | Sie verwalten ihr eigenes DOM und setzen den Bereich `inert`, solange sie modal sind; die Styles des Panels gelten weiter (ein Shadow-Root) |
 
 ---
 
@@ -669,6 +681,8 @@ flowchart LR
 | Q23 | Auf dem Handy wischt der Nutzer die falsche Mail nach links | Sie wird archiviert; die Leiste sagt „1 archiviert · Rückgängig“; ein Tippen legt sie in den Ordner zurück, aus dem sie kam, und ihr Verlauf zeigt beide Schritte |
 | Q24 | Ein Familienmitglied ohne Admin-Rechte öffnet das Küchen-Dashboard | Die Karte zeigt das heutige Paket mit Zeitfenster und dass alles läuft; vom Panel wird nichts gebraucht |
 | Q25 | Der Nutzer löscht versehentlich eine Regel | Kein Dialog; „Rückgängig“ holt sie mit ihren Treffern an ihren Platz in der Reihenfolge zurück |
+| Q26 | Der Nutzer schreibt eine Regel „Betreff enthält Rechnung“ | Vor dem Speichern zeigt der Editor „Trifft auf 7 der letzten 300 Mails zu“ mit den ersten davon; ein Regex, der hängen könnte, wird wie beim Speichern abgelehnt |
+| Q27 | Eine Mail enthält `https://bank.example.evil.test/login` | Der Link erscheint als Chip mit dem Host `bank.example.evil.test` fett, bevor er geöffnet wird; `javascript:` und andere Schemata bleiben Text |
 
 ---
 
@@ -714,6 +728,7 @@ flowchart LR
 | **Drosselung** | iCloud-Antwort auf zu viele Anfragen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen); Frieda Postfach pausiert dann seine Hintergrundarbeit |
 | **Rückgängig-Leiste** | Die ruhige Leiste unten im Panel nach einer zurücknehmbaren Aktion („Archiviert · Rückgängig“) |
 | **Dashboard-Karte** | `custom:friedafetch-mail-card`: Pakete, wichtige Mails von heute und der Problem-Sensor eines Kontos auf jedem Dashboard |
+| **Befehlspalette** | Die Suche, die sich mit ⌘K / Strg+K im Panel von Frieda Postfach öffnet: Tabs, Aktionen, Regeln, Kategorien und Mails in einer Liste |
 | **Abgleich** | Der regelmäßige Vergleich der Aktivität mit dem Postfach (gelesen, markiert, Ordner) |
 | **Für dich** | Tab mit Kalendervorschlägen, offenen Antworten, Regelvorschlägen, Abos, wichtigen Absendern und der Woche |
 | **Unterhaltung** | Über In-Reply-To (oder den Betreff einer Antwort) verknüpfte Mails; eine Zeile in der Aktivität |

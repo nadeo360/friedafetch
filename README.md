@@ -215,7 +215,8 @@ language):
 
 **Tabs and widgets:** three tabs keep the panel tidy – **Overview** (with the usage), **Approvals** (shown when
 approvals are on or there are entries; the tab counts the pending ones, so they stand out from the other tabs too) and
-**Change log**. On the overview, **Arrange** in the title bar lets you drag the cards by the handle (or move them
+**Change log**. On a keyboard 1–3 switch the tabs, / searches the change log and ? shows the keys; another tab glides
+in briefly (not with “reduce motion”). On the overview, **Arrange** in the title bar lets you drag the cards by the handle (or move them
 with the arrows), switch them between full and half width and hide them; tables offer a **Columns** menu. Rare
 actions such as clearing the log sit in a small ⋮ menu and always ask for confirmation. The layout and the last tab
 are stored per Home Assistant user in Home Assistant itself, so they survive restarts and follow you to other

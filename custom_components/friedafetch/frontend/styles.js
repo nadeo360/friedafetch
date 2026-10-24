@@ -73,4 +73,15 @@ export const STYLE = `
     .ltable .c-res { grid-column: 3; grid-row: 2; justify-self: end; }
     .ltable .c-area { display: none; }
   }
+
+  /* the overview of the keys, and a short glide when another tab comes in */
+  .modal.keys { width: min(420px, calc(100vw - 32px)); }
+  .keylist { display: grid; gap: 6px; margin: 4px 0 16px; }
+  .keylist div { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 10px; }
+  .keylist dt, .keylist dd { margin: 0; }
+  .keylist dd { font-size: 14px; }
+  kbd { display: inline-block; min-width: 18px; padding: 2px 7px; border: 1px solid var(--divider-color, #d0d0d0); border-bottom-width: 2px; border-radius: 6px; font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; background: var(--secondary-background-color, #f5f5f5); color: var(--primary-text-color); }
+  .enter { animation: frieda-enter .18s ease-out; }
+  @keyframes frieda-enter { from { opacity: 0; transform: translateY(6px); } }
+  @media (prefers-reduced-motion: reduce) { .enter { animation: none; } }
 `;

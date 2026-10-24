@@ -123,7 +123,67 @@ class FriedaPanel extends HTMLElement {
     document.addEventListener("click", this._onDocClick);
     // live updates arrive through the subscription; the slow timer keeps relative times fresh and is the fallback
     this._timer = setInterval(() => this._autoRefresh(), 60000);
+    this._onKey = (ev) => this._shortcut(ev);
+    this.addEventListener("keydown", this._onKey);
     this._subscribe();
+  }
+
+  // Keyboard (nothing typed into a field): 1–3 the tabs, / the search of the change log, ? every key.
+  // A key the panel handled does not also reach Home Assistant's own shortcuts.
+  _shortcut(ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || this._s.confirm) return;
+    if (this._s.keys) {
+      if (ev.key === "Escape" || ev.key === "?") this._keysClose();
+      return;
+    }
+    if (ev.composedPath()[0]?.closest?.("input, select, textarea, [contenteditable]")) return;
+    const tabs = this._s.loaded && this._s.entryId ? this._tabs() : [];
+    let done = false;
+    if (ev.key === "?") {
+      this._s.keys = true;
+      this._render();
+      this.shadowRoot.querySelector('.keys [data-action="keys-close"]')?.focus({ preventScroll: true });
+      done = true;
+    } else if (/^[1-9]$/.test(ev.key) && tabs[Number(ev.key) - 1]) {
+      this._goTab(tabs[Number(ev.key) - 1].id);
+      this.shadowRoot.querySelector(`#tab-${tabs[Number(ev.key) - 1].id}`)?.focus({ preventScroll: true });
+      done = true;
+    } else if (ev.key === "/") {
+      if (this._tab(tabs) !== "activity") this._goTab("activity");
+      const q = this.shadowRoot.querySelector('input[data-filter="q"]');
+      if (q) {
+        q.focus();
+        q.select();
+        done = true;
+      }
+    }
+    if (done) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  }
+
+  _goTab(id) {
+    if (this._tab(this._tabs()) !== id) this._enter = true;
+    this._layout.setOpt("tabs", "current", id);
+    this._layout.editing = false;
+    this._render();
+  }
+
+  _keysClose() {
+    this._s.keys = false;
+    this._render();
+  }
+
+  _renderKeys() {
+    if (!this._s.keys) return "";
+    const t = this.t;
+    return `<div class="modal-backdrop" data-action="keys-close"></div>
+      <div class="modal neutral keys" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+        <div class="modal-head"><span class="modal-icon">${ico("keyboard-outline")}</span><h3 id="keys-title">${esc(t.keysTitle)}</h3></div>
+        <dl class="keylist">${t.keysList.map(([k, v]) => `<div><dt><kbd>${esc(k)}</kbd></dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+        <div class="modal-actions"><button data-action="keys-close">${esc(t.keysClose)}</button></div>
+      </div>`;
   }
 
   disconnectedCallback() {
@@ -131,6 +191,7 @@ class FriedaPanel extends HTMLElement {
     clearTimeout(this._liveTimer);
     document.removeEventListener("visibilitychange", this._onVisible);
     document.removeEventListener("click", this._onDocClick);
+    this.removeEventListener("keydown", this._onKey);
     this._unsubscribe();
   }
 
@@ -855,13 +916,12 @@ class FriedaPanel extends HTMLElement {
       `<style>${W.UI_STYLE}${STYLE}</style>
       <div class="toolbar"><ha-menu-button></ha-menu-button><img src="${esc(ICON_URL)}" alt=""><span>${esc(t.title)}</span><span class="grow"></span>${ready && tab === "overview" ? W.layoutButton(this._layout, t) : ""}</div>
       ${ready ? W.renderTabs(tabs, tab, t.tabsLabel) : ""}
-      <div class="content widgets" ${ready ? `role="tabpanel" id="tabpanel" aria-labelledby="tab-${tab}"` : ""}>${body}</div>${this._renderConfirm()}`
+      <div class="content widgets" ${ready ? `role="tabpanel" id="tabpanel" aria-labelledby="tab-${tab}"` : ""}>${body}</div>${this._renderConfirm()}${this._renderKeys()}`
     );
-    W.bindTabs(this.shadowRoot, (id) => {
-      this._layout.setOpt("tabs", "current", id);
-      this._layout.editing = false;
-      this._render();
-    });
+    // another tab glides in once (not with "reduce motion")
+    if (this._enter && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) this.shadowRoot.querySelector(".content")?.classList.add("enter");
+    this._enter = false;
+    W.bindTabs(this.shadowRoot, (id) => this._goTab(id));
     const menu = this.shadowRoot.querySelector("ha-menu-button");
     if (menu && this._hass) {
       menu.hass = this._hass;
@@ -926,8 +986,9 @@ class FriedaPanel extends HTMLElement {
       })
     );
     root.querySelector(".modal")?.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") this._confirmDone(false);
+      if (ev.key === "Escape" && !this._s.keys) this._confirmDone(false);
     });
+    root.querySelectorAll('[data-action="keys-close"]').forEach((el) => el.addEventListener("click", () => this._keysClose()));
     root.querySelectorAll("[data-filter]").forEach((el) => {
       el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
         this._s.filter = { ...this._s.filter, [el.dataset.filter]: el.value };

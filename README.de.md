@@ -277,7 +277,9 @@ oder Englisch je nach HA-Sprache):
 
 **Tabs und Widgets:** Drei Tabs halten das Panel übersichtlich – **Überblick** (mit der Nutzung), **Freigaben**
 (sichtbar, wenn Freigaben eingeschaltet sind oder es Einträge gibt; der Tab zählt die offenen, damit sie auch von
-den anderen Tabs aus auffallen) und **Änderungsprotokoll**. Im Überblick lassen sich die Karten mit **Anordnen** in
+den anderen Tabs aus auffallen) und **Änderungsprotokoll**. Mit Tastatur wechseln 1–3 die Tabs, / durchsucht das
+Änderungsprotokoll und ? zeigt die Tasten; ein anderer Tab gleitet kurz herein (nicht mit „Bewegung reduzieren“).
+Im Überblick lassen sich die Karten mit **Anordnen** in
 der Titelleiste am Griff ziehen (oder per Pfeil verschieben), zwischen voller und halber Breite umschalten und
 ausblenden; Tabellen haben ein Menü **Spalten**. Seltene Aktionen wie „Protokoll leeren“ liegen in einem kleinen
 ⋮-Menü und fragen immer nach. Anordnung und zuletzt gewählter Tab werden pro Home-Assistant-Benutzer in Home Assistant

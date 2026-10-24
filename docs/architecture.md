@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.36 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.37 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -229,7 +229,7 @@ flowchart TB
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), parcels on their way, next birthday. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` looks at push (not listening for 15 minutes), the look, the AI's last call, a pass running for over 10 minutes, iCloud's throttling and “For you”; the binary sensor *Problem* shows the reasons, and a problem that lasts an hour becomes a repair that goes away by itself. `Throttle` recognises iCloud's “slow down” answers (`[THROTTLED]`, `[LIMIT]`, too many connections) and pauses timer, push passes and the look for 5 minutes, doubled up to an hour. |
 | `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
-| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. `rules/preview` tries a rule draft on the newest 300 mails of the activity. |
 ---
 
 ## 6. Runtime view
@@ -488,6 +488,15 @@ scrolling), and `?` shows every key. Something new – another tab, another mail
 trend lines, the reading pane the AI's confidence as a three-step meter – each with an accessible name instead of a
 tooltip.
 
+**Reading and finding:** a mail's text is split in the panel into what is new, the quoted history and the signature
+(both folded away); web links become chips that name their host, other schemes stay text. A conversation is drawn as
+messages, an AI category has one colour everywhere. ⌘K / Ctrl+K opens a command palette (tabs, actions, rules,
+categories, mails searched on the server); like the undo bar it lives outside the redrawn frame and makes the frame
+`inert` while open. The rule editor says the rule as a sentence and shows a live preview from the activity (ADR-45).
+On phones the tabs move to the bottom, the open mail becomes a page of its own in the browser history (the back
+gesture closes it), a long press picks a mail and pulling the list down reloads it. Keys the panel handles do not
+reach Home Assistant's own shortcuts. Frieda's panel has the same keys (1–3, /, ?) and glide.
+
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
 live region outside the redrawn frame and makes everything but an open dialog `inert`; `announce()` reads notices,
@@ -592,6 +601,8 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-42 | Undo instead of confirmation dialogs for what can be taken back; the backend names the undo | A question before every archive or hide slows down and is clicked away without reading; only the backend knows which mails really changed and where each one was | Every mail action answers with its reverse (or none); rules keep the last deleted one in memory; “For you” keeps one snapshot that is refused once the lists changed otherwise; dialogs stay for clearing, unsubscribing, re-rating and whole-mailbox runs |
 | ADR-43 | A dashboard card that reads the account's entities, not the websocket commands | Dashboards are also used by people who are not admins, and the panel's commands require an admin; the sensors already carry what a glance needs | The card works without the panel; it finds its entities by translation key (or by their attributes); opening a mail still goes to the panel |
 | ADR-44 | Keep a summary per completed week for the trend lines | The activity keeps 30 days, so eight weeks cannot be counted from it | A small dict in the For you store (12 weeks); a week is noted once while the activity holds all of it, a week before the first known mail is left out |
+| ADR-45 | Preview a rule draft on the activity, not on the mailbox | A search on iCloud per keystroke would be slow and costs requests; the activity already holds sender and subject of the last 30 days | The preview is instant and local; conditions on To/Cc cannot be checked there and say so; the same validation (and regex safety) as saved rules |
+| ADR-46 | Overlays that must survive redraws (undo bar, command palette) live outside the redrawn frame | The panel redraws its whole content on every change; an input or a countdown inside would lose focus or restart | They manage their own DOM and set the frame `inert` while modal; the panel's styles still apply (one shadow root) |
 
 ---
 
@@ -651,6 +662,8 @@ flowchart LR
 | Q23 | On the phone the user swipes the wrong mail to the left | It is archived; the bar says “1 archived · Undo”; one tap puts it back into the folder it came from, and its timeline shows both steps |
 | Q24 | A family member without admin rights opens the kitchen dashboard | The card shows today's parcel with its time window and that everything works; nothing of the panel is needed |
 | Q25 | The user deletes a rule by mistake | No dialog; “Undo” brings it back with its hits and at its place in the order |
+| Q26 | The user writes a rule “subject contains Invoice” | Before saving, the editor shows “Matches 7 of the last 300 mails” with the first ones; a regex that could hang is refused like on saving |
+| Q27 | A mail contains `https://bank.example.evil.test/login` | The link shows as a chip with the host `bank.example.evil.test` in bold before it is opened; `javascript:` and other schemes stay text |
 
 ---
 
@@ -696,6 +709,7 @@ flowchart LR
 | **Throttling** | iCloud's answer to too many requests (`[THROTTLED]`, `[LIMIT]`, too many connections); Frieda Postfach then pauses its background work |
 | **Undo bar** | The calm bar at the bottom of the panel after an action that can be taken back (“Archived · Undo”) |
 | **Dashboard card** | `custom:friedafetch-mail-card`: parcels, important mail of today and the problem sensor of an account on any dashboard |
+| **Command palette** | The search that opens with ⌘K / Ctrl+K in Frieda Postfach's panel: tabs, actions, rules, categories and mails in one list |
 | **Look** | The regular comparison of the activity with the mailbox (read, flagged, folder) |
 | **For you** | Tab with calendar proposals, waiting replies, rule suggestions, subscriptions, important senders and the week |
 | **Conversation** | Mails linked by In-Reply-To (or by the subject of a reply); one line in the activity |
