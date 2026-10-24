@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.35 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.23, Frieda Postfach 1.0.36 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -220,16 +220,16 @@ flowchart TB
 | `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure and a time limit (also the confidence and, optionally, a date read in the mail), kill switch (`blocked_reasons`), important senders rated at least important, category actions, corrections (also by moving a mail) as examples, senders the AI rated the same way three times in a row sorted without it (rechecked every tenth time), re-rating in batches that wait for the hourly limit and stop at once when cancelled, accuracy check, category assistant, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`; every rated mail goes into the activity at once. |
 | `activity.py` | `ActivityLog`: one line per mail (30 days, max. 3000) – grouped into conversations by In-Reply-To and, without it, by the subject of a reply – with what rules and AI did, the steps of its timeline, its state (read, flagged, folder, UID) and the per-folder memory of the look (MODSEQ, UIDVALIDITY); views and search for the panel. |
 | `mailstate.py` | `MailState`, the look: keeps read/flagged and the folder of the newest 500 lines current, folder by folder – QRESYNC (changes and vanished messages), CONDSTORE (changes only) or one FETCH; a message counts as gone only when a UID SEARCH confirms it, and is then found again by its Message-ID; a renumbered folder (UIDVALIDITY) has its messages looked for again. |
-| `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good. |
+| `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good; every action answers with its undo (the opposite action for exactly the mails that changed, or “return” with the folder each moved mail came from). |
 | `packages.py` | Parcels from shipping mails, with patterns and without AI: carrier, tracking number (only next to a word like “Sendungsnummer”, in a carrier's link or in an unmistakable form), status, expected day and time window; the tracking link is built from the carrier's address, never taken from the mail – for a parcel without a carrier, a known shop's order page. Updates without a number join the sender's open parcel of the last week; a carrier mail naming the shop joins the shop's order; when the patterns learn more (`PARSER`), the shipping mails of the last weeks are read again. Each parcel keeps the mails it was put together from (`sources`, max. 10), so “Where from?” can show them and a correction can recompute it. |
-| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. Corrections of parcels by the user: merge two, take a mail out as its own parcel, not a parcel, never parcels from a sender's domain (`parcel_ignored`, undoable). |
+| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. Corrections of parcels by the user: merge two, take a mail out as its own parcel, not a parcel, never parcels from a sender's domain (`parcel_ignored`, undoable). One undo step for the last dismissal or correction (a snapshot of the lists, refused once something else changed them); a summary of every completed week for the trend lines (`weeks`, 12 kept). |
 | `timeline.py` | Timeline of one message from the activity's steps, the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays, waiting replies and calendar proposals; optional phrasing by an AI Task (kill switch applied). |
 | `tools.py`, `link.py`, `live.py` | Rule tools and the tools of “For you” (`icloud_mail_for_you`, `icloud_add_proposed_event`) for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), parcels on their way, next birthday. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` looks at push (not listening for 15 minutes), the look, the AI's last call, a pass running for over 10 minutes, iCloud's throttling and “For you”; the binary sensor *Problem* shows the reasons, and a problem that lasts an hour becomes a repair that goes away by itself. `Throttle` recognises iCloud's “slow down” answers (`[THROTTLED]`, `[LIMIT]`, too many connections) and pauses timer, push passes and the look for 5 minutes, doubled up to an hour. |
 | `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
-| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. |
 ---
 
 ## 6. Runtime view
@@ -479,6 +479,15 @@ it on wide screens and as a sheet on phones, actions as icon buttons and keyboar
 timeline below. A **dev preview** (`tools/preview`) shows both panels with example data only; it is the base of the
 browser tests and published for review after every panel change.
 
+**Undo instead of asking first:** an action that can be taken back happens at once; a bar outside the redrawn frame
+names it with *Undo* (and the key z) for about eight seconds, waiting while the pointer or the focus is on it. The
+backend says what undoing means (ADR-42). Dialogs remain only for what cannot be undone. On touch screens a mail of the
+list is swiped (right: read/unread, left: archive or back to the inbox; `touch-action: pan-y` keeps the list
+scrolling), and `?` shows every key. Something new – another tab, another mail in the reading pane – glides in once
+(180 ms); with “reduce motion” it simply appears. Parcels show their steps and today's time window, “Your week” small
+trend lines, the reading pane the AI's confidence as a three-step meter – each with an accessible name instead of a
+tooltip.
+
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
 live region outside the redrawn frame and makes everything but an open dialog `inert`; `announce()` reads notices,
@@ -493,7 +502,7 @@ SECURITY.md and this document.
 
 ### 8.7 Testing and quality assurance
 
-pytest with `pytest-homeassistant-custom-component` (Frieda ~170 tests, Frieda Postfach ~185; Postfach tests run
+pytest with `pytest-homeassistant-custom-component` (Frieda ~170 tests, Frieda Postfach ~190; Postfach tests run
 against Frieda's `main`, in parallel with pytest-xdist), property-based tests with Hypothesis for everything that
 parses third-party data (vCard, MIME, FETCH responses, modified UTF-7, dates, unsubscribe links, sanitising, injection
 detection, rule conditions, regex safety, kill switch; 200 examples per test in CI), Ruff (lint/format/security
@@ -580,6 +589,9 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-39 | Pause the background work when iCloud throttles, with a doubling pause | Logging in again at once makes throttling worse and may lock the account for longer | Mail that arrives during a pause is processed up to an hour later; the tools of Frieda are not paused |
 | ADR-40 | Parcels keep their source mails and can be corrected by the user | Patterns will sometimes join or split wrongly; a correction must be possible and understandable without AI | Up to 10 source summaries per parcel in the store; corrections recompute the parcel from them; ignored sender domains are kept until undone |
 | ADR-41 | The release script judges a stuck CI run by its jobs and can resume | GitHub sometimes keeps a finished run “in progress” for good, and a release stopped after the push had to be finished by hand | Five minutes after the last job a run counts as finished; `--resume` refuses when the tag exists or `main` moved |
+| ADR-42 | Undo instead of confirmation dialogs for what can be taken back; the backend names the undo | A question before every archive or hide slows down and is clicked away without reading; only the backend knows which mails really changed and where each one was | Every mail action answers with its reverse (or none); rules keep the last deleted one in memory; “For you” keeps one snapshot that is refused once the lists changed otherwise; dialogs stay for clearing, unsubscribing, re-rating and whole-mailbox runs |
+| ADR-43 | A dashboard card that reads the account's entities, not the websocket commands | Dashboards are also used by people who are not admins, and the panel's commands require an admin; the sensors already carry what a glance needs | The card works without the panel; it finds its entities by translation key (or by their attributes); opening a mail still goes to the panel |
+| ADR-44 | Keep a summary per completed week for the trend lines | The activity keeps 30 days, so eight weeks cannot be counted from it | A small dict in the For you store (12 weeks); a week is noted once while the activity holds all of it, a week before the first known mail is left out |
 
 ---
 
@@ -636,6 +648,9 @@ flowchart LR
 | Q20 | The local AI is unreachable for over an hour | The problem sensor is on with `ai` within the next pass; after an hour a repair names the account and the reason; it goes away after the next successful rating |
 | Q21 | A shop's order mail and DHL's mail for it were shown as two parcels | Under “Where from?” the user merges them; the parcel shows both mails, the carrier link and the shop; *As its own parcel* undoes it |
 | Q22 | A mail subject contains `<img src=x onerror=…>` | Activity, timeline, For you and parcels show the text literally; no script runs |
+| Q23 | On the phone the user swipes the wrong mail to the left | It is archived; the bar says “1 archived · Undo”; one tap puts it back into the folder it came from, and its timeline shows both steps |
+| Q24 | A family member without admin rights opens the kitchen dashboard | The card shows today's parcel with its time window and that everything works; nothing of the panel is needed |
+| Q25 | The user deletes a rule by mistake | No dialog; “Undo” brings it back with its hits and at its place in the order |
 
 ---
 
@@ -679,6 +694,8 @@ flowchart LR
 | **Activity** | Frieda Postfach's list of the mails it saw, one line per mail, with its state and timeline |
 | **Problem sensor** | Binary sensor of an account in Frieda Postfach, on while push, the look, the AI, a pass, throttling or “For you” has a problem; the reasons are its attributes |
 | **Throttling** | iCloud's answer to too many requests (`[THROTTLED]`, `[LIMIT]`, too many connections); Frieda Postfach then pauses its background work |
+| **Undo bar** | The calm bar at the bottom of the panel after an action that can be taken back (“Archived · Undo”) |
+| **Dashboard card** | `custom:friedafetch-mail-card`: parcels, important mail of today and the problem sensor of an account on any dashboard |
 | **Look** | The regular comparison of the activity with the mailbox (read, flagged, folder) |
 | **For you** | Tab with calendar proposals, waiting replies, rule suggestions, subscriptions, important senders and the week |
 | **Conversation** | Mails linked by In-Reply-To (or by the subject of a reply); one line in the activity |

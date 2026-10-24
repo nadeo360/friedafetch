@@ -62,6 +62,8 @@ def main() -> None:
     postfach_src = args.postfach / "custom_components" / "friedafetch_mail" / "frontend"
     for name in PANEL_FILES:
         shutil.copy2(postfach_src / name, out / "postfach" / name)
+    if (postfach_src / "card.js").exists():  # the dashboard card (Frieda Postfach 1.0.36 and later)
+        shutil.copy2(postfach_src / "card.js", out / "postfach" / "card.js")
     panel = out / "postfach" / "panel.js"
     text = panel.read_text(encoding="utf-8")
     if "/friedafetch_static/ui.js" not in text:
