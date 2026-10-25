@@ -12,5 +12,8 @@ mcp==1.30.0
 anyio==4.14.2
 ruff==0.17.1
 resvg-py
+# Pillow follows Home Assistant's exact pin: 2026.10.x requires Pillow==12.3.0, the Pillow security fixes need
+# 13.0.0, which comes with Home Assistant 2026.11. The integration does not use Pillow; only scripts/build_icons.py
+# does, and its CI check installs requirements/icons.txt (already on 13.0.0).
 pillow
 hypothesis==6.168.4
