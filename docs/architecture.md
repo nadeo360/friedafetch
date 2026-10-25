@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.40 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.41 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -222,7 +222,7 @@ flowchart TB
 | `mailstate.py` | `MailState`, the look: keeps read/flagged and the folder of the newest 500 lines current, folder by folder – QRESYNC (changes and vanished messages), CONDSTORE (changes only) or one FETCH; a message counts as gone only when a UID SEARCH confirms it, and is then found again by its Message-ID; a renumbered folder (UIDVALIDITY) has its messages looked for again. |
 | `locate.py`, `actions.py` | Where a message is now (SEARCH by Message-ID, the folders Frieda knows first, the trash last, the folder list read again when not found); actions from the panel and notifications (read, unread, flag, archive, back to inbox, trash) under Frieda's guard rails, never deleting for good; every action answers with its undo (the opposite action for exactly the mails that changed, or “return” with the folder each moved mail came from). |
 | `packages.py` | Parcels from shipping mails, with patterns and without AI: carrier, tracking number (only next to a word like “Sendungsnummer”, in a carrier's link or in an unmistakable form), status, expected day and time window; the tracking link is built from the carrier's address, never taken from the mail – for a parcel without a carrier, a known shop's order page. Updates without a number join the sender's open parcel of the last week; a carrier mail naming the shop joins the shop's order; when the patterns learn more (`PARSER`), the shipping mails of the last weeks are read again. Each parcel keeps the mails it was put together from (`sources`, max. 10), so “Where from?” can show them and a correction can recompute it. Order confirmations too (status `ordered`), and the items of a mail in the usual forms (`items()`); a shipping mail without a list gets the ordered items it names, word by word, also when the order is read after it. |
-| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. Corrections of parcels by the user: merge two, take a mail out as its own parcel, not a parcel, never parcels from a sender's domain (`parcel_ignored`, undoable). One undo step for the last dismissal or correction (a snapshot of the lists, refused once something else changed them); a summary of every completed week for the trend lines (`weeks`, 12 kept). Newsletters are grouped per sender site; unsubscribed ones stay apart unless they keep sending after three days. |
+| `insights.py` | “For you”: parcels (shipping mails read once, right after a pass and in the regular look; event `friedafetch_mail_package` on a change), calendar proposals from the AI's dates (added only by a click, never to a protected calendar), sent mail without an answer (threaded or from that person), rule suggestions from where the user moves a sender's mail, newsletters of 30 days with unsubscribe, important senders from contact groups and named addresses, the week and the weekly review. Corrections of parcels by the user: merge two, take a mail out as its own parcel, not a parcel, never parcels from a sender's domain (`parcel_ignored`, undoable). One undo step for the last dismissal or correction (a snapshot of the lists, refused once something else changed them); a summary of every completed week for the trend lines (`weeks`, 12 kept). Newsletters are grouped per sender site; unsubscribed ones stay apart unless they keep sending after three days. A parcel on its way without news for longer than expected is *quiet*: Frieda asks whether it came; a quiet parcel the user marks as arrived puts its shop on `parcel_silent`, whose next quiet parcels count as delivered (ADR-50). |
 | `timeline.py` | Timeline of one message from the activity's steps, the run history, the AI log and the ratings, linked by Message-ID (websocket `friedafetch_mail/mail/timeline`). |
 | `digest.py` | Collects unread mail, rule activity, events, birthdays, waiting replies and calendar proposals; optional phrasing by an AI Task (kill switch applied). |
 | `tools.py`, `link.py`, `live.py` | Rule tools and the tools of “For you” (`icloud_mail_for_you`, `icloud_add_proposed_event`) for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
@@ -506,6 +506,13 @@ live preview; the effect of a rule is a sparkline of its hits per day (ADR-48). 
 live in the browser per device (ADR-49), and empty lists show a calm note with Frieda. A dialog without a control to
 focus (the quick check) has an id, so `keepFocus()` finds it again after a redraw and its keys keep working.
 
+**Folding phones:** the activity decides by the width of its own frame (container queries, `FOLD_WIDTH` = 560 px in
+the panel): below it the list alone with the mail as a page, from it list and mail side by side – which is the
+opened iPhone Duo (626 pt). A `ResizeObserver` notices when the frame crosses that width (folding open or shut,
+turning) and moves the open mail between its page and the reading pane, so it stays open. A wide but low window
+(`max-height: 700px` and `min-width: 761px`) puts the tabs into the title row; a low phone (`max-height: 760px`) gets a
+slimmer title, tab bar and list head (ADR-51).
+
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
 live region outside the redrawn frame and makes everything but an open dialog `inert`; `announce()` reads notices,
@@ -615,6 +622,8 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-47 | Read what is in a parcel from the order and shipping mails with patterns; a shipping mail gets the ordered items it names | A shipping mail often lists nothing or only the shop's name; the order lists everything – but an order can come in several parcels | Items appear without AI and without sending text anywhere; unknown formats show no items (the subject's first name at most); a different tracking number of the same order is a parcel of its own; orders without items (downloads) are no parcels |
 | ADR-48 | Count each rule's hits per day on the rule itself (30 days) instead of deriving them from the run history | The run history keeps 200 runs – with push and a 5-minute timer only hours to a few days | A sparkline that really covers 30 days; at most 30 small numbers per rule; after the update the counts start from the stored runs, and `daily_since` keeps the panel from claiming “30 days without hits” before 30 days were counted |
 | ADR-49 | Keep *Done today* and the compact layout in the browser (per device) | Both are conveniences of one device; an undo needs the action's own token, which the backend refuses once it is stale | Nothing to store or sync in Home Assistant; another device starts with an empty list; a failed undo from the list says so instead of guessing |
+| ADR-50 | A quiet parcel asks whether it came; the answer teaches Frieda which shops never write on delivery | Shops such as NUDIENT write when a parcel leaves, never when it arrives; asking a carrier's server would send tracking numbers out, and a fixed time limit would declare parcels delivered that are still on their way | Nothing leaves Home Assistant; one question per shop, after that its parcels go quiet into *probably delivered* by themselves (with *Still missing* to call one back); carriers are never learned as silent, because they write for other shops' parcels |
+| ADR-51 | Lay out the activity by the width of its frame, and move the open mail when that width crosses the fold width | Folding phones change their width while open, and the opened width (626 pt) was between the phone and the tablet layout | One rule for folding phones, small windows and split screens; the open mail survives folding; the layout of the other tabs stays as it was |
 
 ---
 
@@ -679,6 +688,8 @@ flowchart LR
 | Q28 | Apple confirms an order of an iPhone and AppleCare, then sends one parcel | The parcel shows the order step, then “iPhone …” only (named in the shipping mail); AppleCare is not said to be in it |
 | Q29 | Right after the update to 1.0.40 the user opens the rules | Rules that hit in the stored runs show their line; quiet ones say “No hits since <day>” instead of “No hits in 30 days” |
 | Q30 | The AI was unsure about 12 mails; the user goes through them with the keys | One card at a time, 1–9 / Enter / →; every answer is stored and the mails leave the view *Unsure*; confirmations do not lower the accuracy |
+| Q31 | A NUDIENT parcel is shipped with DHL; no mail follows | After 4 days the row asks whether it came; after *Arrived* the next NUDIENT parcel counts as *probably delivered* when it goes quiet, and DHL is never learned |
+| Q32 | The user reads a mail on the opened iPhone Duo and folds it shut | The same mail stays open as its own page on the outer screen; opening again puts it back beside the list |
 
 ---
 
