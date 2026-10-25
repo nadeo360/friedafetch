@@ -1573,9 +1573,9 @@ home-assistant-intents==2026.10.6 \
     # via
     #   -r requirements_dev.txt
     #   gazetteer-matcher
-homeassistant==2026.10.3 \
-    --hash=sha256:38ff6ebaa22ea012c427d3a1349a944cb3b2e7d5733c0b2c67b0e6ee3a62250d \
-    --hash=sha256:713de3115dfeea3d058c7c5c77aeb1b1013a6cc93c71486ef82e64519cc67fb9
+homeassistant==2026.10.4 \
+    --hash=sha256:71843060980a763187d856a8ff170640f1e287a7b741334cd838c81404f1f452 \
+    --hash=sha256:8410fecb434ab94b3f7724cd80584050f0ceeb856c16ee70202c24037d62238a
     # via
     #   -r requirements_dev.txt
     #   pytest-homeassistant-custom-component
@@ -3075,9 +3075,9 @@ pytest-github-actions-annotate-failures==0.4.2 \
     --hash=sha256:02911cd3b55f235328a334f8ca6037a89944398b8e8b028c82de97111eff4071 \
     --hash=sha256:5dd18304512361788bc7b5c5c805db853f03f4950c6be09b088de6bab8e2e6c9
     # via pytest-homeassistant-custom-component
-pytest-homeassistant-custom-component==0.13.374 \
-    --hash=sha256:23d226decaed1d67ba23b3f7a95cc5f580837ae0fc7f81f14669a7140086ea98 \
-    --hash=sha256:e4fc3abafe500788484c952390ec5a66a6c3d1e1cce1eb9e87dcc69b2ef817ef
+pytest-homeassistant-custom-component==0.13.375 \
+    --hash=sha256:01e30574d448d8a0126f89d42e12ef0866bdc181fd136c706bc23458446df26c \
+    --hash=sha256:ceed1b1928fcd5535490180866aeb92385b11e49ab28251c5cedbe6abd20aa35
     # via -r requirements_dev.txt
 pytest-picked==0.5.1 \
     --hash=sha256:6634c4356a560a5dc3dba35471865e6eb06bbd356b56b69c540593e9d5620ded \
