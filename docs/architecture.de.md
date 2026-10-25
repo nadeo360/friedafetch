@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.24, Frieda Postfach 1.0.39 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.24, Frieda Postfach 1.0.40 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -217,7 +217,7 @@ flowchart TB
 | Modul | Inhalt |
 |---|---|
 | `__init__.py` | An den Frieda-Eintrag anhängen (wartet darauf; Reparaturhinweis, solange Frieda älter als `MIN_FRIEDA_VERSION` ist), eigene IMAP-Verbindung für Hintergrundarbeit öffnen (`mail_factory`), Regel-Engine, KI-Sortierer, Aktivität, Mail-Stand und „Für dich“ anlegen, Takt, Push-Wächter, Abgleich alle 10 Minuten, Tagesüberblick und Wochenrückblick, Knöpfe der Benachrichtigungen, Dienst `send_digest`, Neuverbinden nach Neuladen von Frieda. |
-| `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status, Ereignis `friedafetch_mail_rule_matched` (max. 25 pro Lauf). |
+| `rules.py` | Regeln (Bedingungen, Aktionen), Speicherschlüssel `friedafetch.rules.<konto>` (aus Frieda 1.x übernommen), Läufe (neu/alle, Probelauf), Verlauf, Automatik-Status, Ereignis `friedafetch_mail_rule_matched` (max. 25 pro Lauf); Treffer pro lokalem Tag je Regel (`daily`, 30 Tage) seit `daily_since`, begonnen mit den gespeicherten Läufen. |
 | `idle.py` | `MailWatcher`: eigene IMAP-Sitzung, IDLE mit Erneuerung, Entprellung, Wiederverbinden mit Backoff, Fähigkeiten nach dem Login neu abfragen; meldet neue Mails und geänderte Flags oder verschwundene Mails getrennt. |
 | `ai.py` | `AiSorter`: Einstellungen, Kategorien, ein AI-Task-Aufruf pro Mail mit fester Struktur und Zeitlimit (auch die Sicherheit und, wenn gewünscht, ein in der Mail gelesenes Datum), Killswitch (`blocked_reasons`), wichtige Absender mindestens als wichtig bewertet, Kategorie-Aktionen, Korrekturen (auch durch Verschieben einer Mail) als Beispiele, Absender, die die KI dreimal in Folge gleich bewertet hat, ohne sie sortiert (jedes zehnte Mal neu geprüft), Neubewertung in Stapeln, die auf das Stundenlimit warten und beim Abbrechen sofort stoppen, Treffsicherheits-Prüfung, Kategorie-Assistent, Nutzungsprotokoll, Ereignisse `friedafetch_mail_rated` und `friedafetch_mail_important`; jede bewertete Mail kommt sofort in die Aktivität. |
 | `activity.py` | `ActivityLog`: eine Zeile pro Mail (30 Tage, max. 3.000) – zu Unterhaltungen gruppiert über In-Reply-To und, ohne diesen Bezug, über den Betreff einer Antwort – mit dem, was Regeln und KI getan haben, den Schritten ihres Verlaufs, ihrem Stand (gelesen, markiert, Ordner, UID) und dem Gedächtnis des Abgleichs pro Ordner (MODSEQ, UIDVALIDITY); Ansichten und Suche für das Panel. |
@@ -231,7 +231,7 @@ flowchart TB
 | `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), Pakete unterwegs, nächster Geburtstag. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` schaut auf Push (lauscht seit 15 Minuten nicht), den Abgleich, den letzten KI-Aufruf, einen Durchlauf über 10 Minuten, iCloud-Drosselung und „Für dich“; der binäre Sensor *Problem* zeigt die Gründe, und ein Problem, das eine Stunde anhält, wird zur Reparaturmeldung, die von selbst verschwindet. `Throttle` erkennt iCloud-Antworten zum Bremsen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen) und pausiert Takt, Push-Durchläufe und Abgleich 5 Minuten, verdoppelt bis zu einer Stunde. |
 | `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, Betreffzeilen oder Texte). |
-| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. `card.js`: die Dashboard-Karte (Pakete, wichtige Mails von heute, Probleme), für jedes Dashboard registriert; sie liest nur die Sensoren des Kontos. `rules/preview` probiert einen Regelentwurf an den neuesten 300 Mails der Aktivität. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. `card.js`: die Dashboard-Karte (Pakete, wichtige Mails von heute, Probleme), für jedes Dashboard registriert; sie liest nur die Sensoren des Kontos. `rules/preview` probiert einen Regelentwurf an den neuesten 300 Mails der Aktivität; `sender` sammelt Mails, Bewertungen, Regeln, Newsletter und Pakete einer Adresse für das Absenderprofil. |
 ---
 
 ## 6. Laufzeitsicht
@@ -512,6 +512,16 @@ eigene Seite im Browserverlauf (die Zurück-Geste schließt sie), langes Drücke
 lädt die Liste neu. Tasten, die das Panel behandelt, erreichen die Tastenkürzel von Home Assistant nicht. Friedas Panel
 hat dieselben Tasten (1–3, /, ?) und das Gleiten.
 
+**Weniger zu tun:** „Für dich“ beginnt mit *Heute*, einem Zeitstrahl, den das Panel aus dem baut, was es ohnehin
+geladen hat (Pakete mit dem heutigen Zeitfenster, Vorschläge, wichtige Mails, offene Antworten); eine Leiste mit
+sieben Tagen filtert die Pakete. Die Schnellprüfung zeigt die unsicheren Bewertungen als Karten und antwortet mit
+`ai/correct` – das Behalten der Kategorie geht als `by: "confirm"`, so ist die Mail nicht mehr unsicher, die KI bekommt
+ein Beispiel, und die Trefferquote der Woche bleibt unverändert. Das Absenderprofil ist ein Websocket-Aufruf (`sender`)
+über Aktivität, Newsletter und Pakete. Regelvorlagen füllen den Editor samt Live-Vorschau; die Wirkung einer Regel ist
+eine kleine Linie ihrer Treffer pro Tag (ADR-48). *Heute getan* und die kompakte Darstellung liegen im Browser je Gerät
+(ADR-49), und leere Listen zeigen einen ruhigen Hinweis mit Frieda. Ein Dialog ohne Bedienelement für den Fokus (die
+Schnellprüfung) hat eine id, damit `keepFocus()` ihn nach dem Neuzeichnen wiederfindet und seine Tasten weiter wirken.
+
 Barrierefreiheit steckt in Frieda UI, damit jedes Panel sie bekommt: Panels zeichnen ihren Inhalt komplett neu, und
 `keepFocus()` setzt den Fokus danach wieder auf dasselbe Bedienelement (bzw. in einen geöffneten Dialog und zurück
 zu seinem Auslöser). `mount()` hält eine Live-Region außerhalb des neu gezeichneten Bereichs und macht alles außer
@@ -623,6 +633,8 @@ CI, Release, Zip-Prüfung).
 | ADR-45 | Einen Regelentwurf an der Aktivität vorschauen, nicht am Postfach | Eine iCloud-Suche pro Tastendruck wäre langsam und kostet Anfragen; die Aktivität hält Absender und Betreff der letzten 30 Tage schon | Die Vorschau ist sofort und lokal; Bedingungen auf An/Cc lassen sich dort nicht prüfen und sagen das; dieselbe Prüfung (und Regex-Sicherheit) wie gespeicherte Regeln |
 | ADR-46 | Überlagerungen, die Neuzeichnen überstehen müssen (Rückgängig-Leiste, Befehlspalette), liegen außerhalb des neu gezeichneten Bereichs | Das Panel zeichnet bei jeder Änderung seinen ganzen Inhalt neu; ein Eingabefeld oder ein Countdown darin verlöre den Fokus oder begänne neu | Sie verwalten ihr eigenes DOM und setzen den Bereich `inert`, solange sie modal sind; die Styles des Panels gelten weiter (ein Shadow-Root) |
 | ADR-47 | Den Inhalt eines Pakets mit Mustern aus Bestell- und Versandmails lesen; eine Versandmail bekommt die bestellten Artikel, die sie nennt | Eine Versandmail listet oft nichts oder nur den Shop; die Bestellung listet alles – aber eine Bestellung kann in mehreren Paketen kommen | Artikel erscheinen ohne KI und ohne Text irgendwohin zu schicken; unbekannte Formate zeigen keine Artikel (höchstens den ersten Namen aus dem Betreff); eine andere Sendungsnummer derselben Bestellung ist ein eigenes Paket; Bestellungen ohne Artikel (Downloads) sind keine Pakete |
+| ADR-48 | Die Treffer jeder Regel pro Tag an der Regel selbst zählen (30 Tage), statt sie aus dem Lauf-Verlauf abzuleiten | Der Verlauf behält 200 Läufe – mit Push und 5-Minuten-Timer nur Stunden bis wenige Tage | Eine Linie, die wirklich 30 Tage abdeckt; höchstens 30 kleine Zahlen pro Regel; nach dem Update beginnen die Zahlen mit den gespeicherten Läufen, und `daily_since` hält das Panel davon ab, „30 Tage ohne Treffer“ zu behaupten, bevor 30 Tage gezählt sind |
+| ADR-49 | *Heute getan* und die kompakte Darstellung im Browser halten (je Gerät) | Beides sind Annehmlichkeiten eines Geräts; ein Rückgängig braucht das Token der Aktion selbst, das das Backend ablehnt, sobald es veraltet ist | Nichts in Home Assistant zu speichern oder abzugleichen; ein anderes Gerät beginnt mit leerer Liste; ein gescheitertes Rückgängig aus der Liste sagt das, statt zu raten |
 
 ---
 
@@ -685,6 +697,8 @@ flowchart LR
 | Q26 | Der Nutzer schreibt eine Regel „Betreff enthält Rechnung“ | Vor dem Speichern zeigt der Editor „Trifft auf 7 der letzten 300 Mails zu“ mit den ersten davon; ein Regex, der hängen könnte, wird wie beim Speichern abgelehnt |
 | Q27 | Eine Mail enthält `https://bank.example.evil.test/login` | Der Link erscheint als Chip mit dem Host `bank.example.evil.test` fett, bevor er geöffnet wird; `javascript:` und andere Schemata bleiben Text |
 | Q28 | Apple bestätigt eine Bestellung von iPhone und AppleCare und schickt dann ein Paket | Das Paket zeigt den Schritt Bestellt, dann nur „iPhone …“ (in der Versandmail genannt); AppleCare steht nicht als Inhalt da |
+| Q29 | Direkt nach dem Update auf 1.0.40 öffnet der Nutzer die Regeln | Regeln mit Treffern in den gespeicherten Läufen zeigen ihre Linie; stille sagen „Seit <Tag> ohne Treffer“ statt „30 Tage ohne Treffer“ |
+| Q30 | Die KI war bei 12 Mails unsicher; der Nutzer geht sie mit den Tasten durch | Eine Karte nach der anderen, 1–9 / Enter / →; jede Antwort wird gespeichert, und die Mails verlassen die Ansicht *Unsicher*; Bestätigungen senken die Trefferquote nicht |
 
 ---
 

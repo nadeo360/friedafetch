@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.39 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.40 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -215,7 +215,7 @@ flowchart TB
 | Module | Content |
 |---|---|
 | `__init__.py` | Attach to the Frieda entry (waits for it; a repair while Frieda is older than `MIN_FRIEDA_VERSION`), open an own IMAP connection for background work (`mail_factory`), create rule engine, AI sorter, activity, mail state and “For you”, timer, push watcher, the look every 10 minutes, daily overview and weekly review, notification buttons, `send_digest` service, re-attach on Frieda reloads. |
-| `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status, event `friedafetch_mail_rule_matched` (max. 25 per run). |
+| `rules.py` | Rules (conditions, actions), storage key `friedafetch.rules.<account>` (kept from Frieda 1.x), runs (new/all, dry runs), history, automation status, event `friedafetch_mail_rule_matched` (max. 25 per run); hits per local day for each rule (`daily`, 30 days) since `daily_since`, started from the stored runs. |
 | `idle.py` | `MailWatcher`: separate IMAP session, IDLE with renewal, debounce, reconnect with backoff, capability refresh after login; reports new mail and changed flags or vanished messages separately. |
 | `ai.py` | `AiSorter`: settings, categories, one AI Task call per mail with fixed structure and a time limit (also the confidence and, optionally, a date read in the mail), kill switch (`blocked_reasons`), important senders rated at least important, category actions, corrections (also by moving a mail) as examples, senders the AI rated the same way three times in a row sorted without it (rechecked every tenth time), re-rating in batches that wait for the hourly limit and stop at once when cancelled, accuracy check, category assistant, usage log, events `friedafetch_mail_rated` and `friedafetch_mail_important`; every rated mail goes into the activity at once. |
 | `activity.py` | `ActivityLog`: one line per mail (30 days, max. 3000) – grouped into conversations by In-Reply-To and, without it, by the subject of a reply – with what rules and AI did, the steps of its timeline, its state (read, flagged, folder, UID) and the per-folder memory of the look (MODSEQ, UIDVALIDITY); views and search for the panel. |
@@ -229,7 +229,7 @@ flowchart TB
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), parcels on their way, next birthday. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` looks at push (not listening for 15 minutes), the look, the AI's last call, a pass running for over 10 minutes, iCloud's throttling and “For you”; the binary sensor *Problem* shows the reasons, and a problem that lasts an hour becomes a repair that goes away by itself. `Throttle` recognises iCloud's “slow down” answers (`[THROTTLED]`, `[LIMIT]`, too many connections) and pauses timer, push passes and the look for 5 minutes, doubled up to an hour. |
 | `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
-| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. `rules/preview` tries a rule draft on the newest 300 mails of the activity. |
+| `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. `rules/preview` tries a rule draft on the newest 300 mails of the activity; `sender` gathers one address's mails, ratings, rules, newsletter and parcels for the sender profile. |
 ---
 
 ## 6. Runtime view
@@ -497,6 +497,15 @@ On phones the tabs move to the bottom, the open mail becomes a page of its own i
 gesture closes it), a long press picks a mail and pulling the list down reloads it. Keys the panel handles do not
 reach Home Assistant's own shortcuts. Frieda's panel has the same keys (1–3, /, ?) and glide.
 
+**Less to do:** “For you” starts with *Today*, a timeline built in the panel from what it has loaded anyway (parcels
+with today's window, proposals, important mails, open replies); a seven-day bar filters the parcels. The quick check
+shows the unsure ratings as cards and answers with `ai/correct` – keeping the category is sent as `by: "confirm"`, so
+the mail is no longer unsure, the AI gets an example, and the week's accuracy is unchanged. The sender profile is one
+websocket call (`sender`) over the activity, the newsletters and the parcels. Rule templates fill the editor and its
+live preview; the effect of a rule is a sparkline of its hits per day (ADR-48). *Done today* and the compact layout
+live in the browser per device (ADR-49), and empty lists show a calm note with Frieda. A dialog without a control to
+focus (the quick check) has an id, so `keepFocus()` finds it again after a redraw and its keys keep working.
+
 Accessibility lives in Frieda UI, so every panel gets it: panels redraw their whole content, and `keepFocus()` puts
 the focus back on the same control afterwards (or into an opened dialog and back to its opener). `mount()` keeps a
 live region outside the redrawn frame and makes everything but an open dialog `inert`; `announce()` reads notices,
@@ -604,6 +613,8 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-45 | Preview a rule draft on the activity, not on the mailbox | A search on iCloud per keystroke would be slow and costs requests; the activity already holds sender and subject of the last 30 days | The preview is instant and local; conditions on To/Cc cannot be checked there and say so; the same validation (and regex safety) as saved rules |
 | ADR-46 | Overlays that must survive redraws (undo bar, command palette) live outside the redrawn frame | The panel redraws its whole content on every change; an input or a countdown inside would lose focus or restart | They manage their own DOM and set the frame `inert` while modal; the panel's styles still apply (one shadow root) |
 | ADR-47 | Read what is in a parcel from the order and shipping mails with patterns; a shipping mail gets the ordered items it names | A shipping mail often lists nothing or only the shop's name; the order lists everything – but an order can come in several parcels | Items appear without AI and without sending text anywhere; unknown formats show no items (the subject's first name at most); a different tracking number of the same order is a parcel of its own; orders without items (downloads) are no parcels |
+| ADR-48 | Count each rule's hits per day on the rule itself (30 days) instead of deriving them from the run history | The run history keeps 200 runs – with push and a 5-minute timer only hours to a few days | A sparkline that really covers 30 days; at most 30 small numbers per rule; after the update the counts start from the stored runs, and `daily_since` keeps the panel from claiming “30 days without hits” before 30 days were counted |
+| ADR-49 | Keep *Done today* and the compact layout in the browser (per device) | Both are conveniences of one device; an undo needs the action's own token, which the backend refuses once it is stale | Nothing to store or sync in Home Assistant; another device starts with an empty list; a failed undo from the list says so instead of guessing |
 
 ---
 
@@ -666,6 +677,8 @@ flowchart LR
 | Q26 | The user writes a rule “subject contains Invoice” | Before saving, the editor shows “Matches 7 of the last 300 mails” with the first ones; a regex that could hang is refused like on saving |
 | Q27 | A mail contains `https://bank.example.evil.test/login` | The link shows as a chip with the host `bank.example.evil.test` in bold before it is opened; `javascript:` and other schemes stay text |
 | Q28 | Apple confirms an order of an iPhone and AppleCare, then sends one parcel | The parcel shows the order step, then “iPhone …” only (named in the shipping mail); AppleCare is not said to be in it |
+| Q29 | Right after the update to 1.0.40 the user opens the rules | Rules that hit in the stored runs show their line; quiet ones say “No hits since <day>” instead of “No hits in 30 days” |
+| Q30 | The AI was unsure about 12 mails; the user goes through them with the keys | One card at a time, 1–9 / Enter / →; every answer is stored and the mails leave the view *Unsure*; confirmations do not lower the accuracy |
 
 ---
 
