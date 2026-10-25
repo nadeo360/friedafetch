@@ -32,7 +32,7 @@ jobs:
         # the release requirements_dev.txt follows, the oldest one hacs.json allows, and the newest one (an early
         # warning: Dependabot moves it on, betas included; it may fail without blocking)
         include:
-          - ha: "2026.10.1"
+          - ha: "2026.10.3"
             lock: requirements/test.txt
           - ha: minimum
             lock: requirements/ha-minimum/test.txt
