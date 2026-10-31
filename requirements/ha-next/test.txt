@@ -209,7 +209,7 @@ aiohttp-fast-zlib==0.3.0 \
 aioimaplib==2.0.1 \
     --hash=sha256:5a494c3b75f220977048f5eb2c7ba9c0570a3148aaf38bee844e37e4d7af8648 \
     --hash=sha256:727e00c35cf25106bd34611dddd6e2ddf91a5f1a7e72d9269f3ce62486b31e14
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 aiooui==0.1.11 \
     --hash=sha256:531e808bba926d80213413202243754a125a100b3e7912dadb3cd3f921e1665d \
     --hash=sha256:737e1c605339a4ca3a860f0c60f1a35af0e256b44c93e8d0487ad62f3addeda8
@@ -221,7 +221,7 @@ aiosignal==1.4.0 \
 aiosmtplib==5.1.3 \
     --hash=sha256:ac2b418d3260ba62d9cfd0fe7359726e9dc009a4e8e8d9909fdfae332f522a7c \
     --hash=sha256:f7d76ce3d4995a65a178c1f11e1bd1607706b921d00cb768e7a2c7f7ef5517a8
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 aiozoneinfo==0.2.3 \
     --hash=sha256:5423f0354c9eed982e3f1c35edeeef1458d4cc6a10f106616891a089a8455661 \
     --hash=sha256:987ce2a7d5141f3f4c2e9d50606310d0bf60d688ad9f087aa7267433ba85fff3
@@ -261,7 +261,7 @@ anyio==4.14.2 \
     --hash=sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494 \
     --hash=sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f
     # via
-    #   -r requirements/ha-next/test.in
+    #   -r test.in
     #   httpx
     #   mcp
     #   sse-starlette
@@ -887,7 +887,7 @@ click==8.5.0 \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
     --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
     # via uvicorn
-coverage==7.16.2 \
+coverage[toml]==7.16.2 \
     --hash=sha256:00d3eb96e9988c45f50cccd1f1496571ac5c1f91386ac02c4d55516eeda19a24 \
     --hash=sha256:01c6908bc613b420c26c818fe948e1b97dfd041a53c98b01c63bd8321f5c9aae \
     --hash=sha256:066429634299e14dd2d511e1e85f8f9cecc500781f6b41907c0dd6f1baea7e63 \
@@ -1338,7 +1338,7 @@ gazetteer-matcher==1.2.0 \
     --hash=sha256:a8b47792898cc081d5f29b4548fa82ebdc69294549347ba83f8e12a3e9c3118a \
     --hash=sha256:ed50d674d451324708f2a0c48f068b7cb1201be5d049eae856d7b635b987fb93 \
     --hash=sha256:f0a7a105f9cb4c1933916ef6af56bf9a263a8a263cb22dafe94c949e696a337a
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 greenlet==3.5.6 \
     --hash=sha256:0616b8f878098c5681fd8f0dc92d887551717402342a70f0abcbfea5f5ad8a44 \
     --hash=sha256:06c0e933290fba8ffe53ead4ae1b8044b0e9754b75cebf381aa2bc3e50d82fac \
@@ -1558,7 +1558,7 @@ hass-nabucasa==2.7.0 \
 hassil==3.12.1 \
     --hash=sha256:d12553cccf2548a86cfedd28c8f3171690f5e8c064470c2b66170cc5848ecdef \
     --hash=sha256:dad08f2525ad0246cfd6cc072e2c3015f1b15f918ac49a7b8e9dd07bd6ef8f5a
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 home-assistant-bluetooth==2.0.0 \
     --hash=sha256:3febd16b194812b156024d9bc8ce8ec7622cdd8d159047cac504cc77ca034ea1 \
     --hash=sha256:8d7c2ac48c303adacad73cb6cdfe7710f2fccd2a367d4c3106acf301b0d22b91
@@ -1566,16 +1566,16 @@ home-assistant-bluetooth==2.0.0 \
 home-assistant-frontend==20260930.4 \
     --hash=sha256:05c207fb6ce6720d1782766b54a67acdf4bab83f133a562204b972d062862fc8 \
     --hash=sha256:269d186924e1ab9d5c3992326dac3420d7f0c78d767ee4a14abe4011f68d6b56
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 home-assistant-intents==2026.10.6 \
     --hash=sha256:1031b97bffb00b02c9c2ccc870b348cfab412ca865e64dc44b7176bf91648e36 \
     --hash=sha256:5db63abd92d767bce51665564fda304e56ac1f208422222296622fc23bc964a2
     # via
-    #   -r requirements/ha-next/test.in
+    #   -r test.in
     #   gazetteer-matcher
-homeassistant==2026.10.2 \
-    --hash=sha256:50478723a035c70d6c70b298f6135949b68b002d072b48996b2852decc55d318 \
-    --hash=sha256:8ac170048d44c2c9993c2fa1ac0ee9ba892912aac74c655139ef5af7b0c216bb
+homeassistant==2026.10.4 \
+    --hash=sha256:71843060980a763187d856a8ff170640f1e287a7b741334cd838c81404f1f452 \
+    --hash=sha256:8410fecb434ab94b3f7724cd80584050f0ceeb856c16ee70202c24037d62238a
     # via pytest-homeassistant-custom-component
 httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
@@ -1678,11 +1678,11 @@ hypothesis==6.168.4 \
     --hash=sha256:f68b3d9e0e5a1309ced5847d6d925cbe1d418cdb0bda646bb67ae9966d160160 \
     --hash=sha256:f867f9dac2cb90e5f486143124181e7bea3f24b043fbe4d0d9de79e743911a2f \
     --hash=sha256:fb72038b41d026878f484491ed9c2670e89daee898d276b92129da2cfe4a3846
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 icalendar==6.3.1 \
     --hash=sha256:7ea1d1b212df685353f74cdc6ec9646bf42fa557d1746ea645ce8779fdfbecdd \
     --hash=sha256:a697ce7b678072941e519f2745704fc29d78ef92a2dc53d9108ba6a04aeba466
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 icmplib==3.0.4 \
     --hash=sha256:336b75c6c23c5ce99ddec33f718fab09661f6ad698e35b6f1fc7cc0ecf809398 \
     --hash=sha256:57868f2cdb011418c0e1d5586b16d1fabd206569fe9652654c27b6b2d6a316de
@@ -2001,7 +2001,7 @@ mashumaro==3.23 \
 mcp==1.30.0 \
     --hash=sha256:445414625fce5c295faa505bb11bacece661ab6f4028d57c935db57820b7a3e4 \
     --hash=sha256:666edb5009503e1047c9d60346a756f94b261f05cc2625f23d41c728ffc484d0
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 mdurl==0.1.2 \
     --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \
     --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba
@@ -2479,7 +2479,7 @@ pillow==12.3.0 \
     --hash=sha256:fe3cca2e4e8a592be0f269a1ca4835c25199d9f3ce815c8491048f785b0a0198 \
     --hash=sha256:ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7
     # via
-    #   -r requirements/ha-next/test.in
+    #   -r test.in
     #   homeassistant
 pipdeptree==4.2.5 \
     --hash=sha256:03ccecb5fa940d2b0d6f16442bc52ea217933a313f96d7b5aba9c3addc7b8020 \
@@ -2946,7 +2946,7 @@ pygments==2.21.0 \
     # via
     #   pytest
     #   rich
-pyjwt==2.15.1 \
+pyjwt[crypto]==2.15.1 \
     --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
     --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
     # via
@@ -3073,10 +3073,10 @@ pytest-github-actions-annotate-failures==0.4.2 \
     --hash=sha256:02911cd3b55f235328a334f8ca6037a89944398b8e8b028c82de97111eff4071 \
     --hash=sha256:5dd18304512361788bc7b5c5c805db853f03f4950c6be09b088de6bab8e2e6c9
     # via pytest-homeassistant-custom-component
-pytest-homeassistant-custom-component==0.13.373 \
-    --hash=sha256:9f60c292a3482a500e246e45f895660a198341ffd57658191899fa06885feeef \
-    --hash=sha256:bdd22816780122def0451564c46b536c9889c14c04da98782ea5db4a40994dab
-    # via -r requirements/ha-next/test.in
+pytest-homeassistant-custom-component==0.13.375 \
+    --hash=sha256:01e30574d448d8a0126f89d42e12ef0866bdc181fd136c706bc23458446df26c \
+    --hash=sha256:ceed1b1928fcd5535490180866aeb92385b11e49ab28251c5cedbe6abd20aa35
+    # via -r test.in
 pytest-picked==0.5.1 \
     --hash=sha256:6634c4356a560a5dc3dba35471865e6eb06bbd356b56b69c540593e9d5620ded \
     --hash=sha256:af65c4763b51dc095ae4bc5073a962406902422ad9629c26d8b01122b677d998
@@ -3415,7 +3415,7 @@ resvg-py==0.5.0 \
     --hash=sha256:f0c834262db96eac4d5767e1025c21efefa0ed0359bded8dfd4b79fc7549694f \
     --hash=sha256:f322d7bf0ddab60156d6cf1883718b726c1c210bd7623e253756986798c5c83e \
     --hash=sha256:feee1ee6c2c0b64018c046a7604240c233c6cf14496e475238370c7d9a9db455
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 rich==15.0.0 \
     --hash=sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb \
     --hash=sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36
@@ -3571,7 +3571,7 @@ ruff==0.17.1 \
     --hash=sha256:a6ef98e51de8ef38082f90653ceeb84944bd7673783eea13e1647c5b9b064189 \
     --hash=sha256:bd8f5a55b10f371642eacd0e8665a42a8b97da15c9a7187c79e697b77b5e0ce4 \
     --hash=sha256:ce05e6f3973611d9550a600e04bb531061e368baba31610eb57c1509a8f21a0a
-    # via -r requirements/ha-next/test.in
+    # via -r test.in
 s3transfer==0.19.3 \
     --hash=sha256:24eb7535804306355e31c952a90022bf5b2f9d760f9a11062c7493a217c08553 \
     --hash=sha256:8326acc3d056d7f7b8a37110c7d2aea41f67e83f6ae79cd3b5fbcca34c726406
@@ -3878,26 +3878,26 @@ usb-devices==0.5.1 \
     # via
     #   bluetooth-adapters
     #   bluetooth-auto-recovery
-uv==0.12.23 \
-    --hash=sha256:02f2a0fd1cb90b5fc06b52e8cbc3169bdc4e53804e9d66ba0ad516be767424f4 \
-    --hash=sha256:08b2fc8e250efdfc1e47da0483f3e19f433bb0934282361817f61c0b19cb3674 \
-    --hash=sha256:11d18c1589d7907376b4f3fa31028e46cc609ac4b7d83eabc2b04cd8ca1433cc \
-    --hash=sha256:4951286e68f116fa41897ecf8e248cc2836cb013be6d4f37afae4049f9ef4df7 \
-    --hash=sha256:565c6e2874dbeae86c02f3dea97255e878fec672659a73d4930c6b93fcab2fff \
-    --hash=sha256:5b07cbea635177da0d6b902bcde9ce0304c1fa5b49a37b27ef7aa021c5c31697 \
-    --hash=sha256:7a919e3420adf4cc03895b404af655c7229f646bffabbd9a16979683772a7d34 \
-    --hash=sha256:855232fd95d456bd5ee17e262f73112967fbbb2803e745f1911c08ceb042e641 \
-    --hash=sha256:895137194d242cc8075c3006288b485af54feeae68512f4ffc96f75b27543cc0 \
-    --hash=sha256:8f021dfbe5b6081021dd47fd8372cfba386fc5d39161e73d4f33cff90ce1760c \
-    --hash=sha256:9346c741175c7fc0d380f30fcfcb8d5e13f5f900b30536230c8d34208524e47a \
-    --hash=sha256:99197c022afbd1edd0a295e9fdac5078c61eddf2e77657a77294cfe8ea0d94b9 \
-    --hash=sha256:9a65258535db432df51ca7d26338c01431820b94b634762f5718fc55895f974e \
-    --hash=sha256:b03b1c35b5f301e888671eb5d0e74b8789558905db1d411cb8e07ea4ec320268 \
-    --hash=sha256:b70220be9056bd05908770179101a53687eb5c89f72a3edc1e20df0cd3f157c2 \
-    --hash=sha256:c4d236bb220856027ba8e28ef693cac472ee2a740a61faef1ac2001165c7b3d5 \
-    --hash=sha256:e952162a5be6847deaccf3fd5b41a628506fd9ff1ea4363b8c975bd6f927d832 \
-    --hash=sha256:f05c5ad8d6cb4b2659cb6368ed02c067539415b24a2b69effd8ada576fdbf303 \
-    --hash=sha256:fb8a4117a5224d73abe2204a1e744ae34b544f1b9a0b761576851deaa7215c12
+uv==0.13.5 \
+    --hash=sha256:0548460d46c8667488b1f089e936f29f0edfb1cc753f9152ffbd8bc84a46aa20 \
+    --hash=sha256:0e03f5717bdaaf5ab4e2df361d2395e36b515946f56ef4bed88801aeb9959fb0 \
+    --hash=sha256:1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f \
+    --hash=sha256:2386c2dc9b59fc1d39b1c500e4319d71d3268232eb3b38e29cd6775d6269e8d4 \
+    --hash=sha256:2386e8dbfe110ff2f8ec8bd344dd18bf39eb9eb54e1edeeb87c3b85c34229cd3 \
+    --hash=sha256:309a74d3c488bfaa3ba7bff759da73193d8781729c0a01274f4940fd32bb5712 \
+    --hash=sha256:337a14829bb499e114989df4f908f134ff37f1fb6c33497541cfb05b28080e39 \
+    --hash=sha256:469cca66de1b17c75b9b9de806a64cffb57cba5e42b1e30d0bba6fa72a146f58 \
+    --hash=sha256:4f62680fe58c5a83fd539e38f1956c2b577b1f5939c9020aa4c7f0addda2f4ad \
+    --hash=sha256:8d092d07d2389909027c2ed4965ade1bd46bbcecceb26686ff40927684f8c457 \
+    --hash=sha256:91e58e304b63b6c91bac5561459ab0c3ea24f17bc01ea9359d69fed72142978f \
+    --hash=sha256:979409b8c9a78df140ffb19c53f511b7a73526da8d1d5e36558833055e371c6c \
+    --hash=sha256:a42c85fa8156e1e5e2cecdbc77bb818ea1dcf5f78b8e2a8f84c7fe4f16f0702e \
+    --hash=sha256:d162669e3a7811c584b03690eaa11e796ad1d309aa8229d5dfe3cbcd68a90400 \
+    --hash=sha256:d3fd5db55c20feb672ea457361aba29ab68b9ae69a14d98ad6c138b5f86dcca4 \
+    --hash=sha256:e01481ae5212e45ee7c85fad5fc67f06b0ee0329a7c3c289dc529da884b03881 \
+    --hash=sha256:f4e55a6e2a1089fe74ed50fbdf2df0f6f336ee148ad232b05932db5deee8007e \
+    --hash=sha256:f867c5ec24c563afaae730a13e46cdf74a1a0b64c134286ff99762a96e2abf40 \
+    --hash=sha256:fa8d26e08e34c29c0c4e820cf3181757086d547240b4f4d31ff1d8bd810ca946
     # via homeassistant
 uvicorn==0.54.0 \
     --hash=sha256:505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf \
