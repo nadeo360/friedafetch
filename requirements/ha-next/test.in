@@ -1,6 +1,6 @@
 # The tests against the newest Home Assistant (Dependabot moves it on, betas included); compiled with hashes to test.txt by scripts/lock_requirements.sh.
 # The pins that belong to a Home Assistant release are left to the resolver.
-pytest-homeassistant-custom-component==0.13.373
+pytest-homeassistant-custom-component==0.13.375
 home-assistant-frontend
 hassil
 home-assistant-intents
