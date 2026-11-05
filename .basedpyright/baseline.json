@@ -224,22 +224,6 @@
                     "endColumn": 95,
                     "lineCount": 1
                 }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 46,
-                    "endColumn": 61,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 34,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
             }
         ],
         "./custom_components/friedafetch/tool_base.py": [

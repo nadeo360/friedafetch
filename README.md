@@ -325,8 +325,11 @@ automation:
 - Recurring events are expanded with `python-dateutil` (RRULE, EXDATE, RDATE, moved occurrences).
 - vCards are handled by a small lossless parser: unknown fields (photo, Apple extensions) survive updates.
 - IMAP via `aioimaplib` (one serialised connection with automatic reconnect), SMTP via `aiosmtplib` (STARTTLS, 587).
-- Packages that Home Assistant ships itself (`icalendar`, `aioimaplib`, `aiosmtplib`, `mcp`, `anyio`) are declared
-  as minimum versions and follow the HA release, as hassfest requires.
+- The own MCP endpoint (`mcp_http.py`) speaks the small stateless part of the protocol itself (`initialize`, `ping`,
+  `tools/list`, `tools/call`) and needs no `mcp` package, so a new major version of that package in Home Assistant
+  cannot stop Frieda from loading (as `mcp` 2.0 did with Home Assistant 2026.11 and Frieda up to 2.0.24).
+- Packages that Home Assistant ships itself (`icalendar`, `aioimaplib`, `aiosmtplib`) are declared as minimum versions
+  and follow the HA release, as hassfest requires.
 
 ## Development
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import ast
+import asyncio
 import json
 from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -261,6 +264,117 @@ async def test_protocol_errors(
     assert response.status == HTTPStatus.METHOD_NOT_ALLOWED
     response = await client.delete(STREAMABLE_API)
     assert response.status == HTTPStatus.METHOD_NOT_ALLOWED
+
+
+@pytest.mark.parametrize(
+    ("requested", "answered"),
+    [
+        ("2024-11-05", "2024-11-05"),
+        ("2025-03-26", "2025-03-26"),
+        ("2025-06-18", "2025-06-18"),
+        ("2025-11-25", "2025-11-25"),
+        ("2026-07-28", "2025-11-25"),  # no handshake at this revision: the newest one we know, the client decides
+        ("1999-01-01", "2025-11-25"),
+        (None, "2025-11-25"),
+    ],
+)
+async def test_protocol_revisions(
+    hass: HomeAssistant, entry: MockConfigEntry, hass_client: ClientSessionGenerator, requested: Any, answered: str
+) -> None:
+    client = await hass_client()
+    params = {"capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}
+    data = await _rpc(client, "initialize", {**params, "protocolVersion": requested} if requested else params)
+    assert data["result"]["protocolVersion"] == answered
+    assert data["result"]["capabilities"] == {"tools": {"listChanged": False}}
+
+
+async def test_clients_of_the_discover_revision_fall_back_to_the_handshake(
+    hass: HomeAssistant, entry: MockConfigEntry, hass_client: ClientSessionGenerator
+) -> None:
+    """They probe server/discover first and take METHOD_NOT_FOUND as "use initialize"."""
+    client = await hass_client()
+    data = await _rpc(client, "server/discover", {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}})
+    assert data["error"]["code"] == -32601 and data["error"]["data"] == "server/discover"
+
+
+async def test_messages_of_the_protocol(
+    hass: HomeAssistant, entry: MockConfigEntry, hass_client: ClientSessionGenerator
+) -> None:
+    client = await hass_client()
+    assert (await _rpc(client, "ping"))["result"] == {}
+    assert (await _rpc(client, "tools/list", {"cursor": None}))["result"]["tools"]
+    data = await client.post(
+        STREAMABLE_API, json={"jsonrpc": "2.0", "id": "a-string", "method": "ping", "params": None}, headers=HEADERS
+    )
+    assert (await data.json())["id"] == "a-string"
+
+    # notifications and responses have no answer
+    for body in (
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 5, "result": {}},
+        {"jsonrpc": "2.0", "id": 5, "error": {"code": 1, "message": "x"}},
+    ):
+        response = await client.post(STREAMABLE_API, json=body, headers=HEADERS)
+        assert response.status == HTTPStatus.ACCEPTED
+
+    # what is no message at all
+    for body in (
+        [],
+        [{"jsonrpc": "2.0", "id": 1, "method": "ping"}],
+        {"id": 1, "method": "ping"},
+        {"jsonrpc": "1.0", "id": 1, "method": "ping"},
+        {"jsonrpc": "2.0", "id": None, "method": "ping"},
+        {"jsonrpc": "2.0", "id": True, "method": "ping"},
+        {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": ["x"]},
+        {"jsonrpc": "2.0", "id": 1},
+    ):
+        response = await client.post(STREAMABLE_API, json=body, headers=HEADERS)
+        assert response.status == HTTPStatus.BAD_REQUEST, body
+
+    for params in ({}, {"name": 5}, {"name": "icloud_list_calendars", "arguments": "x"}):
+        assert (await _rpc(client, "tools/call", params))["error"]["code"] == -32602
+
+
+async def test_a_tool_that_fails_or_hangs_is_an_answer(
+    hass: HomeAssistant, entry: MockConfigEntry, hass_client: ClientSessionGenerator
+) -> None:
+    client = await hass_client()
+    tool = "custom_components.friedafetch.mcp_http.async_call_served_tool"
+
+    async def hangs(*_: Any) -> None:
+        await asyncio.sleep(5)
+
+    with patch(tool, side_effect=hangs), patch("custom_components.friedafetch.mcp_http.TIMEOUT", 0.01):
+        is_error, result = await _call_tool(client, "icloud_list_calendars", {})
+    assert is_error and result["code"] == "timeout"
+
+    with patch("custom_components.friedafetch.mcp_http.build_tools") as build:
+        build.return_value = [
+            SimpleNamespace(
+                name="boom",
+                parameters=lambda args: args,
+                async_call=AsyncMock(side_effect=RuntimeError("it broke")),
+            )
+        ]
+        is_error, result = await _call_tool(client, "boom", {})
+    assert is_error and result == {"error": "it broke", "code": "failed"}
+
+
+def test_the_endpoint_needs_no_mcp_package() -> None:
+    """Home Assistant pins `mcp` for itself; its major versions must not reach this integration (ADR-54)."""
+    root = Path(__file__).parents[1] / "custom_components/friedafetch"
+    manifest = json.loads((root / "manifest.json").read_text())
+    assert not [r for r in manifest["requirements"] if r.startswith(("mcp", "anyio"))]
+    for path in root.glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom) and not node.level
+                else []
+            )
+            assert not [n for n in names if n.split(".")[0] in ("mcp", "mcp_types", "anyio")], path
 
 
 async def test_unload_disables_endpoint(hass: HomeAssistant, entry: MockConfigEntry, hass_client) -> None:

@@ -1,0 +1,52 @@
+name: Newest Home Assistant
+
+# The early warning that does not wait for anybody: every day the tests run against the newest Home Assistant release,
+# installed over a test plugin that may still be made for an older one. The Python packages Home Assistant pins for
+# itself change with it (mcp 2.0 came that way with 2026.11 and stopped Frieda from loading). A failure opens an issue.
+on:
+  schedule:
+    - cron: "37 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    name: pytest against the newest Home Assistant
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      # deliberately not hash-pinned: this run is about what is new; it holds no secrets and only reads the repository
+      - name: Install the newest release over the test plugin
+        run: |
+          curl -fsS https://pypi.org/pypi/homeassistant/json \
+            | python -c "import json, sys; print('homeassistant==' + json.load(sys.stdin)['info']['version'])" > newest.txt
+          cat newest.txt
+          uv pip install --system --override newest.txt -r requirements/ha-next/test.in
+      - run: python -m pytest -q --timeout=120 -p tests.newest_ha tests
+
+  report:
+    name: Open an issue
+    needs: test
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Tests fail against the newest Home Assistant"
+          if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[].number')" ]; then
+            gh issue create --title "$title" --body "The daily run failed: $RUN"
+          fi

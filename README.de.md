@@ -397,10 +397,12 @@ automation:
   bleiben beim Ändern erhalten.
 - IMAP über `aioimaplib` (eine serialisierte Verbindung mit automatischem Reconnect), SMTP über `aiosmtplib`
   (STARTTLS, Port 587).
-- Der eigene MCP-Endpunkt (`mcp_http.py`) nutzt das `mcp`-SDK in der Version, die auch die Core-Integration
-  `mcp_server` verwendet, und baut die Tool-Schemas mit `probatio.to_openapi` aus den `llm.Tool`-Parametern.
-- Abhängigkeiten sind auf die Versionen gepinnt, die Home Assistant 2026.10 selbst verwendet (`icalendar`, `aioimaplib`,
-  `mcp`, `anyio`).
+- Der eigene MCP-Endpunkt (`mcp_http.py`) spricht den kleinen zustandslosen Teil des Protokolls selbst (`initialize`,
+  `ping`, `tools/list`, `tools/call`) und braucht kein `mcp`-Paket. Eine neue Hauptversion dieses Pakets in Home
+  Assistant kann Frieda so nicht mehr am Laden hindern (wie `mcp` 2.0 mit Home Assistant 2026.11 bei Frieda bis 2.0.24).
+  Die Tool-Schemas entstehen mit `probatio.to_openapi` aus den `llm.Tool`-Parametern.
+- Pakete, die Home Assistant selbst mitbringt (`icalendar`, `aioimaplib`, `aiosmtplib`), sind als Mindestversionen
+  angegeben und folgen der HA-Version, wie hassfest es verlangt.
 
 ## Entwicklung
 

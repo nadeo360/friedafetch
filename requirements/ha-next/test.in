@@ -8,8 +8,6 @@ gazetteer-matcher
 icalendar==6.3.1
 aioimaplib==2.0.1
 aiosmtplib==5.1.3
-mcp==1.30.0
-anyio==4.14.2
 ruff==0.17.1
 resvg-py
 # Pillow follows Home Assistant's exact pin: 2026.10.x requires Pillow==12.3.0, the Pillow security fixes need

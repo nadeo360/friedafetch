@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.24, Frieda Postfach 1.0.42 (Oktober 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.25, Frieda Postfach 1.0.43 (Oktober 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -198,7 +198,7 @@ flowchart TB
 | `tool_base.py` | `ICloudClients` (Container pro Konto inkl. `mail_factory` für weitere Verbindungen, Injection-Sperren, Sendeverzögerung), Basisklasse `ICloudTool` (Freigabe → Injection-Sperre → verzögertes Senden → Ausführung → Protokoll → Zählung, Fehler als `code`). |
 | `tools_calendar.py`, `tools_contacts.py`, `tools_mail.py`, `tools_notes.py`, `tools_insights.py` | Die ca. 30 Tools, ein Modul pro Bereich. |
 | `llm_api.py` | Tool-Liste, Options-Filter (`tool_allowed`, `build_tools`), Prompt und die LLM-API von Home Assistant; exportiert die öffentlichen Namen weiter. |
-| `mcp_http.py` | Zustandsloser Streamable-HTTP-MCP-Server (MCP-SDK); Profile *voll* und *nur lesen*; Namenszusätze bei mehreren Konten; merkt sich Client-Namen aus `initialize`. |
+| `mcp_http.py` | Zustandsloser Streamable-HTTP-MCP-Server, ohne das MCP-SDK (`initialize`, `ping`, `tools/list`, `tools/call`; ADR-54); Profile *voll* und *nur lesen*; Namenszusätze bei mehreren Konten; merkt sich Client-Namen aus `initialize`. |
 | `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV über aiohttp, iCalendar mit `icalendar`, eigener vCard-Parser; Kontakte-Cache (ETag/CTag) verschlüsselt im Speicher. |
 | `mail.py`, `notes.py` | IMAP (aioimaplib, eigene Verbindungsverwaltung, `BODY.PEEK`; Fähigkeiten nach dem Login gelesen; CONDSTORE `STATUS … HIGHESTMODSEQ` und `CHANGEDSINCE`, QRESYNC `VANISHED`; eine ruhende Verbindung wird per NOOP geprüft, eine abgerissene sofort erkannt und ersetzt, eine Befehls-Zeitüberschreitung einmal auf neuer Verbindung wiederholt; Abgleich und Suche öffnen einen Ordner neu, damit sie Änderungen anderer Geräte sehen), Versand per SMTP, Notizen über das IMAP-Postfach „Notes“. |
 | `guard.py` | Stundenkontingente, Empfänger-Richtlinie (alle / Kontakte / Positivliste), geschützte und verborgene Kalender/Postfächer. |
@@ -561,6 +561,8 @@ abreißen; nach jedem Abgleich wird die Aktivität Zeile für Zeile mit dem Stan
 nur CONDSTORE und ohne beides. Ein Fehler nennt den Startwert, der ihn wiederholt. Die CI führt sie in einem eigenen
 Job aus; vor einem Release, das den Abgleich betrifft, laufen lokal längere Zufallsläufe.
 
+**Das neueste Home Assistant:** `ha-next` in der CI-Matrix folgt dem Test-Plugin, das erst nach jedem Release erscheint. `newest-ha.yml` wartet nicht: Täglich installiert es das neueste Release über das Plugin (`-p tests.newest_ha` überbrückt, was umgezogen ist) und legt ein Issue an, wenn Tests scheitern, in beiden Repositories.
+
 **Feindliche Eingaben**: Die Paket-Muster laufen auf erzeugten und sehr langen Texten (Hypothesis plus ein Zeitlimit
 gegen katastrophales Backtracking), seit 1.0.42 auch die Muster für Bestellungen und Artikel und die Namen, die eine Versandmail nennt; **Upgrade-Tests** starten mit Speicherständen älterer Versionen (z. B. 1.0.30
 und 1.0.33) und prüfen, dass nichts verloren geht und neue Felder gefüllt werden.
@@ -647,6 +649,7 @@ CI, Release, Zip-Prüfung).
 | ADR-51 | Die Aktivität nach der Breite ihres Rahmens anordnen und die geöffnete Mail verschieben, wenn diese Breite die Faltbreite überschreitet | Falt-Handys ändern ihre Breite im Betrieb, und die aufgeklappte Breite (626 pt) lag zwischen Handy- und Tablet-Layout | Eine Regel für Falt-Handys, kleine Fenster und geteilte Bildschirme; die geöffnete Mail übersteht das Falten; die anderen Tabs bleiben, wie sie waren |
 | ADR-52 | Rückgängig-Schritte in Home Assistant halten und dem Panel nur ein Token geben (`friedafetch_mail/undo`) | Die Liste *Heute getan* hielt im Browser, was ein Rückgängig zurückbringt (Message-IDs, Ordner, die ganze Kategorienliste); ein alter Kategorie-Schritt konnte spätere Änderungen überschreiben, und Leiste und Liste konnten einen Schritt zweimal ausführen | Der Browser hält nur Texte und Tokens; jeder Schritt läuft einmal; Kategorien kommen nur zurück, solange sie seitdem unverändert sind; ein Neustart vergisst die Schritte (das Panel sagt das) |
 | ADR-53 | Paketkorrekturen mit den Message-IDs ihrer Mails merken und nach jedem Einlesen anwenden | Neue Muster lesen die Versandmails neu und bauten die Pakete neu – Zusammenführen, Abtrennen, „Kein Paket“ und Antworten gingen verloren | Korrekturen überstehen bessere Muster; je Mail zählt nur ihr neuestes Zusammenführen oder Abtrennen; eine neuere Mail als eine Antwort bestimmt weiter den Status; Korrekturen älter als neun Wochen fallen weg (ihre Mails werden nicht mehr gelesen) |
+| ADR-54 | Den kleinen zustandslosen Teil von MCP in `mcp_http.py` selbst sprechen, statt das `mcp`-SDK zu nutzen | Home Assistant pinnt `mcp` für seine eigenen Integrationen, eine Hauptversion kommt also mit einem Home-Assistant-Update: `mcp` 2.0 mit 2026.11 entfernte `types.ClientRequestType`, und der Import stoppte Frieda und Frieda Postfach. Der Endpunkt nutzt nur einen Bruchteil des SDK: eine JSON-RPC-Nachricht rein, eine raus | Kein Import, keine Abhängigkeit, läuft auf altem und neuem Home Assistant gleich; geprüft mit den SDK-Clients 1.30 und 2.3. Dem Protokoll folgen wir selbst: Neue Revisionen kommen von Hand in `PROTOCOL_VERSIONS`, Clients der Revision 2026-07-28 bekommen auf `server/discover` METHOD_NOT_FOUND und fallen auf `initialize` zurück. Vom Server ausgehende Funktionen (Sampling, Ressourcen) bleiben wie bisher draußen |
 
 ---
 
@@ -715,6 +718,8 @@ flowchart LR
 | Q32 | Der Nutzer liest eine Mail auf dem aufgeklappten iPhone Duo und klappt es zu | Dieselbe Mail bleibt als eigene Seite auf dem Außenbildschirm offen; beim Aufklappen steht sie wieder neben der Liste |
 | Q33 | Die Muster lernen dazu (PARSER), nachdem der Nutzer zwei Pakete zusammengeführt, eins abgetrennt und eins als „kein Paket“ markiert hat | Nach dem erneuten Einlesen sieht die Liste aus, wie der Nutzer sie hinterlassen hat; nichts muss zweimal korrigiert werden |
 | Q34 | Der Nutzer nimmt Stunden später das Löschen einer Kategorie aus *Heute getan* zurück, nachdem er eine andere Kategorie bearbeitet hat | Abgelehnt mit „es wurde seitdem geändert“; die spätere Änderung bleibt |
+| Q35 | Home Assistant aktualisiert auf ein Release mit einer neuen Hauptversion von `mcp` | Frieda lädt wie bisher; alte und neue MCP-Clients handeln eine Revision aus und nutzen die Tools |
+| Q36 | Home Assistant wird vor Frieda aktualisiert, und Frieda lädt dort nicht mehr | Frieda Postfach zeigt eine Reparatur mit der Lösung (Frieda aktualisieren, neu starten) statt eines Tracebacks; sie verschwindet danach von selbst |
 
 ---
 
@@ -728,6 +733,7 @@ flowchart LR
 | Prompt Injection bleibt grundsätzlich möglich | Falsche Sortierung, irreführende Zusammenfassungen | Keine Werkzeuge für die KI, beschränkte Aktionen, Freigaben, Killswitch, Injection-Erkennung |
 | Push deckt nur den Posteingang ab | Andere Postfächer nur alle N Minuten | Dokumentiert; Takt als Rückfallebene |
 | HACS-Listen-Icon nur aus dem Brands-CDN von HA | Platzhalter-Icon in HACS-Listen | Ohne Brands-Repository nicht lösbar; das Logo in der Integration wirkt in HA |
+| Home Assistant ersetzt ein Paket oder eine interne Schnittstelle, die Frieda nutzt | Frieda und damit Frieda Postfach laden nach dem Update nicht | Kein MCP-SDK mehr (ADR-54); ein täglicher Lauf gegen das neueste Release legt ein Issue an (`newest-ha.yml`); Frieda Postfach sagt in einer Reparatur, was zu tun ist, statt mit einem Traceback auszufallen |
 | Ein einzelner Maintainer | Bus-Faktor 1 | Dokumentation, Tests, automatisierte Releases |
 | Manche Funktionen (Abmelden, Anhänge, KI-Anbieter, „Für dich“ mit echten Kontaktgruppen und Kalendern) nur teilweise gegen echte Dienste getestet | Unbekannte Randfälle | Unit-Tests mit Mocks, IMAP gegen Dovecot; Rückmeldungen aus dem Einsatz |
 | Dovecot ist nicht iCloud | iCloud kann IMAP anders beantworten als der Testserver | Früher abweichendes Verhalten ist durch Tests festgehalten; Diagnosedaten zeigen die Fähigkeiten und den Stand des Abgleichs |

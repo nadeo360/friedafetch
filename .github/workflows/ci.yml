@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         # the release requirements_dev.txt follows, the oldest one hacs.json allows, and the newest one (an early
-        # warning: Dependabot moves it on, betas included; it may fail without blocking)
+        # warning: Dependabot moves it on as the test plugin follows; it may fail without blocking; newest-ha.yml does not wait)
         include:
           - ha: "2026.10.4"
             lock: requirements/test.txt

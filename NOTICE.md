@@ -41,8 +41,6 @@ The integration depends on the following packages, each under its own license:
 | [aiosmtplib](https://github.com/cole/aiosmtplib)    | MIT            | SMTP sending                          |
 | [icalendar](https://github.com/collective/icalendar) | BSD-2-Clause  | iCalendar parsing/serialising         |
 | [python-dateutil](https://github.com/dateutil/dateutil) | Apache-2.0 / BSD-3-Clause (dual) | recurrence expansion |
-| [mcp](https://github.com/modelcontextprotocol/python-sdk) | MIT      | MCP protocol types and server         |
-| [anyio](https://github.com/agronholm/anyio)         | MIT            | async plumbing for the MCP server     |
 | [Home Assistant](https://github.com/home-assistant/core) | Apache-2.0 | host platform (not bundled)           |
 
 `aioimaplib` is licensed under the GPL-3.0. This integration uses it unmodified as a separately installed library,

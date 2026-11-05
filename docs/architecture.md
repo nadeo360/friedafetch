@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.24, Frieda Postfach 1.0.42 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.25, Frieda Postfach 1.0.43 (October 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -196,7 +196,7 @@ flowchart TB
 | `tool_base.py` | `ICloudClients` (per-account container incl. `mail_factory` for further connections, injection locks, send delay), `ICloudTool` base class (approval → injection lock → delayed sending → run → audit → usage counting, error mapping to `code`s). |
 | `tools_calendar.py`, `tools_contacts.py`, `tools_mail.py`, `tools_notes.py`, `tools_insights.py` | The ~30 tools, one module per area. |
 | `llm_api.py` | Tool list, option filter (`tool_allowed`, `build_tools`), prompt and the Home Assistant LLM API; re-exports the public names. |
-| `mcp_http.py` | Stateless Streamable-HTTP MCP server (MCP SDK); profiles *full* and *readonly*; tool name suffixes for several accounts; records client names from `initialize`. |
+| `mcp_http.py` | Stateless Streamable-HTTP MCP server, without the MCP SDK (`initialize`, `ping`, `tools/list`, `tools/call`; ADR-54); profiles *full* and *readonly*; tool name suffixes for several accounts; records client names from `initialize`. |
 | `caldav_client.py`, `carddav_client.py`, `dav.py`, `vcard.py` | CalDAV/CardDAV over aiohttp, iCalendar via `icalendar`, own vCard parser; contacts cache (ETag/CTag) kept encrypted in memory. |
 | `mail.py`, `notes.py` | IMAP (aioimaplib, own connection handling, `BODY.PEEK`; capabilities read after login; CONDSTORE `STATUS … HIGHESTMODSEQ` and `CHANGEDSINCE`, QRESYNC `VANISHED`; a quiet connection is checked with NOOP, a broken one is noticed at once and replaced, a command timeout is retried once on a new connection; looks and searches open a folder again so they see other devices' changes), SMTP sending, notes via the IMAP “Notes” mailbox. |
 | `guard.py` | Hourly quotas, recipient policy (any / contacts / allow list), protected and hidden calendars/mailboxes. |
@@ -544,6 +544,8 @@ from the panel and connections break off; after every look the activity is compa
 server has, with QRESYNC, CONDSTORE only and neither. A failure names the seed that repeats it. CI runs them in their
 own job; before a release that touches the look, longer walks run locally.
 
+**The newest Home Assistant:** `ha-next` in the CI matrix follows the test plugin, which comes after each release. `newest-ha.yml` does not wait: every day it installs the newest release over the plugin (`-p tests.newest_ha` bridges what moved) and opens an issue when tests fail, in both repositories.
+
 **Hostile input**: the parcel patterns run on generated and very long texts (Hypothesis plus a time limit against
 catastrophic backtracking), since 1.0.42 also the patterns of orders and items and the names a shipping mail gives; **upgrade tests** start from stores written by older versions (e.g. 1.0.30 and 1.0.33)
 and check that nothing is lost and new fields are filled in.
@@ -627,6 +629,7 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-51 | Lay out the activity by the width of its frame, and move the open mail when that width crosses the fold width | Folding phones change their width while open, and the opened width (626 pt) was between the phone and the tablet layout | One rule for folding phones, small windows and split screens; the open mail survives folding; the layout of the other tabs stays as it was |
 | ADR-52 | Keep undo steps in Home Assistant and give the panel only a token (`friedafetch_mail/undo`) | The list *Done today* kept what an undo brings back (message IDs, folders, the whole category list) in the browser; an old category step could overwrite later changes, and the bar and the list could run one step twice | The browser holds text and tokens only; each step runs once; categories come back only while unchanged since; a restart forgets the steps (the panel says so) |
 | ADR-53 | Keep corrections of parcels by the Message-IDs of their mails and apply them after every reading | New patterns read the shipping mails again and built the parcels anew – merges, splits, “not a parcel” and answers were lost | Corrections survive improved patterns; per mail only its newest merge or split counts; a mail newer than an answer still tells the status; corrections older than nine weeks are dropped (their mails are not read any more) |
+| ADR-54 | Speak the small stateless part of MCP in `mcp_http.py` instead of using the `mcp` SDK | Home Assistant pins `mcp` for its own integrations, so a major version arrives with a Home Assistant update: `mcp` 2.0 with 2026.11 removed `types.ClientRequestType`, and the import stopped Frieda and Frieda Postfach. The endpoint uses a fraction of the SDK: one JSON-RPC message in, one out | No import, no requirement, works on old and new Home Assistant alike; checked with the SDK clients 1.30 and 2.3. We follow the protocol ourselves: new revisions are added to `PROTOCOL_VERSIONS` by hand, clients of the 2026-07-28 revision get METHOD_NOT_FOUND on `server/discover` and fall back to `initialize`. Server-sent features (sampling, resources) stay out, as before |
 
 ---
 
@@ -695,6 +698,8 @@ flowchart LR
 | Q32 | The user reads a mail on the opened iPhone Duo and folds it shut | The same mail stays open as its own page on the outer screen; opening again puts it back beside the list |
 | Q33 | The patterns learn more (PARSER) after the user merged two parcels, split one and said one is not a parcel | After the shipping mails are read again the list looks as the user left it; nothing has to be corrected twice |
 | Q34 | The user undoes the deletion of a category from *Done today* hours later, after editing another category | Refused with “it has been changed since”; the later edit stays |
+| Q35 | Home Assistant updates to a release with a new major version of `mcp` | Frieda loads as before; old and new MCP clients negotiate a revision and use the tools |
+| Q36 | Home Assistant is updated before Frieda, and Frieda no longer loads there | Frieda Postfach shows a repair naming the fix (update Frieda, restart) instead of a traceback, and it goes away by itself afterwards |
 
 ---
 
@@ -708,6 +713,7 @@ flowchart LR
 | Prompt injection remains possible in principle | Wrong sorting, misleading summaries | No tools for the AI, restricted actions, approvals, kill switch, injection detection |
 | Push covers only the inbox | Other mailboxes only every N minutes | Documented; timer as fallback |
 | HACS list icon only from the HA brands CDN | Placeholder icon in HACS lists | Not solvable without the brands repository; logo inside the integration works in HA |
+| Home Assistant replaces a package or an internal interface Frieda uses | Frieda and with it Frieda Postfach do not load after the update | No MCP SDK any more (ADR-54); a daily run against the newest release opens an issue (`newest-ha.yml`); Frieda Postfach says what to do in a repair instead of a traceback |
 | Single maintainer | Bus factor 1 | Documentation, tests, automated releases |
 | Live behaviour of some features (unsubscribe, attachments, AI providers, “For you” with real contact groups and calendars) only partly tested against real services | Unknown edge cases | Unit tests with mocks, IMAP against Dovecot; feedback from real use |
 | Dovecot is not iCloud | iCloud may answer IMAP differently than the test server | Behaviour that differed before is pinned by tests; diagnostics show the capabilities and the state of the look |
