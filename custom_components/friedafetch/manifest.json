@@ -4,6 +4,10 @@
   "after_dependencies": [
     "mcp_server"
   ],
+  "categories": [
+    "productivity_information.calendars_todos",
+    "messaging_notifications.email_sms_calls"
+  ],
   "codeowners": [
     "@nadeo360"
   ],

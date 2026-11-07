@@ -16,7 +16,7 @@
 
 # Frieda – MCP connector for iCloud
 
-**Frieda** (technical name `friedafetch`) is a Home Assistant integration (HACS) that connects **Apple iCloud** with an app-specific password and exposes
+**Frieda** (technical name `friedafetch`) is a Home Assistant integration (Marketplace, HACS) that connects **Apple iCloud** with an app-specific password and exposes
 **calendars, contacts, e-mail and notes** as tools for LLMs. The tools are registered as a Home Assistant
 **LLM API**, so they are available to every conversation agent that enables the API (Assist, Google Generative AI,
 OpenAI, Ollama …) and to any **MCP client** (Claude, ChatGPT connectors, local agents) through Home Assistant's
@@ -54,7 +54,14 @@ say so. The other areas use official, stable protocols (CalDAV, CardDAV, IMAP, S
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended, Home Assistant 2026.11 or newer)
+
+1. [Open this repository in the Marketplace](https://my.home-assistant.io/redirect/hacs_repository/?owner=nadeo360&repository=friedafetch&category=integration), or go to Settings → Marketplace → **Add from link** and enter `nadeo360/friedafetch`.
+2. Install "Frieda" and restart Home Assistant.
+
+Built into Home Assistant since 2026.11, the Marketplace replaces HACS and takes over existing HACS installations.
+
+### HACS (Home Assistant before 2026.11)
 
 1. HACS → Integrations → ⋮ → **Custom repositories** → URL of this repository, category *Integration*.
 2. Install "Frieda" and restart Home Assistant.
@@ -68,7 +75,7 @@ restart Home Assistant.
 ### Upgrading to 2.0
 
 Frieda 2.0 is a pure connector: inbox rules, push delivery, the daily overview and the birthday sensor moved to the
-separate integration [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail). Install it via HACS and add
+separate integration [**Frieda Postfach**](https://github.com/nadeo360/friedafetch-mail). Install it via the Marketplace or HACS and add
 it for your account; existing rules, hit counters, run history and automation settings are picked up automatically.
 Until then Frieda shows a repair notice for accounts with stored rules, and no rules run. The rule tools
 (`icloud_*_rule`, `icloud_run_rules`, `icloud_daily_overview`) appear again as soon as Frieda Postfach is set up.

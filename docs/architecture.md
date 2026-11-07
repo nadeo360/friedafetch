@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.26, Frieda Postfach 1.0.44 (October 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.27, Frieda Postfach 1.0.45 (November 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -62,12 +62,12 @@ Frieda Postfach is the optional part that **acts on its own**:
 
 | Constraint | Consequence |
 |---|---|
-| Runs as a **Home Assistant custom integration** (Python 3.14, HA ≥ 2026.10), distributed via **HACS** as release zip | Event-loop (asyncio) only, HA helpers (Store, config entries, websocket API, LLM API); `zip_release` with attested assets. |
-| **hassfest / HACS validation** | No URLs or HTML-like text in `strings.json`; `CONFIG_SCHEMA`, `services.yaml`; brand images inside the integration. |
+| Runs as a **Home Assistant custom integration** (Python 3.14, HA ≥ 2026.10), distributed via the **Marketplace** (built into Home Assistant since 2026.11, before that **HACS**) as release zip | Event-loop (asyncio) only, HA helpers (Store, config entries, websocket API, LLM API); `zip_release` with attested assets. |
+| **hassfest / HACS validation** | No URLs or HTML-like text in `translations/en.json`; `CONFIG_SCHEMA`, `services.yaml`; brand images inside the integration. |
 | **No manifest dependency between custom integrations** | Frieda Postfach imports Frieda lazily and synchronises via dispatcher signals. |
 | HA 2026.10 switched the schema library to **probatio** | Shim `schema.py` (`probatio` or `voluptuous`). |
 | **iCloud only via app-specific password** | Only CalDAV, CardDAV, IMAP and SMTP are available. No CloudKit: modern Notes and Reminders are out of reach; no API for server-side mail rules. |
-| Single maintainer, pseudonymous (`nadeo360`), no contact with the HA project | No entry in the HA brands repository (HACS lists show a placeholder icon); everything self-contained. |
+| Single maintainer, pseudonymous (`nadeo360`), no contact with the HA project | No entry in the HA brands repository: brand images ship in the integration's `brand/` folder; everything self-contained. Pull requests to the store catalog `hacs/default` are the only outside step (ADR-55). |
 | Bilingual (EN/DE) | READMEs, translations, panel texts and this document in both languages. |
 | License MIT | Third-party notices in NOTICE.md. |
 
@@ -359,7 +359,7 @@ flowchart LR
       st[(.storage/*)]
     end
   end
-  hacs[HACS] -- release zip --> f
+  hacs[Marketplace / HACS] -- release zip --> f
   hacs -- release zip --> p
   core -- HTTPS 443 --> dav[caldav / contacts.icloud.com]
   core -- IMAPS 993 --> imap[imap.mail.me.com]
@@ -369,7 +369,7 @@ flowchart LR
 ```
 
 - Both integrations run inside the Home Assistant Core process; there is no separate service.
-- Installation through HACS from the GitHub release zips (`friedafetch.zip`, `friedafetch_mail.zip`), which are built
+- Installation through the Marketplace (HACS before Home Assistant 2026.11) from the GitHub release zips (`friedafetch.zip`, `friedafetch_mail.zip`), which are built
   in GitHub Actions with SHA-256 checksum, SBOM (Frieda) and build-provenance attestation.
 - Network: only outbound connections to Apple (and to the AI provider through Home Assistant's AI integration);
   inbound only through Home Assistant's own HTTP server.
@@ -523,7 +523,7 @@ contrast in light and dark themes.
 
 ### 8.6 Internationalisation
 
-`strings.json` + `translations/de|en.json` for flows and services, I18N tables in the panels, bilingual READMEs,
+`translations/de|en.json` for flows and services, I18N tables in the panels, bilingual READMEs,
 SECURITY.md and this document.
 
 ### 8.7 Testing and quality assurance
@@ -630,6 +630,7 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-52 | Keep undo steps in Home Assistant and give the panel only a token (`friedafetch_mail/undo`) | The list *Done today* kept what an undo brings back (message IDs, folders, the whole category list) in the browser; an old category step could overwrite later changes, and the bar and the list could run one step twice | The browser holds text and tokens only; each step runs once; categories come back only while unchanged since; a restart forgets the steps (the panel says so) |
 | ADR-53 | Keep corrections of parcels by the Message-IDs of their mails and apply them after every reading | New patterns read the shipping mails again and built the parcels anew – merges, splits, “not a parcel” and answers were lost | Corrections survive improved patterns; per mail only its newest merge or split counts; a mail newer than an answer still tells the status; corrections older than nine weeks are dropped (their mails are not read any more) |
 | ADR-54 | Speak the small stateless part of MCP in `mcp_http.py` instead of using the `mcp` SDK | Home Assistant pins `mcp` for its own integrations, so a major version arrives with a Home Assistant update: `mcp` 2.0 with 2026.11 removed `types.ClientRequestType`, and the import stopped Frieda and Frieda Postfach. The endpoint uses a fraction of the SDK: one JSON-RPC message in, one out | No import, no requirement, works on old and new Home Assistant alike; checked with the SDK clients 1.30 and 2.3. We follow the protocol ourselves: new revisions are added to `PROTOCOL_VERSIONS` by hand, clients of the 2026-07-28 revision get METHOD_NOT_FOUND on `server/discover` and fall back to `initialize`. Server-sent features (sampling, resources) stay out, as before |
+| ADR-55 | Offer both integrations in the store catalog `hacs/default`, with categories in the manifest and without `strings.json` | Since Home Assistant 2026.11 the Marketplace is the way people find custom integrations; the catalog needs a passing HACS action without ignored checks, and its publishing guide asks for finished `translations/` files | Each integration has its own catalog entry; `translations/en.json` is the one source of the English texts; HACS validation runs without `ignore`; until a review the integrations stay installable by link |
 
 ---
 
@@ -738,7 +739,8 @@ flowchart LR
 | **Delayed sending** | Assistant mails wait a set time and can be cancelled until then |
 | **Dry run** | Rule run that only reports what would happen |
 | **Baseline** | Highest UID at the first run; only newer mail is processed automatically |
-| **HACS** | Home Assistant Community Store, installs custom integrations from GitHub releases |
+| **HACS** | Home Assistant Community Store, installs custom integrations from GitHub releases; before Home Assistant 2026.11 a custom integration of its own |
+| **Marketplace** | HACS built into Home Assistant since 2026.11 (Settings → Marketplace); uses the same catalog `hacs/default` and the same `hacs.json` |
 | **CONDSTORE / QRESYNC** | IMAP extensions (RFC 7162): a change counter per folder (HIGHESTMODSEQ), changes since a counter, and the messages that left a folder (VANISHED) |
 | **UIDVALIDITY** | Number of a folder's UID series; when it changes, all UIDs of the folder mean other messages |
 | **Activity** | Frieda Postfach's list of the mails it saw, one line per mail, with its state and timeline |

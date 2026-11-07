@@ -16,7 +16,7 @@
 
 # Frieda – MCP connector for iCloud
 
-**Frieda** (technischer Name `friedafetch`) ist eine Home-Assistant-Integration (HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
+**Frieda** (technischer Name `friedafetch`) ist eine Home-Assistant-Integration (Marketplace, HACS), die **Apple iCloud** per anwendungsspezifischem Passwort anbindet und
 **Kalender, Kontakte, E-Mails und Notizen** als Werkzeuge (Tools) für LLMs bereitstellt. Die Tools werden als
 Home-Assistant-**LLM-API** registriert und über einen **eigenen MCP-Endpunkt** (`/api/friedafetch`, Streamable HTTP)
 sowie optional über die **MCP-Server-Integration** von Home Assistant (Model Context Protocol) an MCP-Clients wie
@@ -57,7 +57,14 @@ stabile Protokolle (CalDAV, CardDAV, IMAP, SMTP) und sind vollständig nutzbar.
 
 ## Installation
 
-### HACS (empfohlen)
+### Marketplace (empfohlen, Home Assistant 2026.11 oder neuer)
+
+1. [Dieses Repository im Marketplace öffnen](https://my.home-assistant.io/redirect/hacs_repository/?owner=nadeo360&repository=friedafetch&category=integration) oder Einstellungen → Marketplace → **Add from link** und `nadeo360/friedafetch` eingeben.
+2. „Frieda“ installieren und Home Assistant neu starten.
+
+Der Marketplace ist seit 2026.11 in Home Assistant eingebaut, ersetzt HACS und übernimmt bestehende HACS-Installationen.
+
+### HACS (Home Assistant vor 2026.11)
 
 1. HACS → Integrationen → ⋮ → **Benutzerdefinierte Repositories** → URL dieses Repositories, Kategorie *Integration*.
 2. „Frieda“ installieren und Home Assistant neu starten.

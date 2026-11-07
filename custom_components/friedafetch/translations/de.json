@@ -137,11 +137,11 @@
     },
     "wrong_folder": {
       "title": "Frieda liegt im falschen Ordner",
-      "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; HACS-Updates von Frieda landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über HACS neu installieren (Repository `{repository}`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
+      "description": "Frieda wird aus {paths} geladen statt aus `{expected}`. Meist ist das ein liegengebliebener Ordner `icloud_mcp` aus der Zeit vor der Umbenennung; Updates von Frieda aus Marketplace oder HACS landen in `{expected}` und bleiben verdeckt, solange dieser Ordner existiert.\n\nFrieda über den Marketplace oder HACS neu installieren (Repository `{repository}`), danach den oben genannten Ordner löschen und Home Assistant neu starten."
     },
     "rules_moved": {
       "title": "Posteingangsregeln jetzt in Frieda Postfach",
-      "description": "Für das Konto {account} gibt es gespeicherte Posteingangsregeln. Seit Frieda 2.0 werden Regeln, Push und Tagesüberblick von der eigenen Integration „Frieda Postfach“ ausgeführt. Installiere sie über HACS (Repository nadeo360/friedafetch-mail) und richte sie für dieses Konto ein – die vorhandenen Regeln und der Verlauf werden automatisch übernommen. Bis dahin laufen keine Regeln."
+      "description": "Für das Konto {account} gibt es gespeicherte Posteingangsregeln. Seit Frieda 2.0 werden Regeln, Push und Tagesüberblick von der eigenen Integration „Frieda Postfach“ ausgeführt. Installiere sie über den Marketplace oder HACS (Repository nadeo360/friedafetch-mail) und richte sie für dieses Konto ein – die vorhandenen Regeln und der Verlauf werden automatisch übernommen. Bis dahin laufen keine Regeln."
     }
   }
 }

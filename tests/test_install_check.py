@@ -140,7 +140,7 @@ async def test_scan_runs_in_executor(hass: HomeAssistant, custom_components: Pat
 
 def test_translations_cover_issues() -> None:
     base = Path(__file__).parent.parent / "custom_components" / DOMAIN
-    for name in ("strings.json", "translations/en.json", "translations/de.json"):
+    for name in ("translations/en.json", "translations/de.json"):
         issues = json.loads((base / name).read_text(encoding="utf-8"))["issues"]
         for key in (ISSUE_STALE_COPY, ISSUE_WRONG_FOLDER):
             assert issues[key]["title"], (name, key)
