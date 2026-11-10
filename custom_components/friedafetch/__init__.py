@@ -28,7 +28,7 @@ from homeassistant.util.ssl import client_context
 
 from .accounts import account_label
 from .approvals import ApprovalManager
-from .attachments import AttachmentStore
+from .attachments import AttachmentStore, async_check_legacy_attachments
 from .audit import AuditLog
 from .caldav_client import ICloudCalDav
 from .carddav_client import ICloudCardDav
@@ -50,7 +50,7 @@ from .const import (
     DEFAULT_APPROVAL_MASS,
     DEFAULT_APPROVAL_SEND,
     DEFAULT_APPROVAL_TIMEOUT,
-    DEFAULT_ATTACHMENTS_SUBDIR,
+    DEFAULT_ATTACHMENTS_DIR,
     DEFAULT_ENABLE_MAIL,
     DEFAULT_SEND_DELAY,
     DOMAIN,
@@ -100,12 +100,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 def _attachment_base(hass: HomeAssistant, configured: str | None) -> Path | None:
-    """The folder for stored attachments, if Home Assistant allows writing there (blocking)."""
-    if configured:
-        base = Path(configured)
-    else:
-        media = (hass.config.media_dirs or {}).get("local") or hass.config.path("media")
-        base = Path(media) / DEFAULT_ATTACHMENTS_SUBDIR
+    """The folder for stored attachments (blocking).
+
+    Without a choice: a folder of its own below the configuration folder, in no media source, so the media browser
+    never shows the account owner's attachments to other users. A chosen folder must be an allowed path; a media
+    folder is one, and then every user can browse the attachments there (the option says so).
+    """
+    if not configured:
+        return Path(hass.config.path(DEFAULT_ATTACHMENTS_DIR))
+    base = Path(configured)
     if not base.is_absolute():
         base = Path(hass.config.path(str(base)))
     if not hass.config.is_allowed_path(str(base)):
@@ -257,6 +260,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ICloudConfigEntry) -> bo
         await _async_check_moved_rules(hass, entry)
 
     entry.async_on_unload(async_at_started(hass, _check_moved_rules))
+
+    async def _check_attachments(_hass: HomeAssistant) -> None:
+        await async_check_legacy_attachments(hass)
+
+    entry.async_on_unload(async_at_started(hass, _check_attachments))
     return True
 
 

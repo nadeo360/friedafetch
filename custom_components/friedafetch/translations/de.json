@@ -65,7 +65,7 @@
           "allow_delete": "Termine, Kontakte, E-Mails und Notizen.",
           "max_results": "Standardwert, wenn ein Tool keine Anzahl angibt.",
           "from_address": "Für ausgehende E-Mails.",
-          "attachments_dir": "Leer = Unterordner frieda im Medienordner."
+          "attachments_dir": "Leer = ein eigener Ordner, `frieda_attachments` im Konfigurationsordner, den der Medienbrowser nicht zeigt. Wählst du einen Ordner in einem Medienordner (etwa /media/frieda), kann jeder Home-Assistant-Nutzer die Anhänge dort im Medienbrowser öffnen."
         }
       },
       "security": {
@@ -118,7 +118,7 @@
       }
     },
     "error": {
-      "path_not_allowed": "Home Assistant erlaubt kein Schreiben in diesen Ordner. Einen Medienordner verwenden oder ihn in allowlist_external_dirs eintragen."
+      "path_not_allowed": "Home Assistant erlaubt das Schreiben in diesen Ordner nicht. Trag ihn in allowlist_external_dirs ein oder wähle einen Medienordner (dort kann jeder Nutzer die Anhänge im Medienbrowser öffnen)."
     }
   },
   "selector": {
@@ -142,6 +142,21 @@
     "rules_moved": {
       "title": "Posteingangsregeln jetzt in Frieda Postfach",
       "description": "Für das Konto {account} gibt es gespeicherte Posteingangsregeln. Seit Frieda 2.0 werden Regeln, Push und Tagesüberblick von der eigenen Integration „Frieda Postfach“ ausgeführt. Installiere sie über den Marketplace oder HACS (Repository nadeo360/friedafetch-mail) und richte sie für dieses Konto ein – die vorhandenen Regeln und der Verlauf werden automatisch übernommen. Bis dahin laufen keine Regeln."
+    },
+    "attachments_in_media": {
+      "title": "Gespeicherte Anhänge sind für jeden Nutzer sichtbar",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Anhänge im Medienordner",
+            "description": "Bis Version 2.0.27 hat Frieda Mail-Anhänge (Belege, Rechnungen) standardmäßig in `{folder}` gespeichert. Diesen Ordner kann jeder Home-Assistant-Nutzer im Medienbrowser öffnen. Neue Anhänge speichert Frieda jetzt in `{target}`, den der Medienbrowser nicht zeigt.\n\nVerschiebe die gespeicherten Anhänge dorthin, oder nutze den Medienordner bewusst weiter (dann nennen die Kontooptionen ihn als Anhang-Ordner).",
+            "menu_options": {
+              "move": "In Friedas eigenen Ordner verschieben",
+              "keep": "Medienordner behalten (jeder Nutzer sieht die Anhänge)"
+            }
+          }
+        }
+      }
     }
   }
 }

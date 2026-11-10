@@ -1,11 +1,24 @@
-"""Store e-mail attachments below an allowed folder (e.g. receipts into /media/frieda)."""
+"""Store e-mail attachments below their folder (receipts, invoices): by default one of its own in the configuration
+folder, which no media source shows."""
 
 from __future__ import annotations
 
 import hashlib
 import re
+import shutil
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
+
+from homeassistant.helpers import issue_registry as ir
+
+from .const import (
+    CONF_ATTACHMENTS_DIR,
+    DEFAULT_ATTACHMENTS_DIR,
+    DOMAIN,
+    ISSUE_ATTACHMENTS_IN_MEDIA,
+    LEGACY_ATTACHMENTS_SUBDIR,
+)
 
 MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 MIN_IMAGE_BYTES = 20 * 1024  # smaller images are usually logos or signatures
@@ -118,3 +131,63 @@ class AttachmentStore:
         return await self._hass.async_add_executor_job(
             lambda: store_attachments(self.base, files, subfolder=folder, month=month, prefix=prefix, types=types)
         )
+
+
+# ------------------------------------------------------- the old default folder (<media>/frieda, until 2.0.27)
+def legacy_folder(hass: Any) -> Path:
+    media = (hass.config.media_dirs or {}).get("local") or hass.config.path("media")
+    return Path(media) / LEGACY_ATTACHMENTS_SUBDIR
+
+
+def has_files(folder: Path) -> bool:
+    """Whether a folder holds any file (blocking)."""
+    return folder.is_dir() and any(p.is_file() and not p.is_symlink() for p in folder.rglob("*"))
+
+
+def move_tree(source: Path, target: Path) -> int:
+    """Move stored attachments into another folder (blocking). A file that is there already in the same form is not
+    kept twice; another one of the same name gets a number. Links are left alone."""
+    moved = 0
+    for path in sorted(p for p in source.rglob("*") if p.is_file() and not p.is_symlink()):
+        dest = target / path.relative_to(source)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            if dest.read_bytes() == path.read_bytes():
+                path.unlink()
+                continue
+            n = 1
+            while (numbered := dest.with_name(f"{dest.stem}-{n}{dest.suffix}")).exists():
+                n += 1
+            dest = numbered
+        shutil.move(path, dest)
+        moved += 1
+    for folder in sorted((p for p in source.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+        with suppress(OSError):
+            folder.rmdir()  # only empty ones
+    with suppress(OSError):
+        source.rmdir()
+    return moved
+
+
+def entries_on_default(hass: Any) -> list[Any]:
+    """The Frieda accounts without a chosen attachment folder (they used the old default)."""
+    return [e for e in hass.config_entries.async_entries(DOMAIN) if not e.options.get(CONF_ATTACHMENTS_DIR)]
+
+
+async def async_check_legacy_attachments(hass: Any) -> None:
+    """Attachments stored before 2.0.28 in <media>/frieda are visible to every user in the media browser: a repair
+    offers to move them into Frieda's own folder, or to keep that folder on purpose."""
+    old = legacy_folder(hass)
+    if entries_on_default(hass) and await hass.async_add_executor_job(has_files, old):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            ISSUE_ATTACHMENTS_IN_MEDIA,
+            is_fixable=True,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_ATTACHMENTS_IN_MEDIA,
+            translation_placeholders={"folder": str(old), "target": hass.config.path(DEFAULT_ATTACHMENTS_DIR)},
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_ATTACHMENTS_IN_MEDIA)

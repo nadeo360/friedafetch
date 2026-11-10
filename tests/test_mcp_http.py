@@ -105,7 +105,7 @@ async def test_tools_list(hass: HomeAssistant, entry: MockConfigEntry, hass_clie
     client = await hass_client()
     data = await _rpc(client, "tools/list")
     tools = {tool["name"]: tool for tool in data["result"]["tools"]}
-    assert len(tools) == 28
+    assert len(tools) == 29  # with icloud_save_attachments: Frieda's own attachment folder is always there
     assert "icloud_list_calendars" in tools
     assert "icloud_delete_mail" in tools
 
@@ -392,7 +392,7 @@ async def test_unload_disables_endpoint(hass: HomeAssistant, entry: MockConfigEn
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     data = await _rpc(client, "tools/list")
-    assert len(data["result"]["tools"]) == 28
+    assert len(data["result"]["tools"]) == 29
 
 
 async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: AsyncMock, hass_client) -> None:
@@ -401,7 +401,7 @@ async def test_two_accounts_merge_tools(hass: HomeAssistant, mock_discover: Asyn
     client = await hass_client()
     data = await _rpc(client, "tools/list")
     tools = {tool["name"]: tool for tool in data["result"]["tools"]}
-    assert len(tools) == 56
+    assert len(tools) == 58
     suffix = "_other"  # derived from other@icloud.com
     assert "icloud_list_calendars" in tools
     assert f"icloud_list_calendars{suffix}" in tools

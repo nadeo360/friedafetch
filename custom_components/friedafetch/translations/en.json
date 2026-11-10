@@ -65,7 +65,7 @@
           "allow_delete": "Events, contacts, e-mails and notes.",
           "max_results": "Default when a tool does not ask for a number.",
           "from_address": "For outgoing e-mails.",
-          "attachments_dir": "Empty = subfolder frieda in the media folder."
+          "attachments_dir": "Empty = a folder of its own, `frieda_attachments` in the configuration folder, which the media browser does not show. If you pick a folder inside a media folder (such as /media/frieda), every Home Assistant user can open the attachments there in the media browser."
         }
       },
       "security": {
@@ -118,7 +118,7 @@
       }
     },
     "error": {
-      "path_not_allowed": "Home Assistant does not allow writing to this folder. Use a media folder or add it to allowlist_external_dirs."
+      "path_not_allowed": "Home Assistant does not allow writing to this folder. Add it to allowlist_external_dirs, or pick a media folder (every user can open the attachments there in the media browser)."
     }
   },
   "selector": {
@@ -142,6 +142,21 @@
     "rules_moved": {
       "title": "Inbox rules now live in Frieda Postfach",
       "description": "The account {account} has stored inbox rules. Since Frieda 2.0, rules, push and the daily overview are run by the separate integration “Frieda Postfach”. Install it via the Marketplace or HACS (repository nadeo360/friedafetch-mail) and set it up for this account – the existing rules and their history are picked up automatically. Until then no rules run."
+    },
+    "attachments_in_media": {
+      "title": "Stored attachments can be seen by every user",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Attachments in the media folder",
+            "description": "Until version 2.0.27 Frieda stored e-mail attachments (receipts, invoices) in `{folder}` by default. Every Home Assistant user can open that folder in the media browser. Frieda now stores new attachments in `{target}`, which the media browser does not show.\n\nMove the stored attachments there, or keep using the media folder on purpose (then the account options name it as the attachment folder).",
+            "menu_options": {
+              "move": "Move them to Frieda's own folder",
+              "keep": "Keep the media folder (every user can see the attachments)"
+            }
+          }
+        }
+      }
     }
   }
 }

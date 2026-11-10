@@ -4,7 +4,7 @@
 
 Dieses Dokument beschreibt die Architektur von **Frieda** (`friedafetch`, MCP-Connector für iCloud) und der
 Erweiterung **Frieda Postfach** (`friedafetch_mail`, Posteingangs-Automatik und KI-Sortierung) nach der Vorlage
-[arc42](https://arc42.org). Stand: Frieda 2.0.27, Frieda Postfach 1.0.45 (November 2026).
+[arc42](https://arc42.org). Stand: Frieda 2.0.28, Frieda Postfach 1.0.46 (November 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -211,7 +211,7 @@ flowchart TB
 | `undo.py` | `UndoBook`: Rückgängig-Schritte des Panels (Mail-Aktionen, Kategorien) per Token, einen Tag im Speicher, jeder nur einmal nutzbar (ADR-52). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Konten, Überblick, Nutzung, Protokoll, Freigaben) und das Web-Component-Panel; Texte und Styles sind eigene Module, geladen mit der Versionsangabe des Panels. |
 | `frontend/ui.js` | **Frieda UI**, die gemeinsame Design-Bibliothek aller Panels: Hilfsfunktionen, Grundbausteine, Datentabellen, Menüs, Bestätigungsdialog, verschiebbare Widgets und Spaltenauswahl; Anordnung pro HA-Benutzer gespeichert (ADR-21/22). |
-| `config_flow.py`, `install_check.py`, `diagnostics.py` | Einrichtung/Optionen (Menü: Tools, Sicherheit, Freigaben), Erkennung veralteter Kopien, geschwärzte Diagnosedaten (inkl. IMAP-Fähigkeiten). |
+| `config_flow.py`, `install_check.py`, `diagnostics.py` | Einrichtung/Optionen (Menü: Tools, Sicherheit, Freigaben), Erkennung veralteter Kopien, geschwärzte Diagnosedaten (inkl. IMAP-Fähigkeiten; ohne Apple-ID, Adressen, Freigabeliste, Benachrichtigungsdienst, Ordner- oder Kalendernamen), die Reparatur, die Anhänge aus dem Medienordner holt (`repairs.py`). |
 
 ### 5.3 Ebene 2 – Frieda Postfach
 
@@ -231,7 +231,7 @@ flowchart TB
 | `tools.py`, `link.py`, `live.py` | Regel-Tools und die Tools von „Für dich“ (`icloud_mail_for_you`, `icloud_add_proposed_event`) für LLMs (über Friedas Erweiterungs-Schnittstelle), `MailExtension` und `AccountLink`; Themen der Live-Aktualisierung (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensoren: Ungelesen im Posteingang (IMAP, alle 5 Minuten und nach Läufen), Regeltreffer heute, Push-Status (mit dem Stand des Abgleichs als Attribute), wichtige Mails heute und KI-Bewertungen diese Stunde (aus dem Speicher, aktualisiert per Dispatcher-Signal), Pakete unterwegs, nächster Geburtstag. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` schaut auf Push (lauscht seit 15 Minuten nicht), den Abgleich, den letzten KI-Aufruf, einen Durchlauf über 10 Minuten, iCloud-Drosselung und „Für dich“; der binäre Sensor *Problem* zeigt die Gründe, und ein Problem, das eine Stunde anhält, wird zur Reparaturmeldung, die von selbst verschwindet. `Throttle` erkennt iCloud-Antworten zum Bremsen (`[THROTTLED]`, `[LIMIT]`, zu viele Verbindungen) und pausiert Takt, Push-Durchläufe und Abgleich 5 Minuten, verdoppelt bis zu einer Stunde. |
-| `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, Betreffzeilen oder Texte). |
+| `config_flow.py`, `diagnostics.py` | Optionen als Menü (Automatik, KI-Sortierung, Für dich); Diagnosedaten nur mit Zahlen (Regeln, Läufe, Aktivität, Abgleich, Für dich – keine Adressen, wichtigen Absender, Kontaktgruppen, von Regeln genutzten Ordner, Betreffzeilen oder Texte). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket-Befehle (Regeln, Läufe, Aktivität, Mail-Aktionen und -Text, KI, Für dich) und das Panel mit den Tabs Aktivität, Für dich, Regeln, KI-Sortierung und KI-Protokoll; die Postfachnamen werden nebenher geladen, die Seite wartet nie auf iCloud. `card.js`: die Dashboard-Karte (Pakete, wichtige Mails von heute, Probleme), für jedes Dashboard registriert; sie liest nur die Sensoren des Kontos. `rules/preview` probiert einen Regelentwurf an den neuesten 300 Mails der Aktivität; `sender` sammelt Mails, Bewertungen, Regeln, Newsletter und Pakete einer Adresse für das Absenderprofil. |
 ---
 
@@ -391,7 +391,7 @@ flowchart LR
 | `friedafetch_mail.ai.<frieda-entry>` | Kategorien, Bewertungen (200), Korrekturen (30), Stundenbudget, KI-Nutzungsprotokoll (300) |
 | `friedafetch_mail.activity.<frieda-entry>` | Zeilen der Aktivität (30 Tage, max. 3.000) mit ihren Schritten und ihrem Stand, das Gedächtnis des Abgleichs pro Ordner |
 | `friedafetch_mail.insights.<frieda-entry>` | Pakete (21 Tage) und die schon gelesenen Versandmails, Kalendervorschläge (30), offene Antworten, ausgeblendete Vorschläge, abgemeldete Absender, die Position im Posteingang für wichtige Absender, die Woche des letzten Rückblicks |
-| Anhang-Ordner (optional) | Gespeicherte Anhänge unterhalb eines erlaubten Pfads (`allowlist_external_dirs`) |
+| Anhang-Ordner | Gespeicherte Anhänge in `frieda_attachments` unterhalb des Konfigurationsordners (keine Medienquelle); ein gewählter Ordner muss ein erlaubter Pfad sein (`allowlist_external_dirs` oder ein Medienordner, den jeder Nutzer durchsuchen kann) |
 
 ---
 
@@ -420,7 +420,8 @@ flowchart LR
   KI-Anweisungen übergeben Mails zwischen Markierungen mit der Anweisung, Aufforderungen darin zu ignorieren.
 - **SSRF-Schutz** bei der Ein-Klick-Abmeldung: nur HTTPS auf Port 443, nur öffentliche IP-Adressen (eigener
   Resolver), keine Weiterleitungen, keine Cookies oder Zugangsdaten.
-- **Dateisicherheit** für Anhänge: erlaubter Basispfad, sichere Namen, aufgelöster Pfad muss darunter bleiben,
+- **Dateisicherheit** für Anhänge: standardmäßig ein eigener Ordner außerhalb jeder Medienquelle (ADR-56), ein
+  gewählter muss ein erlaubter Pfad sein; sichere Namen, aufgelöster Pfad muss darunter bleiben,
   Größenlimit, Dubletten per Hash.
 - **KI-Sortierung:** Opt-in (Schalter + Entität), keine Werkzeuge für die KI, Antwort gegen die Kategorienliste
   geprüft, Aktionen auf Verschieben/Gelesen/Markieren beschränkt, Killswitch, Stundenlimit, Zeitlimit pro Aufruf.
@@ -651,6 +652,7 @@ CI, Release, Zip-Prüfung).
 | ADR-53 | Paketkorrekturen mit den Message-IDs ihrer Mails merken und nach jedem Einlesen anwenden | Neue Muster lesen die Versandmails neu und bauten die Pakete neu – Zusammenführen, Abtrennen, „Kein Paket“ und Antworten gingen verloren | Korrekturen überstehen bessere Muster; je Mail zählt nur ihr neuestes Zusammenführen oder Abtrennen; eine neuere Mail als eine Antwort bestimmt weiter den Status; Korrekturen älter als neun Wochen fallen weg (ihre Mails werden nicht mehr gelesen) |
 | ADR-54 | Den kleinen zustandslosen Teil von MCP in `mcp_http.py` selbst sprechen, statt das `mcp`-SDK zu nutzen | Home Assistant pinnt `mcp` für seine eigenen Integrationen, eine Hauptversion kommt also mit einem Home-Assistant-Update: `mcp` 2.0 mit 2026.11 entfernte `types.ClientRequestType`, und der Import stoppte Frieda und Frieda Postfach. Der Endpunkt nutzt nur einen Bruchteil des SDK: eine JSON-RPC-Nachricht rein, eine raus | Kein Import, keine Abhängigkeit, läuft auf altem und neuem Home Assistant gleich; geprüft mit den SDK-Clients 1.30 und 2.3. Dem Protokoll folgen wir selbst: Neue Revisionen kommen von Hand in `PROTOCOL_VERSIONS`, Clients der Revision 2026-07-28 bekommen auf `server/discover` METHOD_NOT_FOUND und fallen auf `initialize` zurück. Vom Server ausgehende Funktionen (Sampling, Ressourcen) bleiben wie bisher draußen |
 | ADR-55 | Beide Integrationen im Store-Katalog `hacs/default` anbieten, mit Kategorien im Manifest und ohne `strings.json` | Seit Home Assistant 2026.11 finden Nutzer Custom Integrations über den Marketplace; der Katalog verlangt eine bestandene HACS-Action ohne ausgenommene Prüfungen, und seine Anleitung fertige Dateien in `translations/` | Jede Integration hat einen eigenen Katalogeintrag; `translations/en.json` ist die eine Quelle der englischen Texte; die HACS-Prüfung läuft ohne `ignore`; bis zum Review bleiben die Integrationen per Link installierbar |
+| ADR-56 | Anhänge in einem eigenen Ordner unter dem Konfigurationsordner speichern; einen Medienordner nur, wenn der Admin ihn wählt | Jeder Home-Assistant-Nutzer kann den Medienordner durchsuchen, in den `<media>/frieda` Belege und Rechnungen des Kontoinhabers legte (Review der Store-Einreichung) | Anhänge sind standardmäßig privat; ein Medienordner bleibt möglich, und die Option sagt, wer ihn sieht; vorhandene Dateien bekommen eine Reparatur: verschieben oder den Ordner bewusst behalten (dann nennt die Option ihn) |
 
 ---
 
@@ -721,6 +723,8 @@ flowchart LR
 | Q34 | Der Nutzer nimmt Stunden später das Löschen einer Kategorie aus *Heute getan* zurück, nachdem er eine andere Kategorie bearbeitet hat | Abgelehnt mit „es wurde seitdem geändert“; die spätere Änderung bleibt |
 | Q35 | Home Assistant aktualisiert auf ein Release mit einer neuen Hauptversion von `mcp` | Frieda lädt wie bisher; alte und neue MCP-Clients handeln eine Revision aus und nutzen die Tools |
 | Q36 | Home Assistant wird vor Frieda aktualisiert, und Frieda lädt dort nicht mehr | Frieda Postfach zeigt eine Reparatur mit der Lösung (Frieda aktualisieren, neu starten) statt eines Tracebacks; sie verschwindet danach von selbst |
+| Q37 | Ein Nutzer ohne Admin-Rechte öffnet den Medienbrowser | Findet keine gespeicherten Anhänge, außer ein Admin hat bewusst einen Medienordner gewählt |
+| Q38 | Diagnosedaten hängen an einem öffentlichen Issue | Sie nennen keine Person, Adresse, keinen Ordner und keinen Kalender des Kontos |
 
 ---
 

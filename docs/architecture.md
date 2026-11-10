@@ -4,7 +4,7 @@
 
 This document describes the architecture of **Frieda** (`friedafetch`, MCP connector for iCloud) and its extension
 **Frieda Postfach** (`friedafetch_mail`, inbox automation and AI sorting). It follows the
-[arc42](https://arc42.org) template. State: Frieda 2.0.27, Frieda Postfach 1.0.45 (November 2026).
+[arc42](https://arc42.org) template. State: Frieda 2.0.28, Frieda Postfach 1.0.46 (November 2026).
 
 Repositories: [nadeo360/friedafetch](https://github.com/nadeo360/friedafetch) ·
 [nadeo360/friedafetch-mail](https://github.com/nadeo360/friedafetch-mail)
@@ -209,7 +209,7 @@ flowchart TB
 | `undo.py` | `UndoBook`: undo steps of the panel (mail actions, categories) by token, in memory for a day, each used once (ADR-52). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (accounts, overview, usage, audit, approvals) and the web-component panel; texts and styles are separate modules loaded with the panel's version query. |
 | `frontend/ui.js` | **Frieda UI**, the shared design library of all panels: helpers, base components, data tables, menus, confirmation dialog, movable widgets and column switches; layouts stored per HA user (ADR-21/22). |
-| `config_flow.py`, `install_check.py`, `diagnostics.py` | Setup/options (menu: tools, security, approvals), detection of stale copies, redacted diagnostics (incl. IMAP capabilities). |
+| `config_flow.py`, `install_check.py`, `diagnostics.py` | Setup/options (menu: tools, security, approvals), detection of stale copies, redacted diagnostics (incl. IMAP capabilities; no Apple ID, addresses, allowlist, notify service, folder or calendar names), the repair that moves attachments out of the media folder (`repairs.py`). |
 
 ### 5.3 Level 2 – Frieda Postfach
 
@@ -229,7 +229,7 @@ flowchart TB
 | `tools.py`, `link.py`, `live.py` | Rule tools and the tools of “For you” (`icloud_mail_for_you`, `icloud_add_proposed_event`) for LLMs (via Frieda's extension interface), `MailExtension` and `AccountLink`; live-update topics (`rules`, `ai`, `activity`, `insights`). |
 | `sensor.py` | Sensors: unread in inbox (IMAP, every 5 minutes and after runs), rule matches today, push state (with the state of the look as attributes), important mails today and AI ratings this hour (from memory, refreshed by a dispatcher signal), parcels on their way, next birthday. |
 | `health.py`, `throttle.py`, `binary_sensor.py` | `Health` looks at push (not listening for 15 minutes), the look, the AI's last call, a pass running for over 10 minutes, iCloud's throttling and “For you”; the binary sensor *Problem* shows the reasons, and a problem that lasts an hour becomes a repair that goes away by itself. `Throttle` recognises iCloud's “slow down” answers (`[THROTTLED]`, `[LIMIT]`, too many connections) and pauses timer, push passes and the look for 5 minutes, doubled up to an hour. |
-| `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects or texts). |
+| `config_flow.py`, `diagnostics.py` | Options as a menu (automation, AI sorting, For you); diagnostics with counts only (rules, runs, activity, look, For you – no addresses, subjects, texts, important senders, contact groups or the folders rules use). |
 | `frontend.py`, `frontend/panel.js`, `i18n.js`, `styles.js` | WebSocket commands (rules, runs, activity, mail actions and text, AI, For you) and the panel with the tabs Activity, For you, Rules, AI sorting and AI log; mailbox names are loaded alongside, so the page never waits for iCloud. `card.js`: the dashboard card (parcels, important mail of today, problems), registered for every dashboard; it reads only the account's sensors. `rules/preview` tries a rule draft on the newest 300 mails of the activity; `sender` gathers one address's mails, ratings, rules, newsletter and parcels for the sender profile. |
 ---
 
@@ -386,7 +386,7 @@ flowchart LR
 | `friedafetch_mail.ai.<frieda entry>` | Categories, ratings (200), corrections (30), hourly budget, AI usage log (300) |
 | `friedafetch_mail.activity.<frieda entry>` | Activity lines (30 days, max. 3000) with their steps and state, the look's memory per folder |
 | `friedafetch_mail.insights.<frieda entry>` | Parcels (21 days) and the shipping mails read already, calendar proposals (30), waiting replies, dismissed suggestions, unsubscribed senders, the inbox position for important senders, the week of the last review |
-| Attachment folder (optional) | Stored attachments below an allowed path (`allowlist_external_dirs`) |
+| Attachment folder | Stored attachments in `frieda_attachments` below the configuration folder (no media source); a chosen folder must be an allowed path (`allowlist_external_dirs` or a media folder, which every user can browse) |
 
 ---
 
@@ -412,7 +412,8 @@ flowchart LR
   with the instruction to ignore requests inside.
 - **SSRF protection** for one-click unsubscribe: HTTPS on 443 only, public IPs only (custom resolver), no redirects,
   no cookies or credentials.
-- **File safety** for attachments: allowed base path, safe names, resolved path must stay inside, size limit,
+- **File safety** for attachments: a folder of their own outside every media source by default (ADR-56), a chosen one
+  must be an allowed path; safe names, resolved path must stay inside, size limit,
   de-duplication by hash.
 - **AI sorting:** opt-in (switch + entity), no tools for the AI, answer validated against the category list,
   actions limited to move/read/flag, kill switch, hourly limit, time limit per call.
@@ -631,6 +632,7 @@ finished counts by its jobs; if the script stops while waiting anyway, `--resume
 | ADR-53 | Keep corrections of parcels by the Message-IDs of their mails and apply them after every reading | New patterns read the shipping mails again and built the parcels anew – merges, splits, “not a parcel” and answers were lost | Corrections survive improved patterns; per mail only its newest merge or split counts; a mail newer than an answer still tells the status; corrections older than nine weeks are dropped (their mails are not read any more) |
 | ADR-54 | Speak the small stateless part of MCP in `mcp_http.py` instead of using the `mcp` SDK | Home Assistant pins `mcp` for its own integrations, so a major version arrives with a Home Assistant update: `mcp` 2.0 with 2026.11 removed `types.ClientRequestType`, and the import stopped Frieda and Frieda Postfach. The endpoint uses a fraction of the SDK: one JSON-RPC message in, one out | No import, no requirement, works on old and new Home Assistant alike; checked with the SDK clients 1.30 and 2.3. We follow the protocol ourselves: new revisions are added to `PROTOCOL_VERSIONS` by hand, clients of the 2026-07-28 revision get METHOD_NOT_FOUND on `server/discover` and fall back to `initialize`. Server-sent features (sampling, resources) stay out, as before |
 | ADR-55 | Offer both integrations in the store catalog `hacs/default`, with categories in the manifest and without `strings.json` | Since Home Assistant 2026.11 the Marketplace is the way people find custom integrations; the catalog needs a passing HACS action without ignored checks, and its publishing guide asks for finished `translations/` files | Each integration has its own catalog entry; `translations/en.json` is the one source of the English texts; HACS validation runs without `ignore`; until a review the integrations stay installable by link |
+| ADR-56 | Store attachments in a folder of their own below the configuration folder; a media folder only when the admin picks it | Every Home Assistant user can browse the media folder, where `<media>/frieda` put receipts and invoices of the account owner (review of the store submission) | Attachments are private by default; a media folder stays possible and the option says who sees it; existing files get a repair: move them, or keep the folder on purpose (then the option names it) |
 
 ---
 
@@ -701,6 +703,8 @@ flowchart LR
 | Q34 | The user undoes the deletion of a category from *Done today* hours later, after editing another category | Refused with “it has been changed since”; the later edit stays |
 | Q35 | Home Assistant updates to a release with a new major version of `mcp` | Frieda loads as before; old and new MCP clients negotiate a revision and use the tools |
 | Q36 | Home Assistant is updated before Frieda, and Frieda no longer loads there | Frieda Postfach shows a repair naming the fix (update Frieda, restart) instead of a traceback, and it goes away by itself afterwards |
+| Q37 | A user without admin rights opens the media browser | Finds no stored attachments unless an admin chose a media folder on purpose |
+| Q38 | Diagnostics are attached to a public issue | They name no person, address, folder or calendar of the account |
 
 ---
 

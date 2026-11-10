@@ -98,4 +98,8 @@ DEFAULT_ENDPOINT_ADMIN_ONLY = False
 
 # Attachments (option)
 CONF_ATTACHMENTS_DIR = "attachments_dir"  # folder for stored attachments (must be an allowed path)
-DEFAULT_ATTACHMENTS_SUBDIR = "frieda"
+# Without a chosen folder attachments go to a folder of their own below the configuration folder: in no media
+# source, so the media browser never shows them to other users (until 2.0.27 the default was <media>/frieda).
+DEFAULT_ATTACHMENTS_DIR = "frieda_attachments"
+LEGACY_ATTACHMENTS_SUBDIR = "frieda"
+ISSUE_ATTACHMENTS_IN_MEDIA = "attachments_in_media"

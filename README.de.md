@@ -125,7 +125,7 @@ Der Optionsdialog hat drei Bereiche: **Tools und Konto**, **Sicherheit und Leitp
 | Löschen erlauben             | Versteckt alle `icloud_delete_*`-Tools, wenn deaktiviert                |
 | Standard-Maximalanzahl       | Standard-Limit für Listen (1–200)                                       |
 | Absenderadresse              | `From:` für ausgehende Mails (Standard: Apple-ID; muss ein iCloud-Alias sein) |
-| Ordner für Anhänge           | Ablage für `icloud_save_attachments` (und Regeln von Frieda Postfach) (Standard `<media>/frieda`; muss ein erlaubter Pfad sein) |
+| Ordner für Anhänge           | Ablage für `icloud_save_attachments` (und Regeln von Frieda Postfach) (Standard: ein eigener Ordner, `frieda_attachments` im Konfigurationsordner, den der Medienbrowser nicht zeigt; ein gewählter Ordner muss ein erlaubter Pfad sein) |
 | Kontobezeichnung             | Kurzname, der bei mehreren Konten als Tool-Suffix dient                      |
 | Bereich Sicherheit           | Kontingente, Empfänger-Richtlinie, geschützte Kalender/Postfächer, verborgene Postfächer (siehe Sicherheit) |
 
@@ -313,8 +313,11 @@ Integration.
 
 - **Anhänge:** `icloud_save_attachments` legt die Anhänge einer Mail unterhalb des Anhang-Ordners ab, nach Monat
   sortiert und als `<Datum>_<Absender>_<Datei>` benannt. Identische Dateien werden nicht doppelt gespeichert, kleine
-  Bilder (Logos, Signaturen) übersprungen. Home Assistant muss den Ordner erlauben (Medienordner sind standardmäßig
-  erlaubt, andere gehören in `allowlist_external_dirs`).
+  Bilder (Logos, Signaturen) übersprungen. Standardmäßig landen sie in `frieda_attachments` im Konfigurationsordner,
+  den keine Medienquelle zeigt. Einen selbst gewählten Ordner muss Home Assistant erlauben (`allowlist_external_dirs`);
+  ein Medienordner ist ebenfalls erlaubt, dort kann aber **jeder Home-Assistant-Nutzer die Anhänge im Medienbrowser
+  öffnen**. Bis 2.0.27 war `<media>/frieda` der Standard: Eine Reparaturmeldung bietet an, das dort Gespeicherte zu
+  verschieben oder den Ordner bewusst zu behalten.
 - **Abmelden:** `icloud_unsubscribe` nutzt den Header `List-Unsubscribe`: zuerst Ein-Klick per https (RFC 8058), sonst
   eine Abmelde-Mail (nur wenn Senden erlaubt ist; zählt zum Sende-Kontingent und braucht eine Freigabe, wenn Senden
   eine braucht). Links, die eine Webseite erfordern, bekommst du zum selbst Öffnen zurück.
@@ -330,7 +333,9 @@ die sich an ein Frieda-Konto hängen, dessen Verbindung und Leitplanken nutzen u
 ## Sicherheit
 
 - Nur ein **anwendungsspezifisches Passwort** wird verwendet; es ist jederzeit bei Apple widerrufbar und wird in
-  Diagnosedaten geschwärzt. Verbindungen gehen ausschließlich per TLS an Apple-Endpunkte, es gibt keine Telemetrie.
+  Diagnosedaten geschwärzt, ebenso Apple-ID, Absenderadresse, Kontobezeichnung, Empfänger-Freigabeliste,
+  Benachrichtigungsdienst, geschützte und verborgene Kalender und Postfächer, Anhang-Ordner und Kalendernamen.
+  Verbindungen gehen ausschließlich per TLS an Apple-Endpunkte, es gibt keine Telemetrie.
 - MCP-Endpunkt und Panel sind durch Home-Assistant-Tokens bzw. Admin-Rechte geschützt; Tool-Gruppen, Nur-Lesen,
   Senden und Löschen sind einzeln abschaltbar.
 - **Leitplanken (Optionen → Sicherheit):** Stundenkontingente je Konto für Mail verschieben/löschen/markieren,

@@ -117,7 +117,7 @@ The options dialog has three sections: **Tools and account**, **Security and gua
 | Allow deleting                           | hides all `icloud_delete_*` tools (except rule deletion) when disabled   |
 | Default maximum number of results        | default list limit (1–200)                                               |
 | Sender address                           | `From:` for outgoing mail (default: Apple ID; must be an iCloud alias)   |
-| Attachment folder                        | where `icloud_save_attachments` (and Frieda Postfach rules) store files (default `<media>/frieda`; must be an allowed path) |
+| Attachment folder                        | where `icloud_save_attachments` (and Frieda Postfach rules) store files (default: a folder of its own, `frieda_attachments` in the configuration folder, which the media browser does not show; a chosen folder must be an allowed path) |
 | Account label                            | short name used as tool suffix when several accounts are configured      |
 | Security section                         | quotas, recipient policy, protected calendars/mailboxes, hidden mailboxes (see Security) |
 
@@ -248,8 +248,10 @@ The panel has no external dependencies and talks to the integration via WebSocke
 
 - **Attachments:** `icloud_save_attachments` stores the attachments of a mail below the attachment folder, sorted by
   month and named `<date>_<sender>_<file>`. Identical files are not stored twice, small images (logos, signatures)
-  are skipped. Home Assistant must allow the folder (media folders are allowed by default, others go into
-  `allowlist_external_dirs`).
+  are skipped. By default they go to `frieda_attachments` in the configuration folder, which no media source shows.
+  A folder you choose must be allowed by Home Assistant (`allowlist_external_dirs`); a media folder is allowed too,
+  but there **every Home Assistant user can open the attachments in the media browser**. Until 2.0.27 the default
+  was `<media>/frieda`: a repair offers to move what is stored there, or to keep that folder on purpose.
 - **Unsubscribe:** `icloud_unsubscribe` uses the `List-Unsubscribe` header: one-click https (RFC 8058) first, then an
   unsubscribe e-mail (only when sending is allowed; it counts against the sending quota and needs approval if
   sending does). Links that require a web page are returned for you to open.
@@ -264,7 +266,9 @@ a Frieda account, reuse its connection and guard rails, and add their tools to i
 
 ## Security
 
-- Only an **app-specific password** is used; it can be revoked at Apple any time and is redacted in diagnostics.
+- Only an **app-specific password** is used; it can be revoked at Apple any time. Diagnostics leave out the password,
+  the Apple ID, the sender address, the account label, the recipient allowlist, the notify service, protected and
+  hidden calendars and mailboxes, the attachment folder and the names of calendars.
   Connections go exclusively over TLS to Apple endpoints; there is no telemetry.
 - The MCP endpoint and the panel are protected by Home Assistant tokens and admin rights; tool groups, read-only
   mode, sending and deleting can be switched off individually.
